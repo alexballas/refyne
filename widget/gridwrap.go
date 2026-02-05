@@ -60,6 +60,13 @@ type GridWrap struct {
 	// Since: 2.8
 	OnHighlighted func(id GridWrapItemID) `json:"-"`
 
+	// StretchItems, when true, stretches items horizontally to fill the
+	// available width evenly across columns. This avoids gaps on the right
+	// side when the viewport width doesn't divide evenly by item width.
+	//
+	// Since: 2.8
+	StretchItems bool
+
 	currentHighlight ListItemID
 	focused          bool
 	scroller         *widget.Scroll
@@ -641,8 +648,22 @@ func (l *gridWrapLayout) updateGrid(newOnly bool) {
 	colCount := l.gw.ColumnCount()
 	visibleRowsCount := int(math.Ceil(float64(l.gw.scroller.Size().Height)/float64(l.gw.itemMin.Height+padding))) + 1
 
-	offY := l.gw.offsetY - float32(math.Mod(float64(l.gw.offsetY), float64(l.gw.itemMin.Height+padding)))
-	minRow := int(offY / (l.gw.itemMin.Height + padding))
+	// Calculate item size. When StretchItems is enabled, stretch items horizontally
+	// to fill the available width evenly across columns. This is calculated here
+	// at layout time to avoid feedback loops from having MinSize depend on viewport.
+	itemSize := l.gw.itemMin
+	if l.gw.StretchItems && colCount > 0 {
+		viewportWidth := l.gw.scroller.Size().Width
+		stretchedWidth := (viewportWidth - float32(colCount-1)*padding) / float32(colCount)
+		if stretchedWidth > l.gw.itemMin.Width {
+			itemSize = fyne.NewSize(stretchedWidth, l.gw.itemMin.Height)
+		}
+	}
+	stepX := itemSize.Width + padding
+	stepY := l.gw.itemMin.Height + padding // Use base height for row calculation
+
+	offY := l.gw.offsetY - float32(math.Mod(float64(l.gw.offsetY), float64(stepY)))
+	minRow := int(offY / stepY)
 	minItem := minRow * colCount
 	maxRow := int(math.Min(float64(minRow+visibleRowsCount), math.Ceil(float64(length)/float64(colCount))))
 	maxItem := GridWrapItemID(math.Min(float64(maxRow*colCount), float64(length-1)))
@@ -670,18 +691,18 @@ func (l *gridWrapLayout) updateGrid(newOnly bool) {
 				if item == nil {
 					continue
 				}
-				item.Resize(l.gw.itemMin)
+				item.Resize(itemSize)
 			}
 
 			item.Move(fyne.NewPos(x, y))
-			item.Resize(l.gw.itemMin)
+			item.Resize(itemSize)
 
-			x += l.gw.itemMin.Width + padding
+			x += stepX
 			l.visible = append(l.visible, gridItemAndID{item: item, id: curItemID})
 			c.Objects = append(c.Objects, item)
 			curItemID++
 		}
-		y += l.gw.itemMin.Height + padding
+		y += stepY
 	}
 	l.nilOldSliceData(c.Objects, len(c.Objects), oldObjLen)
 
