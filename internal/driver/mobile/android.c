@@ -428,6 +428,15 @@ char* listContentURI(uintptr_t jni_env, uintptr_t ctx, char* uriCstr) {
 	}
 
 	jobject cursor = (jobject)(*env)->CallObjectMethod(env, resolver, query, childrenUri, project, NULL, NULL);
+	if ((*env)->ExceptionCheck(env)) {
+		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
+		LOG_FATAL("cannot list content of uri: %s", uriCstr);
+		return "";
+	}
+	if (cursor == NULL) {
+		return "";
+	}
 	jclass cursorClass = (*env)->GetObjectClass(env, cursor);
 	jmethodID next = find_method(env, cursorClass, "moveToNext", "()Z");
 	jmethodID get = find_method(env, cursorClass, "getString", "(I)Ljava/lang/String;");
