@@ -430,12 +430,16 @@ func (p *painter) drawText(text *canvas.Text, pos fyne.Position, frame fyne.Size
 		pos = fyne.NewPos(pos.X, pos.Y+(containerSize.Height-size.Height)/2)
 	}
 
+	var clipPos fyne.Position
+	var clipSize fyne.Size
 	if clip != nil {
-		clipPos, clipSize := clip.Rect()
-		if pos.Y > clipPos.Y+clipSize.Height || pos.Y+size.Height < clipPos.Y ||
-			pos.X > clipPos.X+clipSize.Width || pos.X+size.Width < clipPos.X {
-			return
-		}
+		clipPos, clipSize = clip.Rect()
+	} else {
+		clipSize = frame
+	}
+	if pos.Y > clipPos.Y+clipSize.Height || pos.Y+size.Height < clipPos.Y ||
+		pos.X > clipPos.X+clipSize.Width || pos.X+size.Width < clipPos.X {
+		return
 	}
 
 	// text size is sensitive to position on screen
