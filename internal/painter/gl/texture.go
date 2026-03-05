@@ -51,6 +51,7 @@ func (p *painter) getTexture(object fyne.CanvasObject, creator func(canvasObject
 			texture = cache.TextureType(tex)
 			cache.SetTextTexture(ent, texture, p.canvas, func() {
 				p.ctx.DeleteTexture(tex)
+				p.logError()
 			})
 		}
 
