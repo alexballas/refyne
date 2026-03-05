@@ -512,7 +512,9 @@ func (w *window) RescaleContext() {
 	w.canvas.Resize(scaledFull)
 
 	// Ensure textures re-rasterize at the new scale
-	cache.DeleteTextTexturesFor(w.canvas)
+	w.RunWithContext(func() {
+		cache.DeleteTextTexturesFor(w.canvas)
+	})
 	w.canvas.content.Refresh()
 }
 
