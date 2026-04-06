@@ -214,6 +214,7 @@ func (i *Image) Resize(s fyne.Size) {
 			return
 		}
 		i.Image = tex
+		Refresh(i) // invalidate texture
 	} else if i.Image == nil {
 		i.Refresh()
 	} else {
