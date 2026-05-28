@@ -11,6 +11,7 @@ package mobile
 bool deleteURI(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
 bool existsURI(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
 void* openStream(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
+int openFileDescriptor(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
 char* readStream(uintptr_t jni_env, uintptr_t ctx, void* stream, int len, int* total);
 void* saveStream(uintptr_t jni_env, uintptr_t ctx, char* uriCstr, bool truncate);
 void writeStream(uintptr_t jni_env, uintptr_t ctx, void* stream, char* data, int len);
@@ -23,6 +24,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"syscall"
 	"unsafe"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -121,6 +123,45 @@ func nativeFileOpen(f *fileOpen) (io.ReadCloser, error) {
 	stream := &javaStream{}
 	stream.stream = ret
 	return stream, nil
+}
+
+func openFileDescriptor(uri string) int {
+	uriStr := C.CString(uri)
+	defer C.free(unsafe.Pointer(uriStr))
+
+	fd := -1
+	app.RunOnJVM(func(_, env, ctx uintptr) error {
+		fd = int(C.openFileDescriptor(C.uintptr_t(env), C.uintptr_t(ctx), uriStr))
+		return nil
+	})
+	return fd
+}
+
+func nativeFileOpenSeeker(f *fileOpen) (io.ReadSeekCloser, error) {
+	if f.uri == nil || f.uri.String() == "" {
+		return nil, nil
+	}
+
+	fd := openFileDescriptor(f.uri.String())
+	if fd < 0 {
+		return nil, repository.ErrOperationNotSupported
+	}
+
+	file := os.NewFile(uintptr(fd), f.uri.Name())
+	if file == nil {
+		// Defensive: we own the raw fd, so close it to avoid a leak.
+		syscall.Close(fd)
+		return nil, repository.ErrOperationNotSupported
+	}
+
+	// Pipe-backed providers (openPipeHelper) hand out a non-seekable fd; probe
+	// before promising seekability so the caller can fall back.
+	if _, err := file.Seek(0, io.SeekCurrent); err != nil {
+		file.Close()
+		return nil, repository.ErrOperationNotSupported
+	}
+
+	return file, nil
 }
 
 func saveStream(uri string, truncate bool) unsafe.Pointer {

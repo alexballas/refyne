@@ -6,6 +6,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/driver/mobile/app"
 	"github.com/alexballas/refyne/v2/storage"
+	"github.com/alexballas/refyne/v2/storage/repository"
 )
 
 type fileOpen struct {
@@ -26,6 +27,26 @@ func fileReaderForURI(u fyne.URI) (fyne.URIReadCloser, error) {
 	}
 	file.ReadCloser = read
 	return file, err
+}
+
+type fileOpenSeeker struct {
+	io.ReadSeekCloser
+	uri fyne.URI
+}
+
+func (f *fileOpenSeeker) URI() fyne.URI {
+	return f.uri
+}
+
+func seekableFileReaderForURI(u fyne.URI) (fyne.URIReadSeekCloser, error) {
+	rsc, err := nativeFileOpenSeeker(&fileOpen{uri: u})
+	if err != nil {
+		return nil, err
+	}
+	if rsc == nil {
+		return nil, repository.ErrOperationNotSupported
+	}
+	return &fileOpenSeeker{ReadSeekCloser: rsc, uri: u}, nil
 }
 
 func mobileFilter(filter storage.FileFilter) *app.FileFilter {

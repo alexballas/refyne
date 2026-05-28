@@ -252,6 +252,38 @@ func Reader(u fyne.URI) (fyne.URIReadCloser, error) {
 	return repo.Reader(u)
 }
 
+// ReaderSeeker returns a URIReadSeekCloser set up to read from the resource
+// that the URI references, when the backing repository supports seekable
+// reads. Consumers that require a fallback (for example, copying the resource
+// to a temporary seekable file) should handle a returned
+// repository.ErrOperationNotSupported error.
+//
+// The returned reader supports random access via Seek ([io.SeekStart],
+// [io.SeekCurrent], [io.SeekEnd]) and is suitable for passing directly to
+// [net/http.ServeContent]. Each call returns an independent reader with its own
+// file offset; the reader is not safe for concurrent use, so callers serving
+// overlapping HTTP range requests must open one reader per request rather than
+// sharing a single reader across goroutines. Each reader owns an underlying OS
+// resource (such as a file descriptor) and must be closed.
+//
+// ReaderSeeker is backed by the repository system - this function calls into a
+// scheme-specific implementation from a registered repository that implements
+// [repository.SeekableReadableRepository].
+//
+// Since: 2.8
+func ReaderSeeker(u fyne.URI) (fyne.URIReadSeekCloser, error) {
+	repo, err := repository.ForURI(u)
+	if err != nil {
+		return nil, err
+	}
+
+	if seekRepo, ok := repo.(repository.SeekableReadableRepository); ok {
+		return seekRepo.ReaderSeeker(u)
+	}
+
+	return nil, repository.ErrOperationNotSupported
+}
+
 // CanRead determines if a given URI could be written to using the Reader()
 // method. It is preferred to check if a URI is readable using this method
 // before calling Reader(), because the underlying operations required to

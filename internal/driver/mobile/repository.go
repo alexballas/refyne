@@ -7,11 +7,12 @@ import (
 
 // declare conformance with repository types
 var (
-	_ repository.Repository             = (*mobileFileRepo)(nil)
-	_ repository.HierarchicalRepository = (*mobileFileRepo)(nil)
-	_ repository.ListableRepository     = (*mobileFileRepo)(nil)
-	_ repository.WritableRepository     = (*mobileFileRepo)(nil)
-	_ repository.AppendableRepository   = (*mobileFileRepo)(nil)
+	_ repository.Repository                 = (*mobileFileRepo)(nil)
+	_ repository.HierarchicalRepository     = (*mobileFileRepo)(nil)
+	_ repository.ListableRepository         = (*mobileFileRepo)(nil)
+	_ repository.WritableRepository         = (*mobileFileRepo)(nil)
+	_ repository.AppendableRepository       = (*mobileFileRepo)(nil)
+	_ repository.SeekableReadableRepository = (*mobileFileRepo)(nil)
 )
 
 type mobileFileRepo struct{}
@@ -65,6 +66,10 @@ func (m *mobileFileRepo) Parent(u fyne.URI) (fyne.URI, error) {
 
 func (m *mobileFileRepo) Reader(u fyne.URI) (fyne.URIReadCloser, error) {
 	return fileReaderForURI(u)
+}
+
+func (m *mobileFileRepo) ReaderSeeker(u fyne.URI) (fyne.URIReadSeekCloser, error) {
+	return seekableFileReaderForURI(u)
 }
 
 func (m *mobileFileRepo) Writer(u fyne.URI) (fyne.URIWriteCloser, error) {

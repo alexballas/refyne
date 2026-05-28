@@ -2,6 +2,7 @@
 
 #import <Foundation/Foundation.h>
 
+#import <fcntl.h>
 #import <stdbool.h>
 
 void iosDeletePath(const char* path) {
@@ -25,6 +26,20 @@ const void* iosReadFromURL(void* urlPtr, int* len)  {
 
     *len = data.length;
     return data.bytes;
+}
+
+// iosOpenFileDescriptor returns a read-only POSIX file descriptor for the file
+// URL, or -1 on failure. Security-scoped access gates the open(2) call only;
+// reads then go through the kernel descriptor, so the access can be released
+// immediately while leaving the descriptor valid.
+int iosOpenFileDescriptor(void* urlPtr) {
+    NSURL* url = (NSURL*)urlPtr;
+    BOOL scoped = [url startAccessingSecurityScopedResource];
+    int fd = open([url fileSystemRepresentation], O_RDONLY);
+    if (scoped) {
+        [url stopAccessingSecurityScopedResource];
+    }
+    return fd;
 }
 
 const void* iosOpenFileWriter(void* urlPtr, bool truncate) {
