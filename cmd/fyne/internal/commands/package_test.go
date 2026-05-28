@@ -2,17 +2,14 @@ package commands
 
 import (
 	"image"
-	"io"
-	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/josephspurrier/goversioninfo"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/alexballas/refyne/v2/internal/metadata"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 )
 
 func Test_calculateExeName(t *testing.T) {
@@ -35,6 +32,13 @@ func Test_fixedVersionInfo(t *testing.T) {
 		{"1.1.1.1", goversioninfo.FileVersion{Major: 1, Minor: 1, Patch: 1, Build: 1}},
 		{"2.2.2", goversioninfo.FileVersion{Major: 2, Minor: 2, Patch: 2, Build: 1}},
 		{"3.3.3.3.3", goversioninfo.FileVersion{Major: 3, Minor: 3, Patch: 3, Build: 3}},
+		{"4.4.4-dev", goversioninfo.FileVersion{Major: 4, Minor: 4, Patch: 4, Build: 1}},
+		// semver build metadata is ignored
+		{"5.5.5+5", goversioninfo.FileVersion{Major: 5, Minor: 5, Patch: 5, Build: 1}},
+		// not valid semver: must have patch version for pre-release to be valid
+		{"6.6-foo+6", goversioninfo.FileVersion{Major: 6, Minor: 6, Patch: 0, Build: 1}},
+		// not valid semver: max three version components
+		{"7.7.7.7-foo", goversioninfo.FileVersion{Major: 7, Minor: 7, Patch: 7, Build: 7}},
 	}
 
 	for _, tt := range tests {
@@ -43,16 +47,50 @@ func Test_fixedVersionInfo(t *testing.T) {
 	}
 }
 
-func Test_isValidVersion(t *testing.T) {
-	assert.True(t, isValidVersion("1"))
-	assert.True(t, isValidVersion("1.2"))
-	assert.True(t, isValidVersion("1.2.3"))
+func Test_stripPreReleaseAndBuildInfo(t *testing.T) {
+	tests := []struct {
+		have string
+		want string
+	}{
+		{"", ""},
+		{"1", "1"},
+		{"2-", "2"},
+		{"3-+", "3"},
+		{"4-foo", "4"},
+		{"5-foo+bar", "5"},
+		{"6+foo+bar", "6"},
+		{"7+foo-bar", "7"},
+	}
+	for _, test := range tests {
+		assert.Equal(t, test.want, stripPreReleaseAndBuildInfo(test.have))
+	}
+}
 
-	assert.False(t, isValidVersion("1.2.3.4"))
-	assert.False(t, isValidVersion(""))
-	assert.False(t, isValidVersion("1.2-alpha3"))
-	assert.False(t, isValidVersion("pre1"))
-	assert.False(t, isValidVersion("1..2"))
+func Test_isValidVersion(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"1.2.3", true},
+		{"1.2.3-alpha", true},
+		{"1.2.3-beta.5", true},
+		{"1", true},   // not semver, but required for backwards compatibility
+		{"1.2", true}, // not semver, but required for backwards compatibility
+
+		{"1.2.3.4", false},
+		{"", false},
+		{"1.2-alpha3", false},
+		{"pre1", false},
+		{"1..2", false},
+		{"1.xy", false},
+		{"1.2.xy", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			got := isValidVersion(tc.in)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func Test_combinedVersion(t *testing.T) {
@@ -99,7 +137,7 @@ func Test_processMacOSIcon(t *testing.T) {
 	assert.Equal(t, uint32(0), a)
 }
 
-func Test_MergeMetata(t *testing.T) {
+func Test_MergeMetadata(t *testing.T) {
 	p := &Packager{appData: &appData{}}
 	p.AppVersion = "v0.1"
 	data := &metadata.FyneApp{
@@ -159,11 +197,6 @@ func Test_validateAppID(t *testing.T) {
 }
 
 func Test_buildPackageWasm(t *testing.T) {
-	// Discarding log output for tests
-	// The following method logs an error:
-	// p.buildPackage(wasmBuildTest, []string{})
-	log.SetOutput(io.Discard)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 	expected := []mockRunner{
 		{
 			expectedValue: expectedValue{args: []string{"mod", "edit", "-json"}},
@@ -173,8 +206,8 @@ func Test_buildPackageWasm(t *testing.T) {
 		},
 		{
 			expectedValue: expectedValue{
-				args:  []string{"build", "-tags", "release"},
-				env:   []string{"GOARCH=wasm", "GOOS=js"},
+				args:  []string{"build", "-trimpath", "-ldflags", "-s -w", "-tags", "release"},
+				env:   []string{"GOARCH=wasm", "GOOS=js", "CGO_ENABLED=0"},
 				osEnv: true,
 				dir:   "myTest",
 			},
@@ -198,11 +231,6 @@ func Test_buildPackageWasm(t *testing.T) {
 }
 
 func Test_PackageWasm(t *testing.T) {
-	// Discarding log output for tests
-	// The following method logs an error:
-	// p.doPackage(wasmBuildTest)
-	log.SetOutput(io.Discard)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 	expected := []mockRunner{
 		{
 			expectedValue: expectedValue{args: []string{"mod", "edit", "-json"}},
@@ -213,7 +241,7 @@ func Test_PackageWasm(t *testing.T) {
 		{
 			expectedValue: expectedValue{
 				args:  []string{"build", "-o", "myTest.wasm"},
-				env:   []string{"GOARCH=wasm", "GOOS=js"},
+				env:   []string{"GOARCH=wasm", "GOOS=js", "CGO_ENABLED=0"},
 				osEnv: true,
 				dir:   "myTest",
 			},
@@ -250,10 +278,12 @@ func Test_PackageWasm(t *testing.T) {
 		return expectedEnsureSubDirRuns.verifyExpectation(t, parent, name)
 	}
 
+	goroot, err := GOROOT()
+	assert.Nil(t, err)
+
 	// Handle lookup for wasm_exec.js from lib folder in Go 1.24 and newer:
-	goroot := runtime.GOROOT()
 	wasmExecJSPath := filepath.Join(goroot, "lib", "wasm", "wasm_exec.js")
-	_, err := os.Stat(wasmExecJSPath)
+	_, err = os.Stat(wasmExecJSPath)
 	execJSLibExists := err == nil || !os.IsNotExist(err)
 
 	expectedExistRuns := mockExistRuns{
@@ -265,10 +295,6 @@ func Test_PackageWasm(t *testing.T) {
 	}
 	utilExistsMock = func(path string) bool {
 		return expectedExistRuns.verifyExpectation(t, path)
-	}
-
-	if !execJSLibExists { // Expect location from Go < 1.24 to have been copied:
-		wasmExecJSPath = filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
 	}
 
 	expectedWriteFileRuns := mockWriteFileRuns{
@@ -283,6 +309,10 @@ func Test_PackageWasm(t *testing.T) {
 	}
 	utilWriteFileMock = func(target string, _ []byte) error {
 		return expectedWriteFileRuns.verifyExpectation(t, target)
+	}
+
+	if !execJSLibExists { // Expect location from Go < 1.24 to have been copied:
+		wasmExecJSPath = filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
 	}
 
 	expectedCopyFileRuns := mockCopyFileRuns{
@@ -318,4 +348,30 @@ func Test_PowerShellArguments(t *testing.T) {
 		result := escapePowerShellArguments(test.args...)
 		assert.Equal(t, test.expected, result)
 	}
+}
+
+func Test_hasGoCode(t *testing.T) {
+	dir := t.TempDir()
+	assert.False(t, hasGoCode(dir))
+
+	f, err := os.Create(filepath.Join(dir, "one.txt"))
+	assert.NoError(t, err)
+	_, err = f.Write([]byte("something\n"))
+	assert.NoError(t, err)
+	assert.NoError(t, f.Close())
+	assert.False(t, hasGoCode(dir))
+
+	f, err = os.Create(filepath.Join(dir, "two.go"))
+	assert.NoError(t, err)
+	_, err = f.Write([]byte("package " + dir + "\n// example"))
+	assert.NoError(t, err)
+	assert.NoError(t, f.Close())
+
+	f, err = os.Create(filepath.Join(dir, "three.go"))
+	assert.NoError(t, err)
+	_, err = f.Write([]byte("package " + dir + "\n// example"))
+	assert.NoError(t, err)
+	assert.NoError(t, f.Close())
+
+	assert.True(t, hasGoCode(dir))
 }

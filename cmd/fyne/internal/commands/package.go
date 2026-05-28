@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/jpeg" // import image encodings
 	"image/png"    // import image encodings
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,9 +18,11 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 
-	fyne "github.com/alexballas/refyne/v2"
-	"github.com/alexballas/refyne/v2/internal/metadata"
+	"github.com/alexballas/refyne/v2"
+
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 )
 
 const (
@@ -33,87 +36,24 @@ func Package() *cli.Command {
 
 	return &cli.Command{
 		Name:        "package",
-		Usage:       "Packages an application for distribution.",
-		Description: "You may specify the -executable to package, otherwise -sourceDir will be built.",
+		Aliases:     []string{"p"},
+		Usage:       "Packages an application for distribution",
+		Description: "You may specify the --executable to package, otherwise --source-dir will be built.",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "target",
-				Aliases:     []string{"os"},
-				Usage:       "The mobile platform to target (android, android/arm, android/arm64, android/amd64, android/386, ios, iossimulator, wasm, js, web).",
-				Destination: &p.os,
-			},
-			&cli.StringFlag{
-				Name:        "executable",
-				Aliases:     []string{"exe"},
-				Usage:       "The path to the executable, default is the current dir main binary",
-				Destination: &p.exe,
-			},
-			&cli.StringFlag{
-				Name:        "name",
-				Usage:       "The name of the application, default is the executable file name",
-				Destination: &p.Name,
-			},
-			&cli.StringFlag{
-				Name:        "tags",
-				Usage:       "A comma-separated list of build tags.",
-				Destination: &p.tags,
-			},
-			&cli.StringFlag{
-				Name:        "appVersion",
-				Usage:       "Version number in the form x, x.y or x.y.z semantic version",
-				Destination: &p.AppVersion,
-			},
-			&cli.IntFlag{
-				Name:        "appBuild",
-				Usage:       "Build number, should be greater than 0 and incremented for each build",
-				Destination: &p.AppBuild,
-			},
-			&cli.StringFlag{
-				Name:        "sourceDir",
-				Aliases:     []string{"src"},
-				Usage:       "The directory to package, if executable is not set.",
-				Destination: &p.srcDir,
-			},
-			&cli.StringFlag{
-				Name:        "icon",
-				Usage:       "The name of the application icon file.",
-				Value:       "",
-				Destination: &p.icon,
-			},
-			&cli.BoolFlag{
-				Name:        "use-raw-icon",
-				Usage:       "Skip any OS-specific icon pre-processing",
-				Value:       false,
-				Destination: &p.rawIcon,
-			},
-			&cli.StringFlag{
-				Name:        "appID",
-				Aliases:     []string{"id"},
-				Usage:       "For Android, darwin, iOS and Windows targets an appID in the form of a reversed domain name is required, for ios this must match a valid provisioning profile",
-				Destination: &p.AppID,
-			},
-			&cli.StringFlag{
-				Name:        "certificate",
-				Aliases:     []string{"cert"},
-				Usage:       "iOS/macOS/Windows: name of the certificate to sign the build",
-				Destination: &p.certificate,
-			},
-			&cli.StringFlag{
-				Name:        "profile",
-				Usage:       "iOS/macOS: name of the provisioning profile for this build",
-				Destination: &p.profile,
-				Value:       "XCWildcard",
-			},
-			&cli.BoolFlag{
-				Name:        "release",
-				Usage:       "Enable installation in release mode (disable debug etc).",
-				Destination: &p.release,
-			},
-			&cli.GenericFlag{
-				Name:  "metadata",
-				Usage: "Specify custom metadata key value pair that you do not want to store in your FyneApp.toml (key=value)",
-				Value: &p.customMetadata,
-			},
+			stringFlags["target"](&p.os),
+			stringFlags["executable"](&p.exe),
+			stringFlags["name"](&p.Name),
+			stringFlags["tags"](&p.tags),
+			stringFlags["app-version"](&p.AppVersion),
+			intFlags["app-build"](&p.AppBuild),
+			stringFlags["src"](&p.srcDir),
+			stringFlags["icon"](&p.icon),
+			boolFlags["use-raw-icon"](&p.rawIcon),
+			stringFlags["app-id"](&p.AppID),
+			stringFlags["certificate"](&p.certificate),
+			stringFlags["profile"](&p.profile),
+			boolFlags["release"](&p.release),
+			genericFlags["metadata"](&p.customMetadata),
 		},
 		Action: func(_ *cli.Context) error {
 			if p.customMetadata.m == nil {
@@ -151,12 +91,12 @@ func NewPackager() *Packager {
 func (p *Packager) AddFlags() {
 	flag.StringVar(&p.os, "os", "", "The operating system to target (android, android/arm, android/arm64, android/amd64, android/386, darwin, freebsd, ios, linux, netbsd, openbsd, windows, wasm)")
 	flag.StringVar(&p.exe, "executable", "", "Specify an existing binary instead of building before package")
-	flag.StringVar(&p.srcDir, "sourceDir", "", "The directory to package, if executable is not set")
+	flag.StringVar(&p.srcDir, "src", "", "The directory to package, if executable is not set")
 	flag.StringVar(&p.Name, "name", "", "The name of the application, default is the executable file name")
 	flag.StringVar(&p.icon, "icon", "", "The name of the application icon file")
-	flag.StringVar(&p.AppID, "appID", "", "For ios or darwin targets an appID is required, for ios this must \nmatch a valid provisioning profile")
-	flag.StringVar(&p.AppVersion, "appVersion", "", "Version number in the form x, x.y or x.y.z semantic version")
-	flag.IntVar(&p.AppBuild, "appBuild", 0, "Build number, should be greater than 0 and incremented for each build")
+	flag.StringVar(&p.AppID, "app-id", "", "For ios or darwin targets an app-id is required, for ios this must \nmatch a valid provisioning profile")
+	flag.StringVar(&p.AppVersion, "app-version", "", "Version number in the form x, x.y or x.y.z semantic version")
+	flag.IntVar(&p.AppBuild, "app-build", 0, "Build number, should be greater than 0 and incremented for each build")
 	flag.BoolVar(&p.release, "release", false, "Should this package be prepared for release? (disable debug etc)")
 	flag.StringVar(&p.tags, "tags", "", "A comma-separated list of build tags")
 }
@@ -166,7 +106,7 @@ func (p *Packager) AddFlags() {
 // Deprecated: Access to the individual cli commands are being removed.
 func (*Packager) PrintHelp(indent string) {
 	fmt.Println(indent, "The package command prepares an application for installation and testing.")
-	fmt.Println(indent, "You may specify the -executable to package, otherwise -sourceDir will be built.")
+	fmt.Println(indent, "You may specify the --executable to package, otherwise --sourc-dir will be built.")
 	fmt.Println(indent, "Command usage: fyne package [parameters]")
 }
 
@@ -212,12 +152,10 @@ func (p *Packager) packageWithoutValidate() error {
 }
 
 func (p *Packager) buildPackage(runner runner, tags []string) ([]string, error) {
-	target := p.exe
-
 	b := &Builder{
 		os:      p.os,
 		srcdir:  p.srcDir,
-		target:  target,
+		target:  p.exe,
 		release: p.release,
 		tags:    tags,
 		runner:  runner,
@@ -225,7 +163,7 @@ func (p *Packager) buildPackage(runner runner, tags []string) ([]string, error) 
 		appData: p.appData,
 	}
 
-	return []string{target}, b.build()
+	return []string{p.exe}, b.build()
 }
 
 func (p *Packager) combinedVersion() string {
@@ -325,12 +263,17 @@ func (p *Packager) validate() (err error) {
 		p.srcDir = baseDir
 	} else {
 		if p.os == "ios" || p.os == "android" {
-			return errors.New("parameter -sourceDir is currently not supported for mobile builds. " +
+			return errors.New("parameter --source-dir is currently not supported for mobile builds. " +
 				"Change directory to the main package and try again")
 		}
 		p.srcDir = util.EnsureAbsPath(p.srcDir)
 	}
-	os.Chdir(p.srcDir)
+	if err := os.Chdir(p.srcDir); err != nil {
+		return err
+	}
+	if !hasGoCode(p.srcDir) {
+		return fmt.Errorf("failed to find go code in source directory: %s", p.srcDir)
+	}
 
 	p.appData.CustomMetadata = p.customMetadata.m
 	p.appData.Release = p.release
@@ -358,7 +301,7 @@ func (p *Packager) validate() (err error) {
 			p.removeBuild([]string{p.exe})
 		}
 	} else if p.os == "ios" || p.os == "android" {
-		_, _ = fmt.Fprint(os.Stderr, "Parameter -executable is ignored for mobile builds.\n")
+		_, _ = fmt.Fprint(os.Stderr, "Parameter --executable is ignored for mobile builds.\n")
 	}
 
 	if p.Name == "" {
@@ -383,7 +326,7 @@ func (p *Packager) validate() (err error) {
 		return err
 	}
 	if p.AppVersion != "" && !isValidVersion(p.AppVersion) {
-		return errors.New("invalid -appVersion parameter, integer and '.' characters only up to x.y.z")
+		return errors.New("invalid --app-version parameter, integer and '.' characters only up to x.y.z")
 	}
 
 	return nil
@@ -412,12 +355,16 @@ func calculateExeName(sourceDir, osys string) string {
 }
 
 func isValidVersion(ver string) bool {
-	nums := strings.Split(ver, ".")
-	if len(nums) == 0 || len(nums) > 3 {
+	if semver.IsValid("v" + ver) {
+		return true
+	}
+	parts := strings.Split(ver, ".")
+	if len(parts) < 1 || len(parts) > 2 {
 		return false
 	}
-	for _, num := range nums {
-		if _, err := strconv.Atoi(num); err != nil {
+	for _, p := range parts {
+		_, err := strconv.Atoi(p)
+		if err != nil {
 			return false
 		}
 	}
@@ -459,12 +406,12 @@ func validateAppID(appID, os, name string, release bool) (string, error) {
 	} else if os == "ios" || util.IsAndroid(os) || (os == "windows" && release) {
 		// all mobile, and for windows when releasing, needs a unique id - usually reverse DNS style
 		if appID == "" {
-			return "", errors.New("missing appID parameter for package")
+			return "", errors.New("missing app-id parameter for package")
 		} else if !strings.Contains(appID, ".") {
-			return "", errors.New("appID must be globally unique and contain at least 1 '.'")
+			return "", errors.New("app-id must be globally unique and contain at least 1 '.'")
 		} else if util.IsAndroid(os) {
 			if strings.Contains(appID, "-") {
-				return "", errors.New("appID can not contain '-'")
+				return "", errors.New("app-id can not contain '-'")
 			}
 
 			// appID package names can not start with '_' or a number
@@ -475,13 +422,27 @@ func validateAppID(appID, os, name string, release bool) (string, error) {
 				}
 
 				if name[0] == '_' {
-					return "", fmt.Errorf("appID package names can not start with '_' (%s)", name)
+					return "", fmt.Errorf("app-id package names can not start with '_' (%s)", name)
 				} else if name[0] >= '0' && name[0] <= '9' {
-					return "", fmt.Errorf("appID package names can not start with a number (%s)", name)
+					return "", fmt.Errorf("app-id package names can not start with a number (%s)", name)
 				}
 			}
 		}
 	}
 
 	return appID, nil
+}
+
+var errStopWalking = errors.New("stop walking")
+
+func hasGoCode(dir string) bool {
+	found := false
+	_ = filepath.Walk(dir+string(filepath.Separator), func(path string, fi fs.FileInfo, err error) error {
+		if fi.IsDir() || filepath.Ext(path) != ".go" {
+			return err
+		}
+		found = true
+		return errStopWalking
+	})
+	return found
 }

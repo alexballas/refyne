@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build gendex
-
 // Gendex generates a dex file used by Go apps created with gomobile.
 //
 // The dex is a thin extension of NativeActivity, providing access to
@@ -25,9 +23,9 @@ import (
 	"go/format"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
-
-	"golang.org/x/sys/execabs"
+	"sort"
 )
 
 var outfile = flag.String("o", "dex.go", "result will be written file")
@@ -58,7 +56,7 @@ func gendex() error {
 	if err := os.MkdirAll(tmpdir+"/work/org/golang/app", 0o775); err != nil {
 		return err
 	}
-	javaFiles, err := filepath.Glob("../../../../internal/driver/mobile/app/*.java")
+	javaFiles, err := filepath.Glob("../../../../../fyne/internal/driver/mobile/app/*.java")
 	if err != nil {
 		return err
 	}
@@ -69,7 +67,7 @@ func gendex() error {
 	if err != nil {
 		return err
 	}
-	cmd := execabs.Command(
+	cmd := exec.Command(
 		"javac",
 		"-source", "1.8",
 		"-target", "1.8",
@@ -82,16 +80,17 @@ func gendex() error {
 		os.Stderr.Write(out)
 		return err
 	}
+
+	classFiles, err := filepath.Glob(tmpdir + "/work/org/golang/app/GoNativeActivity*")
+	if err != nil {
+		return err
+	}
 	buildTools, err := findLast(androidHome + "/build-tools")
 	if err != nil {
 		return err
 	}
-	cmd = execabs.Command(
-		buildTools+"/dx",
-		"--dex",
-		"--output="+tmpdir+"/classes.dex",
-		tmpdir+"/work",
-	)
+	cmd = exec.Command(buildTools+"/d8", append([]string{"--output", tmpdir},
+		classFiles...)...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		os.Stderr.Write(out)
 		return err
@@ -143,6 +142,7 @@ func findLast(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	sort.Strings(children)
 	return path + "/" + children[len(children)-1], nil
 }
 

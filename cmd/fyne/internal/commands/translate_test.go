@@ -6,9 +6,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const exampleSource = `
@@ -16,6 +19,17 @@ package main
 
 func main() {
 	lang.X("example", "Example")
+	lang.X("multipass", "One" +
+		" " +
+		"Two" +
+		" " +
+		"Three")
+	lang.X("multiline", ` + "`" + `first
+second
+third` + "`" + `)
+	lang.X("mixer", "prefix\n"+` + "`" + `first
+second
+third` + "`" + `+"\npostfix")
 }
 `
 
@@ -133,6 +147,16 @@ func TestWriteTranslationsFile(t *testing.T) {
 	if err := writeTranslationsFile([]byte(`{"a":2}`), dst); err != nil {
 		t.Fatalf("failed to write translations file: %v", err)
 	}
+
+	f, err := os.Open(dst)
+	if assert.NoError(t, err) {
+		defer f.Close()
+		b, err := io.ReadAll(f)
+		assert.NoError(t, err)
+		if assert.GreaterOrEqual(t, len(b), 1) {
+			assert.Equal(t, byte('\n'), b[len(b)-1])
+		}
+	}
 }
 
 func TestUpdateTranslationsHash(t *testing.T) {
@@ -172,13 +196,22 @@ func TestTranslationsVisitor(t *testing.T) {
 	translations := make(map[string]any)
 	ast.Walk(&visitor{opts: &opts, m: translations}, af)
 
-	key := "example"
-	val, found := translations[key]
-	if !found {
-		t.Errorf("failed to find key: %v", key)
-	}
-	if val != "Example" {
-		t.Errorf("invalid value for key: %v: %v", key, val)
+	for _, test := range []struct {
+		key  string
+		want string
+	}{
+		{"example", "Example"},
+		{"multipass", "One Two Three"},
+		{"multiline", "first\nsecond\nthird"},
+		{"mixer", "prefix\nfirst\nsecond\nthird\npostfix"},
+	} {
+		val, found := translations[test.key]
+		if !found {
+			t.Errorf("failed to find key: %v", test.key)
+		}
+		if val != test.want {
+			t.Errorf("invalid value for key: %v: %v", test.key, val)
+		}
 	}
 }
 

@@ -5,16 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
 
-	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 
 	"github.com/urfave/cli/v2"
-	"golang.org/x/sys/execabs"
 )
 
 var macAppStoreCategories = []string{
@@ -31,106 +31,28 @@ func Release() *cli.Command {
 	r := NewReleaser()
 
 	return &cli.Command{
-		Name:  "release",
-		Usage: "Prepares an application for public distribution.",
+		Name:    "release",
+		Aliases: []string{"r"},
+		Usage:   "Prepares an application for public distribution",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "target",
-				Aliases:     []string{"os"},
-				Usage:       "The operating system to target (android, android/arm, android/arm64, android/amd64, android/386, darwin, freebsd, ios, linux, netbsd, openbsd, windows)",
-				Destination: &r.os,
-			},
-			&cli.StringFlag{
-				Name:        "keyStore",
-				Usage:       "Android: location of .keystore file containing signing information",
-				Destination: &r.keyStore,
-			},
-			&cli.StringFlag{
-				Name:        "keyStorePass",
-				Usage:       "Android: password for the .keystore file, default take the password from stdin",
-				Destination: &r.keyStorePass,
-			},
-			&cli.StringFlag{
-				Name:        "keyName",
-				Usage:       "Android: alias for the signer's private key, which is needed when reading a .keystore file",
-				Destination: &r.keyName,
-			},
-			&cli.StringFlag{
-				Name:        "keyPass",
-				Usage:       "Android: password for the signer's private key, which is needed if the private key is password-protected. Default take the password from stdin",
-				Destination: &r.keyStorePass,
-			},
-			&cli.StringFlag{
-				Name:        "name",
-				Usage:       "The name of the application, default is the executable file name",
-				Destination: &r.Name,
-			},
-			&cli.StringFlag{
-				Name:        "tags",
-				Usage:       "A comma-separated list of build tags.",
-				Destination: &r.tags,
-			},
-			&cli.StringFlag{
-				Name:        "appVersion",
-				Usage:       "Version number in the form x, x.y or x.y.z semantic version",
-				Destination: &r.AppVersion,
-			},
-			&cli.IntFlag{
-				Name:        "appBuild",
-				Usage:       "Build number, should be greater than 0 and incremented for each build",
-				Destination: &r.AppBuild,
-			},
-			&cli.StringFlag{
-				Name:        "appID",
-				Aliases:     []string{"id"},
-				Usage:       "For Android, darwin, iOS and Windows targets an appID in the form of a reversed domain name is required, for ios this must match a valid provisioning profile",
-				Destination: &r.AppID,
-			},
-			&cli.StringFlag{
-				Name:        "certificate",
-				Aliases:     []string{"cert"},
-				Usage:       "iOS/macOS/Windows: name of the certificate to sign the build",
-				Destination: &r.certificate,
-			},
-			&cli.StringFlag{
-				Name:        "profile",
-				Usage:       "iOS/macOS: name of the provisioning profile for this release build",
-				Destination: &r.profile,
-			},
-			&cli.StringFlag{
-				Name:        "developer",
-				Aliases:     []string{"dev"},
-				Usage:       "Windows: the developer identity for your Microsoft store account",
-				Destination: &r.developer,
-			},
-			&cli.StringFlag{
-				Name:        "password",
-				Aliases:     []string{"passw"},
-				Usage:       "Windows: password for the certificate used to sign the build",
-				Destination: &r.password,
-			},
-			&cli.StringFlag{
-				Name:        "category",
-				Usage:       "macOS: category of the app for store listing",
-				Destination: &r.category,
-			},
-			&cli.StringFlag{
-				Name:        "icon",
-				Usage:       "The name of the application icon file.",
-				Value:       "",
-				Destination: &r.icon,
-			},
-			&cli.BoolFlag{
-				Name:        "use-raw-icon",
-				Usage:       "Skip any OS-specific icon pre-processing",
-				Value:       false,
-				Destination: &r.rawIcon,
-			},
-			&cli.GenericFlag{
-				Name:  "metadata",
-				Usage: "Specify custom metadata key value pair that you do not want to store in your FyneApp.toml (key=value)",
-				Value: &r.customMetadata,
-			},
+			stringFlags["target"](&r.os),
+			stringFlags["keystore"](&r.keyStore),
+			stringFlags["keystore-pass"](&r.keyStorePass),
+			stringFlags["key-name"](&r.keyName),
+			stringFlags["key-pass"](&r.keyStorePass),
+			stringFlags["name"](&r.Name),
+			stringFlags["tags"](&r.tags),
+			stringFlags["app-version"](&r.AppVersion),
+			intFlags["app-build"](&r.AppBuild),
+			stringFlags["app-id"](&r.AppID),
+			stringFlags["certificate"](&r.certificate),
+			stringFlags["profile"](&r.profile),
+			stringFlags["developer"](&r.developer),
+			stringFlags["password"](&r.password),
+			stringFlags["category"](&r.category),
+			stringFlags["icon"](&r.icon),
+			boolFlags["use-raw-icon"](&r.rawIcon),
+			genericFlags["metadata"](&r.customMetadata),
 		},
 		Action: r.releaseAction,
 	}
@@ -162,9 +84,9 @@ func (r *Releaser) AddFlags() {
 	flag.StringVar(&r.os, "os", "", "The operating system to target (android, android/arm, android/arm64, android/amd64, android/386, darwin, freebsd, ios, linux, netbsd, openbsd, windows)")
 	flag.StringVar(&r.Name, "name", "", "The name of the application, default is the executable file name")
 	flag.StringVar(&r.icon, "icon", "", "The name of the application icon file")
-	flag.StringVar(&r.AppID, "appID", "", "For ios or darwin targets an appID is required, for ios this must \nmatch a valid provisioning profile")
-	flag.StringVar(&r.AppVersion, "appVersion", "", "Version number in the form x, x.y or x.y.z semantic version")
-	flag.IntVar(&r.AppBuild, "appBuild", 0, "Build number, should be greater than 0 and incremented for each build")
+	flag.StringVar(&r.AppID, "app-id", "", "For ios or darwin targets an app-id is required, for ios this must \nmatch a valid provisioning profile")
+	flag.StringVar(&r.AppVersion, "app-version", "", "Version number in the form x, x.y or x.y.z semantic version")
+	flag.IntVar(&r.AppBuild, "app-build", 0, "Build number, should be greater than 0 and incremented for each build")
 	flag.StringVar(&r.keyStore, "keyStore", "", "Android: location of .keystore file containing signing information")
 	flag.StringVar(&r.keyStorePass, "keyStorePass", "", "Android: password for the .keystore file, default take the password from stdin")
 	flag.StringVar(&r.keyName, "keyName", "", "Android: alias for the signer's private key, which is needed when reading a .keystore file")
@@ -306,14 +228,14 @@ func (r *Releaser) packageIOSRelease() error {
 	}
 	defer cleanup()
 
-	cmd := execabs.Command("codesign", "-f", "-vv", "-s", r.certificate, "--entitlements",
+	cmd := exec.Command("codesign", "-f", "-vv", "-s", r.certificate, "--entitlements",
 		"entitlements.plist", "Payload/"+appName+"/")
 	if err := cmd.Run(); err != nil {
 		fyne.LogError("Codesign failed", err)
 		return errors.New("unable to codesign application bundle")
 	}
 
-	return execabs.Command("zip", "-r", appName[:len(appName)-4]+".ipa", "Payload/").Run()
+	return exec.Command("zip", "-r", appName[:len(appName)-4]+".ipa", "Payload/").Run()
 }
 
 func (r *Releaser) packageMacOSRelease() error {
@@ -330,14 +252,14 @@ func (r *Releaser) packageMacOSRelease() error {
 	}
 	defer cleanup()
 
-	cmd := execabs.Command("codesign", "-vfs", appCert, "--entitlement", "entitlements.plist", r.Name+".app")
+	cmd := exec.Command("codesign", "-vfs", appCert, "--entitlement", "entitlements.plist", r.Name+".app")
 	err = cmd.Run()
 	if err != nil {
 		fyne.LogError("Codesign failed", err)
 		return errors.New("unable to codesign application bundle")
 	}
 
-	cmd = execabs.Command("productbuild", "--component", r.Name+".app", "/Applications/",
+	cmd = exec.Command("productbuild", "--component", r.Name+".app", "/Applications/",
 		"--product", r.Name+".app/Contents/Info.plist", unsignedPath)
 	err = cmd.Run()
 	if err != nil {
@@ -346,7 +268,7 @@ func (r *Releaser) packageMacOSRelease() error {
 	}
 	defer os.Remove(unsignedPath)
 
-	cmd = execabs.Command("productsign", "--sign", installCert, unsignedPath, r.Name+".pkg")
+	cmd = exec.Command("productsign", "--sign", installCert, unsignedPath, r.Name+".pkg")
 	return cmd.Run()
 }
 
@@ -382,7 +304,7 @@ func (r *Releaser) packageWindowsRelease(outFile string) error {
 		return errors.New("cannot find makeappx.exe, make sure you have installed the Windows SDK")
 	}
 
-	cmd := execabs.Command(filepath.Join(binDir, "makeappx.exe"), "pack", "/d", payload, "/p", outFile)
+	cmd := exec.Command(filepath.Join(binDir, "makeappx.exe"), "pack", "/d", payload, "/p", outFile)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -416,12 +338,12 @@ func (r *Releaser) signAndroid(path string) error {
 	args = append(args, path)
 	if r.release {
 		if r.keyName == "" { // Required to sign Google Play .aab
-			return errors.New("missing required -keyName (alias) parameter")
+			return errors.New("missing required --key-name (alias) parameter")
 		}
 		args = append(args, r.keyName)
 	}
 
-	cmd := execabs.Command(signer, args...)
+	cmd := exec.Command(signer, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -434,7 +356,7 @@ func (r *Releaser) signWindows(appx string) error {
 		return errors.New("cannot find signtool.exe, make sure you have installed the Windows SDK")
 	}
 
-	cmd := execabs.Command(filepath.Join(binDir, "signtool.exe"),
+	cmd := exec.Command(filepath.Join(binDir, "signtool.exe"),
 		"sign", "/a", "/v", "/fd", "SHA256", "/f", r.certificate, "/p", r.password, appx)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -453,37 +375,37 @@ func (r *Releaser) validate() error {
 
 	if util.IsMobile(r.os) || r.os == "windows" {
 		if r.AppVersion == "" { // Here it is required, if provided then package validate will check format
-			return errors.New("missing required -appVersion parameter")
+			return errors.New("missing required --app-version parameter")
 		}
 		if r.AppBuild <= 0 {
-			return errors.New("missing required -appBuild parameter")
+			return errors.New("missing required --app-build parameter")
 		}
 	}
 	if r.os == "windows" {
 		if r.developer == "" {
-			return errors.New("missing required -developer parameter for windows release,\n" +
+			return errors.New("missing required --developer parameter for windows release,\n" +
 				"use data from Partner Portal, format \"CN=Company, O=Company, L=City, S=State, C=Country\"")
 		}
 		if r.certificate == "" {
-			return errors.New("missing required -certificate parameter for windows release")
+			return errors.New("missing required --certificate parameter for windows release")
 		}
 		if r.password == "" {
-			return errors.New("missing required -password parameter for windows release")
+			return errors.New("missing required --password parameter for windows release")
 		}
 	}
 	if util.IsAndroid(r.os) {
 		if r.keyStore == "" {
-			return errors.New("missing required -keyStore parameter for android release")
+			return errors.New("missing required --keystore parameter for android release")
 		}
 	} else if r.os == "darwin" {
 		if r.certificate == "" {
 			r.certificate = "3rd Party Mac Developer Application"
 		}
 		if r.profile == "" {
-			return errors.New("missing required -profile parameter for macOS release")
+			return errors.New("missing required --profile parameter for macOS release")
 		}
 		if r.category == "" {
-			return errors.New("missing required -category parameter for macOS release")
+			return errors.New("missing required --category parameter for macOS release")
 		} else if !isValidMacOSCategory(r.category) {
 			return errors.New("category does not match one of the supported list: " +
 				strings.Join(macAppStoreCategories, ", "))
@@ -493,7 +415,7 @@ func (r *Releaser) validate() error {
 			r.certificate = "Apple Distribution"
 		}
 		if r.profile == "" {
-			return errors.New("missing required -profile parameter for iOS release")
+			return errors.New("missing required --profile parameter for iOS release")
 		}
 	}
 	return nil
@@ -527,7 +449,7 @@ func (r *Releaser) zipAlign(path string) error {
 	}
 
 	cmd := filepath.Join(util.AndroidBuildToolsPath(), "zipalign")
-	err = execabs.Command(cmd, "4", unaligned, path).Run()
+	err = exec.Command(cmd, "16", unaligned, path).Run()
 	if err != nil {
 		_ = os.Rename(path, unaligned) // ignore error, return previous
 		return err
@@ -536,7 +458,7 @@ func (r *Releaser) zipAlign(path string) error {
 }
 
 func findWindowsSDKBin() (string, error) {
-	inPath, err := execabs.LookPath("makeappx.exe")
+	inPath, err := exec.LookPath("makeappx.exe")
 	if err == nil {
 		return inPath, nil
 	}

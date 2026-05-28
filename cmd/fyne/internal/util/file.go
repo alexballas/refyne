@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // Exists will return true if the passed path exists on the current system.

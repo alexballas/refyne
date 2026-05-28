@@ -4,13 +4,13 @@
 	android:versionCode="{{.Build}}"
 	android:versionName="{{.Version}}">
 
-	<application android:label="{{.Name}}" android:debuggable="{{.Debug}}">
+	<application android:label="{{.Name}}" android:debuggable="{{.Debug}}"
+				 {{if .AdaptiveIcon}}android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"{{end}}>
 	<activity android:name="org.golang.app.GoNativeActivity"
 		android:label="{{.Name}}"
-		android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+		android:configChanges="orientation|keyboardHidden|uiMode"
 		android:exported="true"
-		android:theme="@android:style/Theme"
-		android:windowSoftInputMode="adjustResize">
+		android:theme="@android:style/Theme">
 		<meta-data android:name="android.app.lib_name" android:value="{{.LibName}}" />
 		<intent-filter>
 			<action android:name="android.intent.action.MAIN" />

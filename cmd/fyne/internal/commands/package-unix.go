@@ -4,23 +4,27 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
-	"github.com/alexballas/refyne/v2/internal/metadata"
-
-	"golang.org/x/sys/execabs"
 )
 
 type unixData struct {
-	Name, Exec, Icon string
-	Local            string
-	GenericName      string
-	Categories       string
-	Comment          string
-	Keywords         string
-	ExecParams       string
+	Name           string
+	AppID          string
+	Exec           string
+	Icon           string
+	Local          string
+	GenericName    string
+	Categories     string
+	Comment        string
+	Keywords       string
+	ExecParams     string
+	MimeTypes      string
+	StartupWMClass string
 
 	SourceRepo, SourceDir string
 }
@@ -51,31 +55,52 @@ func (p *Packager) packageUNIX() error {
 		return fmt.Errorf("failed to copy application binary file: %w", err)
 	}
 
+	appIDOrName := p.AppID
+	if appIDOrName == "" {
+		appIDOrName = p.Name
+	}
+
 	iconDir := util.EnsureSubDir(shareDir, "pixmaps")
-	iconPath := filepath.Join(iconDir, p.Name+filepath.Ext(p.icon))
+	iconName := appIDOrName + filepath.Ext(p.icon)
+	iconPath := filepath.Join(iconDir, iconName)
 	err = util.CopyFile(p.icon, iconPath)
 	if err != nil {
 		return fmt.Errorf("failed to copy icon: %w", err)
 	}
 
+	mimes := ""
+	openWith := ""
+	if p.CanOpen != nil && p.CanOpen.MimeTypes != "" {
+		mimes = p.CanOpen.MimeTypes
+		openWith = " %F"
+	}
+
 	appsDir := util.EnsureSubDir(shareDir, "applications")
-	desktop := filepath.Join(appsDir, p.Name+".desktop")
-	deskFile, _ := os.Create(desktop)
+	desktop := filepath.Join(appsDir, appIDOrName+".desktop")
+	deskFile, err := os.Create(desktop)
+	if err != nil {
+		return fmt.Errorf("failed to create desktop file: %w", err)
+	}
+
+	defer deskFile.Close()
 
 	linuxBSD := metadata.LinuxAndBSD{}
 	if p.linuxAndBSDMetadata != nil {
 		linuxBSD = *p.linuxAndBSDMetadata
 	}
 	tplData := unixData{
-		Name:        p.Name,
-		Exec:        filepath.Base(p.exe),
-		Icon:        p.Name + filepath.Ext(p.icon),
-		Local:       local,
-		GenericName: linuxBSD.GenericName,
-		Keywords:    formatDesktopFileList(linuxBSD.Keywords),
-		Comment:     linuxBSD.Comment,
-		Categories:  formatDesktopFileList(linuxBSD.Categories),
-		ExecParams:  linuxBSD.ExecParams,
+		Name:           p.Name,
+		AppID:          p.AppID,
+		Exec:           filepath.Base(p.exe) + openWith,
+		Icon:           appIDOrName,
+		Local:          local,
+		GenericName:    linuxBSD.GenericName,
+		Keywords:       formatDesktopFileList(linuxBSD.Keywords),
+		Comment:        linuxBSD.Comment,
+		Categories:     formatDesktopFileList(linuxBSD.Categories),
+		ExecParams:     linuxBSD.ExecParams,
+		MimeTypes:      mimes,
+		StartupWMClass: p.Name,
 	}
 
 	if p.sourceMetadata != nil {
@@ -105,7 +130,7 @@ func (p *Packager) packageUNIX() error {
 		tarCmdArgs = append(tarCmdArgs, "-C", parent, dirName)
 
 		var buf bytes.Buffer
-		tarCmd := execabs.Command("tar", tarCmdArgs...)
+		tarCmd := exec.Command("tar", tarCmdArgs...)
 		tarCmd.Stderr = &buf
 		if err = tarCmd.Run(); err != nil {
 			return fmt.Errorf("failed to create archive with tar: %s - %w", buf.String(), err)

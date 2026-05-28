@@ -16,28 +16,34 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile/binres"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
-	"golang.org/x/sys/execabs"
 	"golang.org/x/tools/go/packages"
 )
 
 type manifestTmplData struct {
-	JavaPkgPath string
-	Name        string
-	Debug       bool
-	LibName     string
-	Version     string
-	Build       int
+	JavaPkgPath  string
+	Name         string
+	Debug        bool
+	LibName      string
+	Version      string
+	Build        int
+	AdaptiveIcon bool
 }
 
 func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []string,
-	iconPath, appName, version string, build, target int, release bool,
+	iconPath, appName, version string, build, target int, release bool, iconFG, iconBG, iconMono string,
 ) (map[string]bool, error) {
+	var env []string
+	if release { // Google Play Store requires 16K alignment
+		env = []string{"CGO_LDFLAGS=\"-Wl,-z,max-page-size=16384\""}
+	}
+
 	ndkRoot, err := ndkRoot()
 	if err != nil {
 		return nil, err
@@ -55,15 +61,19 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 			return nil, err
 		}
 
+		foreground, _, _ := detectAdaptiveIcons(dir, iconFG, iconBG, iconMono)
+		adaptive := foreground != "" && util.Exists(foreground)
+
 		buf := new(bytes.Buffer)
 		buf.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
 		err := templates.ManifestAndroid.Execute(buf, manifestTmplData{
-			JavaPkgPath: bundleID,
-			Name:        strings.Title(appName), //lint:ignore SA1019 This is fine for our use case.
-			Debug:       !buildRelease,
-			LibName:     libName,
-			Version:     version,
-			Build:       build,
+			JavaPkgPath:  bundleID,
+			Name:         strings.Title(appName), //lint:ignore SA1019 It is fine for our uses.
+			Debug:        !buildRelease,
+			LibName:      libName,
+			Version:      version,
+			Build:        build,
+			AdaptiveIcon: adaptive,
 		})
 		if err != nil {
 			return nil, err
@@ -95,7 +105,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 		}
 		err = goBuild(
 			pkg.PkgPath,
-			androidEnv[arch],
+			append(env, androidEnv[arch]...),
 			"-buildmode=c-shared",
 			"-o", libAbsPath,
 		)
@@ -138,7 +148,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 	if err != nil {
 		return nil, err
 	}
-	err = addAssets(apkw, manifestData, dir, iconPath, target)
+	err = addAssets(apkw, manifestData, dir, iconPath, target, build, version, iconFG, iconBG, iconMono)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +161,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 		}
 	}
 	if release {
-		_, err := execabs.LookPath("bundletool")
+		_, err := exec.LookPath("bundletool")
 		if err != nil {
 			_, _ = fmt.Fprint(os.Stderr, "Required command 'bundletool' not found when building Android for release.\n")
 			_, _ = fmt.Fprint(os.Stderr, "For more information see https://developer.android.com/tools/bundletool.\n")
@@ -167,7 +177,38 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 	return nmpkgs[androidArchs[0]], nil
 }
 
-func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target int) error {
+// detectAdaptiveIcons checks for adaptive icon layers based on metadata or convention
+// Returns: foreground path, background path, monochrome path (empty strings if not found)
+func detectAdaptiveIcons(dir, foreground, background, monochrome string) (string, string, string) {
+	if !util.Exists(foreground) {
+		foreground = filepath.Join(dir, "Icon-foreground.png")
+	}
+	if !util.Exists(background) {
+		background = filepath.Join(dir, "Icon-background.png")
+	}
+	if !util.Exists(monochrome) {
+		monochrome = filepath.Join(dir, "Icon-monochrome.png")
+	}
+
+	if !util.Exists(foreground) {
+		return "", "", ""
+	}
+
+	fg := foreground
+	bg := ""
+	if util.Exists(background) {
+		bg = background
+	}
+	mono := ""
+	if util.Exists(monochrome) {
+		mono = monochrome
+	}
+	return fg, bg, mono
+}
+
+func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target int, versionCode int,
+	versionName, iconFG, iconBG, iconMono string,
+) error {
 	// Add any assets.
 	var arsc struct {
 		iconPath string
@@ -219,19 +260,80 @@ func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target i
 		}
 	}
 
-	bxml, err := binres.UnmarshalXML(bytes.NewReader(manifestData), arsc.iconPath != "", target)
+	iconForeground, iconBackground, iconMonochrome := detectAdaptiveIcons(dir, iconFG, iconBG, iconMono)
+
+	// No adaptive icons, use legacy build
+	if iconForeground == "" {
+		return legacyAddAssets(apkw, manifestData, arsc.iconPath, target)
+	}
+
+	// Use iconForeground as background if no separate background provided
+	if iconBackground == "" {
+		iconBackground = iconForeground
+	}
+
+	// Compile adaptive icon resources with aapt2
+	arscPath, resDir, compiledManifestPath, err := compileAndroidResources(
+		tmpdir,
+		manifestData,
+		iconForeground,
+		iconBackground,
+		iconMonochrome,
+		target,
+		versionCode,
+		versionName,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to compile adaptive icon resources: %w", err)
+	}
+
+	w, err := apkwCreate("resources.arsc", apkw)
+	if err != nil {
+		return err
+	}
+	arscData, err := os.ReadFile(arscPath)
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(arscData); err != nil {
+		return err
+	}
+
+	err = filepath.Walk(resDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		relPath, err := filepath.Rel(resDir, path)
+		if err != nil {
+			return err
+		}
+		return apkwWriteFile("res/"+relPath, path, apkw)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to write res directory: %w", err)
+	}
+
+	return apkwWriteFile("AndroidManifest.xml", compiledManifestPath, apkw)
+}
+
+func legacyAddAssets(apkw *Writer, manifestData []byte, iconPath string, target int) error {
+	// Legacy single icon mode using binres
+	bxml, err := binres.UnmarshalXML(bytes.NewReader(manifestData), iconPath != "", target)
 	if err != nil {
 		return err
 	}
 
 	// generate resources.arsc identifying single xxxhdpi icon resource.
-	if arsc.iconPath != "" {
+	if iconPath != "" {
 		pkgname, err := bxml.RawValueByName("manifest", xml.Name{Local: "package"})
 		if err != nil {
 			return err
 		}
 		tbl, name := binres.NewMipmapTable(pkgname)
-		if err := apkwWriteFile(name, arsc.iconPath, apkw); err != nil {
+		if err := apkwWriteFile(name, iconPath, apkw); err != nil {
 			return err
 		}
 		w, err := apkwCreate("resources.arsc", apkw)
@@ -388,8 +490,11 @@ func convertAPKToAAB(aabPath string) error {
 	}
 	defer removeAll(tmpPath)
 
-	aapt2 := filepath.Join(util.AndroidBuildToolsPath(), "aapt2")
-	cmd := execabs.Command(aapt2, "convert", "--output-format", "proto", "-o", apkProtoPath, apkPath)
+	aapt2, err := util.Aapt2Path()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(aapt2, "convert", "--output-format", "proto", "-o", apkProtoPath, apkPath)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	err = cmd.Run()
@@ -398,7 +503,7 @@ func convertAPKToAAB(aabPath string) error {
 	}
 	_ = os.Remove(apkPath)
 
-	cmd = execabs.Command("unzip", apkProtoPath, "-x", "META-INF/*", "-d", tmpPath)
+	cmd = exec.Command("unzip", apkProtoPath, "-x", "META-INF/*", "-d", tmpPath)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	err = cmd.Run()
@@ -412,7 +517,7 @@ func convertAPKToAAB(aabPath string) error {
 	_ = os.Rename(filepath.Join(tmpPath, "AndroidManifest.xml"), filepath.Join(tmpPath, "manifest", "AndroidManifest.xml"))
 	_ = os.Rename(filepath.Join(tmpPath, "classes.dex"), filepath.Join(tmpPath, "dex", "classes.dex"))
 
-	cmd = execabs.Command("zip", "../base.zip", "-r", ".")
+	cmd = exec.Command("zip", "../base.zip", "-r", ".")
 	cmd.Dir = tmpPath
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
@@ -422,7 +527,7 @@ func convertAPKToAAB(aabPath string) error {
 	}
 	defer os.Remove(filepath.Join(filepath.Dir(aabPath), "base.zip"))
 
-	cmd = execabs.Command("bundletool", "build-bundle", "--output", aabPath, "--modules", "base.zip")
+	cmd = exec.Command("bundletool", "build-bundle", "--output", aabPath, "--modules", "base.zip")
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	return cmd.Run()

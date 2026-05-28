@@ -8,14 +8,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"runtime"
 	"strings"
-
-	"golang.org/x/sys/execabs"
 )
-
-var goos = runtime.GOOS
 
 func mkdir(dir string) error {
 	if buildX || buildN {
@@ -35,54 +31,21 @@ func removeAll(path string) error {
 		return nil
 	}
 
-	// os.RemoveAll behaves differently in windows.
-	// http://golang.org/issues/9606
-	if goos == "windows" {
-		err := resetReadOnlyFlagAll(path)
-		if err != nil {
-			return err
-		}
-	}
-
 	return os.RemoveAll(path)
-}
-
-func resetReadOnlyFlagAll(path string) error {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !fi.IsDir() {
-		return os.Chmod(path, 0o600)
-	}
-	fd, err := os.Open(filepath.Clean(path))
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
-
-	names, _ := fd.Readdirnames(-1)
-	for _, name := range names {
-		err := resetReadOnlyFlagAll(path + string(filepath.Separator) + name)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func goEnv(name string) string {
 	if val := os.Getenv(name); val != "" {
 		return val
 	}
-	val, err := execabs.Command("go", "env", name).Output()
+	val, err := exec.Command("go", "env", name).Output()
 	if err != nil {
 		panic(err) // the Go tool was tested to work earlier
 	}
 	return strings.TrimSpace(string(val))
 }
 
-func runCmd(cmd *execabs.Cmd) error {
+func runCmd(cmd *exec.Cmd) error {
 	if buildX || buildN {
 		dir := ""
 		if cmd.Dir != "" {
@@ -106,7 +69,7 @@ func runCmd(cmd *execabs.Cmd) error {
 	}
 
 	if buildWork {
-		if goos == "windows" {
+		if runtime.GOOS == "windows" {
 			cmd.Env = append(cmd.Env, `TEMP=`+tmpdir, `TMP=`+tmpdir)
 		} else {
 			cmd.Env = append(cmd.Env, `TMPDIR=`+tmpdir)

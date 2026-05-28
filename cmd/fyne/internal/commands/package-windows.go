@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 
-	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 	"github.com/fyne-io/image/ico"
 	"github.com/josephspurrier/goversioninfo"
-	"golang.org/x/sys/execabs"
 )
 
 type windowsData struct {
@@ -153,7 +153,12 @@ func escapePowerShellArguments(args ...string) string {
 func runAsAdminWindows(args ...string) error {
 	cmd := escapePowerShellArguments(args...)
 
-	return execabs.Command("powershell.exe", "Start-Process", "cmd.exe", "-Verb", "runAs", "-ArgumentList", cmd).Run()
+	return exec.Command("powershell.exe", "Start-Process", "cmd.exe", "-Verb", "runAs", "-ArgumentList", cmd).Run()
+}
+
+func stripPreReleaseAndBuildInfo(v string) string {
+	s := strings.Split(v, "-")[0]
+	return strings.Split(s, "+")[0]
 }
 
 func fixedVersionInfo(ver string) (ret goversioninfo.FileVersion) {
@@ -161,16 +166,13 @@ func fixedVersionInfo(ver string) (ret goversioninfo.FileVersion) {
 	if len(ver) == 0 {
 		return ret
 	}
+	refs := []*int{&ret.Major, &ret.Minor, &ret.Patch, &ret.Build}
 	split := strings.Split(ver, ".")
-	setVersionField(&ret.Major, split[0])
-	if len(split) > 1 {
-		setVersionField(&ret.Minor, split[1])
-	}
-	if len(split) > 2 {
-		setVersionField(&ret.Patch, split[2])
-	}
-	if len(split) > 3 {
-		setVersionField(&ret.Build, split[3])
+	for n, s := range split {
+		if n >= len(refs) {
+			break
+		}
+		setVersionField(refs[n], stripPreReleaseAndBuildInfo(s))
 	}
 	return ret
 }

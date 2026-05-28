@@ -12,56 +12,29 @@ import (
 // Server serve fyne wasm application over http
 type Server struct {
 	*appData
-	port           int
-	srcDir, dir    string
-	tags           string
-	customMetadata keyValueFlag
+	debug       bool
+	port        int
+	srcDir, dir string
 }
 
 // Serve return the cli command for serving fyne wasm application over http
 func Serve() *cli.Command {
 	s := &Server{appData: &appData{}}
 
-	target := "wasm"
 	return &cli.Command{
 		Name:        "serve",
-		Usage:       "Package an application using WebAssembly and expose it via a web server.",
+		Aliases:     []string{"s"},
+		Usage:       "Packages an application using WebAssembly and exposes it via a web server",
 		Description: `The serve command packages an application using WebAssembly and expose it via a web server which port can be overridden with port.`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "sourceDir",
-				Usage:       "The directory to package, if executable is not set",
-				Value:       "",
-				Destination: &s.srcDir,
+			&cli.BoolFlag{
+				Name:        "debug",
+				Usage:       "enable compiling in debug mode",
+				Destination: &s.debug,
 			},
-			&cli.StringFlag{
-				Name:        "icon",
-				Usage:       "The name of the application icon file.",
-				Destination: &s.icon,
-			},
-			&cli.IntFlag{
-				Name:        "port",
-				Usage:       "The port to have the http server listen on (default: 8080).",
-				Value:       8080,
-				Destination: &s.port,
-			},
-			&cli.StringFlag{
-				Name:        "target",
-				Aliases:     []string{"os"},
-				Usage:       "Deprecated: The web runtime to target (only wasm is supported).",
-				Value:       "wasm",
-				Destination: &target,
-			},
-			&cli.StringFlag{
-				Name:        "tags",
-				Usage:       "A comma-separated list of build tags.",
-				Destination: &s.tags,
-			},
-			&cli.GenericFlag{
-				Name:  "metadata",
-				Usage: "Specify custom metadata key value pair that you do not want to store in your FyneApp.toml (key=value)",
-				Value: &s.customMetadata,
-			},
+			stringFlags["src"](&s.srcDir),
+			stringFlags["icon"](&s.icon),
+			intFlags["http-port"](&s.port),
 		},
 		Action: s.Server,
 	}
@@ -69,17 +42,16 @@ func Serve() *cli.Command {
 
 func (s *Server) requestPackage() error {
 	p := &Packager{
-		os:     "wasm",
-		srcDir: s.srcDir,
-
-		appData:        s.appData,
-		tags:           s.tags,
-		customMetadata: s.customMetadata,
+		os:      "wasm",
+		srcDir:  s.srcDir,
+		appData: s.appData,
+		release: !s.debug,
 	}
 
-	if p.customMetadata.m == nil {
-		p.customMetadata.m = map[string]string{}
+	if s.debug {
+		p.tags = "debug"
 	}
+
 	err := p.Package()
 	s.dir = p.dir
 	return err
@@ -101,7 +73,7 @@ func (s *Server) serve() error {
 
 	http.Handle("/", fileServer)
 
-	fmt.Printf("Serving %s on HTTP port: %v\n", webDir, s.port)
+	fmt.Printf("Serving %s at: http://localhost:%v\n", s.appData.AppID, s.port)
 	err = http.ListenAndServe(":"+strconv.Itoa(s.port), nil)
 
 	return err

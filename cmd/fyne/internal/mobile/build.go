@@ -12,69 +12,29 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
 
-	"golang.org/x/sys/execabs"
 	"golang.org/x/tools/go/packages"
 )
 
 var tmpdir string
 
 var cmdBuild = &command{
-	run:   runBuild,
-	Name:  "build",
-	Usage: "[-os android|ios] [-o output] [-bundleid bundleID] [build flags] [package]",
-	Short: "compile android APK and iOS app",
-	Long: `
-Build compiles and encodes the app named by the import path.
-
-The named package must define a main function.
-
-The -os Flag takes a target system name, either android (the
-default) or ios.
-
-For -os=android, if an AndroidManifest.xml is defined in the
-package directory, it is added to the APK output. Otherwise, a default
-manifest is generated. By default, this builds a fat APK for all supported
-instruction sets (arm, 386, amd64, arm64). A subset of instruction sets can
-be selected by specifying target type with the architecture name. E.g.
--os=android/arm,android/386.
-
-For -os ios, gomobile must be run on an OS X machine with Xcode
-installed.
-
-If the package directory contains an assets subdirectory, its contents
-are copied into the output.
-
-Flag -iosversion sets the minimal version of the iOS SDK to compile against.
-The default version is 7.0.
-
-Flag -androidapi sets the Android API version to compile against.
-The default and minimum is 15.
-
-The -bundleid Flag is required for -os=ios and sets the bundle ID to use
-with the app.
-
-The -o Flag specifies the output file name. If not specified, the
-output file name depends on the package built.
-
-The -v Flag provides verbose output, including the list of packages built.
-
-The build flags -a, -i, -n, -x, -gcflags, -ldflags, -tags, -trimpath, and -work are
-shared with the build command. For documentation, see 'go help build'.
-`,
+	run:  runBuild,
+	Name: "build",
 }
 
 const (
 	minAndroidAPI = 15
 )
 
-func runBuild(cmd *command) (err error) {
-	_, err = runBuildImpl(cmd)
+func runBuild(cmd *command) error {
+	_, err := runBuildImpl(cmd)
 	return err
 }
 
@@ -117,7 +77,6 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 	case 1:
 		buildPath = args[0]
 	default:
-		cmd.usage()
 		os.Exit(1)
 	}
 	pkgs, err := packages.Load(packagesConfig(targetOS, targetArchs[0]), buildPath)
@@ -126,7 +85,6 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 	}
 	// len(pkgs) can be more than 1 e.g., when the specified path includes `...`.
 	if len(pkgs) != 1 {
-		cmd.usage()
 		os.Exit(1)
 	}
 
@@ -154,7 +112,8 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 		if !buildRelease {
 			target = 29 // TODO once we have gomobile debug signing working for v2 android signs
 		}
-		nmpkgs, err = goAndroidBuild(pkg, buildBundleID, targetArchs, cmd.IconPath, cmd.AppName, cmd.Version, cmd.Build, target, buildRelease)
+		nmpkgs, err = goAndroidBuild(pkg, buildBundleID, targetArchs, cmd.IconPath, cmd.AppName, cmd.Version, cmd.Build,
+			target, buildRelease, cmd.iconFG, cmd.iconBG, cmd.iconMono)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +157,7 @@ func extractPkgs(nm string, path string) (map[string]bool, error) {
 		return map[string]bool{"github.com/alexballas/refyne/v2/internal/driver/mobile/app": true}, nil
 	}
 	r, w := io.Pipe()
-	cmd := execabs.Command(nm, path)
+	cmd := exec.Command(nm, path)
 	cmd.Stdout = w
 	cmd.Stderr = os.Stderr
 
@@ -273,7 +232,9 @@ var (
 )
 
 // RunNewBuild executes a new mobile build for the specified configuration
-func RunNewBuild(target, appID, icon, name, version string, build int, release, distribution bool, cert, profile string, tags []string) error {
+func RunNewBuild(target, appID, icon, name, version string, build int, release, distribution bool, cert, profile string,
+	tags []string, iconFG, iconBG, iconMono string,
+) error {
 	buildTarget = target
 	buildBundleID = appID
 	buildRelease = distribution
@@ -291,6 +252,10 @@ func RunNewBuild(target, appID, icon, name, version string, build int, release, 
 	cmd.Build = build
 	cmd.Cert = cert
 	cmd.Profile = profile
+
+	cmd.iconFG = iconFG
+	cmd.iconBG = iconBG
+	cmd.iconMono = iconMono
 	return runBuild(cmd)
 }
 
@@ -319,8 +284,6 @@ func addBuildFlagsNVXWork(cmd *command) {
 func init() {
 	addBuildFlags(cmdBuild)
 	addBuildFlagsNVXWork(cmdBuild)
-
-	addBuildFlagsNVXWork(cmdClean)
 }
 
 func goBuild(src string, env []string, args ...string) error {
@@ -332,7 +295,7 @@ func goCmd(subcmd string, srcs []string, env []string, args ...string) error {
 }
 
 func goCmdAt(at string, subcmd string, srcs []string, env []string, args ...string) error {
-	cmd := execabs.Command("go", subcmd)
+	cmd := exec.Command("go", subcmd)
 	tags := buildTags
 	targetOS, _, err := parseBuildTarget(buildTarget)
 	if err != nil {

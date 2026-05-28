@@ -25,26 +25,23 @@ import (
 func Translate() *cli.Command {
 	return &cli.Command{
 		Name:      "translate",
-		Usage:     "Scans for new translation strings.",
+		Aliases:   []string{"t"},
+		Usage:     "Scans for new translation strings",
 		ArgsUsage: "translationsFile [source ...]",
-		Description: "Recursively scans the current or given directories/files for \n" +
+		Description: "Recursively scans the current or given directories/files for\n" +
 			"translation strings, and creates or updates the translations file.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "imports",
 				Aliases: []string{"i"},
-				Usage:   "Additionally scan all imports (slow).",
+				Usage:   "enable scanning of all imports (slow)",
 			},
 			&cli.BoolFlag{
 				Name:    "update",
 				Aliases: []string{"u"},
-				Usage:   "Update existing translations (use with care).",
+				Usage:   "update existing translations (use with care)",
 			},
-			&cli.BoolFlag{
-				Name:    "verbose",
-				Aliases: []string{"v"},
-				Usage:   "Show files that are being scanned etc.",
-			},
+			boolFlags["verbose"](nil),
 		},
 		Action: func(ctx *cli.Context) error {
 			opts := translateOpts{
@@ -54,8 +51,7 @@ func Translate() *cli.Command {
 			}
 
 			usage := func() {
-				fmt.Fprintf(
-					os.Stderr, "usage: %s %s [command options] %s\n",
+				fmt.Fprintf(os.Stderr, "usage: %s %s [command options] %s\n",
 					ctx.App.Name,
 					ctx.Command.Name,
 					ctx.Command.ArgsUsage,
@@ -187,6 +183,10 @@ func writeTranslationsFile(b []byte, file string) error {
 	nf, err := os.CreateTemp(filepath.Dir(file), filepath.Base(file)+"-*")
 	if err != nil {
 		return err
+	}
+
+	if len(b) > 0 && b[len(b)-1] != '\n' {
+		b = append(b, '\n')
 	}
 
 	n, err := nf.Write(b)
@@ -388,6 +388,39 @@ func translateKey(v *visitor, node ast.Node) stateFn {
 
 // Parse second argument and use as fallback, and finish
 func translateKeyFallback(v *visitor, node ast.Node) stateFn {
+	var vals []string
+
+	binExpr, binOk := node.(*ast.BinaryExpr)
+	for binOk && binExpr.Op == token.ADD {
+		if y, ok := binExpr.Y.(*ast.BasicLit); ok {
+			vals = append(vals, y.Value)
+		}
+
+		switch x := binExpr.X.(type) {
+		case *ast.BasicLit:
+			vals = append(vals, x.Value)
+			binOk = false
+		case *ast.BinaryExpr:
+			binExpr = x
+		default:
+			return nil
+		}
+	}
+
+	if len(vals) > 0 {
+		x := ""
+		for n := range vals {
+			val, err := strconv.Unquote(vals[len(vals)-1-n])
+			if err != nil {
+				return nil
+			}
+			x += val
+		}
+		v.fallback = x
+
+		return translateFinish(v)
+	}
+
 	basiclit, ok := node.(*ast.BasicLit)
 	if !ok {
 		return nil

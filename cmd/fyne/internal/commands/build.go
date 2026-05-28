@@ -11,9 +11,19 @@ import (
 	"github.com/mcuadros/go-version"
 	"github.com/urfave/cli/v2"
 
-	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2"
+
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
-	"github.com/alexballas/refyne/v2/internal/metadata"
+)
+
+// Partly based on https://gitlab.com/freedesktop-sdk/freedesktop-sdk/-/blob/master/include/flags.yml?ref_type=heads.
+const (
+	baseCFLAGSRegular      = "-O2 -g -fexceptions -fasynchronous-unwind-tables -pipe"
+	baseCFLAGSRelease      = "-O3 -pipe"
+	hardeningCFLAGS        = "-Wp,-D_FORTIFY_SOURCE=3 -fstack-protector-strong"
+	hardeningLDFLAGSLinux  = "-Wl,-z,relro,-z,now -Wl,--as-needed"
+	hardeningLDFLAGSDarwin = "-Wl,-dead_strip_dylibs"
 )
 
 // Builder generate the executables.
@@ -43,52 +53,18 @@ func Build() *cli.Command {
 
 	return &cli.Command{
 		Name:        "build",
-		Usage:       "Build an application.",
+		Aliases:     []string{"b"},
+		Usage:       "Builds an application",
 		Description: "You can specify --target to define the OS to build for. The executable file will default to an appropriate name but can be overridden using -o.",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "target",
-				Aliases:     []string{"os"},
-				Usage:       "The mobile platform to target (android, android/arm, android/arm64, android/amd64, android/386, ios, iossimulator).",
-				Destination: &b.os,
-			},
-			&cli.StringFlag{
-				Name:        "sourceDir",
-				Aliases:     []string{"src"},
-				Usage:       "The directory to package, if executable is not set.",
-				Destination: &b.srcdir,
-			},
-			&cli.StringFlag{
-				Name:        "tags",
-				Usage:       "A comma-separated list of build tags.",
-				Destination: &b.tagsToParse,
-			},
-			&cli.BoolFlag{
-				Name:        "release",
-				Usage:       "Enable installation in release mode (disable debug etc).",
-				Destination: &b.release,
-			},
-			&cli.StringFlag{
-				Name:        "o",
-				Usage:       "Specify a name for the output file, default is based on the current directory.",
-				Destination: &b.target,
-			},
-			&cli.BoolFlag{
-				Name:        "pprof",
-				Usage:       "Enable pprof profiling.",
-				Destination: &b.pprof,
-			},
-			&cli.IntFlag{
-				Name:        "pprof-port",
-				Usage:       "Specify the port to use for pprof profiling.",
-				Value:       6060,
-				Destination: &b.pprofPort,
-			},
-			&cli.GenericFlag{
-				Name:  "metadata",
-				Usage: "Specify custom metadata key value pair that you do not want to store in your FyneApp.toml (key=value)",
-				Value: &b.customMetadata,
-			},
+			stringFlags["target"](&b.os),
+			stringFlags["src"](&b.srcdir),
+			stringFlags["tags"](&b.tagsToParse),
+			boolFlags["release"](&b.release),
+			stringFlags["output"](&b.target),
+			boolFlags["pprof"](&b.pprof),
+			intFlags["pprof-port"](&b.pprofPort),
+			genericFlags["metadata"](&b.customMetadata),
 		},
 		Action: func(ctx *cli.Context) error {
 			argCount := ctx.Args().Len()
@@ -170,9 +146,9 @@ func (b *Builder) build() error {
 		goos = targetOS()
 	}
 
-	fyneGoModRunner := b.updateAndGetGoExecutable(goos)
+	fyneGoModRunner := b.updateAndGetGoExecutable()
 
-	srcdir, err := b.computeSrcDir(fyneGoModRunner)
+	srcdir, err := b.computeSrcDir()
 	if err != nil {
 		return err
 	}
@@ -180,7 +156,7 @@ func (b *Builder) build() error {
 	b.updateToDefaultIconIfNotSet(srcdir)
 
 	if b.pprof {
-		close, err := injectPprofFile(fyneGoModRunner, srcdir, b.pprofPort)
+		close, err := injectPprofFile(srcdir, b.pprofPort)
 		if err != nil {
 			fyne.LogError("Failed to inject pprof file, omitting pprof", err)
 		} else if close != nil {
@@ -198,23 +174,14 @@ func (b *Builder) build() error {
 	args := []string{"build"}
 	env := os.Environ()
 
-	if goos == "darwin" {
-		appendEnv(&env, "CGO_CFLAGS", "-mmacosx-version-min=10.11")
-		appendEnv(&env, "CGO_LDFLAGS", "-mmacosx-version-min=10.11")
+	ldFlags := extractLdflagsFromGoFlags()
+	if goos == "windows" {
+		ldFlags += " -H=windowsgui"
 	}
 
-	ldFlags := extractLdflagsFromGoFlags()
-	if !isWeb(goos) {
-		env = append(env, "CGO_ENABLED=1") // in case someone is trying to cross-compile...
-
-		if b.release {
-			ldFlags += " -s -w"
-			args = append(args, "-trimpath")
-		}
-
-		if goos == "windows" {
-			ldFlags += " -H=windowsgui"
-		}
+	if b.release {
+		ldFlags += " -s -w"
+		args = append(args, "-trimpath")
 	}
 
 	if len(ldFlags) > 0 {
@@ -223,6 +190,13 @@ func (b *Builder) build() error {
 
 	if b.target != "" {
 		args = append(args, "-o", b.target)
+	}
+
+	if !isWeb(goos) {
+		env = append(env, "CGO_ENABLED=1") // in case someone is trying to cross-compile...
+		b.applyCAndLDFlags(&env, goos)
+	} else {
+		env = append(env, "CGO_ENABLED=0") // CGO is not available in WebAssembly
 	}
 
 	// handle build tags
@@ -257,7 +231,7 @@ func (b *Builder) build() error {
 	return err
 }
 
-func (b *Builder) computeSrcDir(fyneGoModRunner runner) (string, error) {
+func (b *Builder) computeSrcDir() (string, error) {
 	if b.goPackage == "" || b.goPackage == "." {
 		return b.srcdir, nil
 	}
@@ -283,7 +257,7 @@ func (b *Builder) updateToDefaultIconIfNotSet(srcdir string) {
 	}
 }
 
-func injectPprofFile(runner runner, srcdir string, port int) (func(), error) {
+func injectPprofFile(srcdir string, port int) (func(), error) {
 	pprofInitFilePath := filepath.Join(srcdir, "fyne_pprof.go")
 	pprofInitFile, err := os.Create(pprofInitFilePath)
 	if err != nil {
@@ -306,7 +280,7 @@ func injectPprofFile(runner runner, srcdir string, port int) (func(), error) {
 	return func() { os.Remove(pprofInitFilePath) }, nil
 }
 
-func (b *Builder) updateAndGetGoExecutable(goos string) runner {
+func (b *Builder) updateAndGetGoExecutable() runner {
 	fyneGoModRunner := b.runner
 	if b.runner == nil {
 		fyneGoModRunner = newCommand("go")
@@ -319,6 +293,34 @@ func (b *Builder) updateAndGetGoExecutable(goos string) runner {
 		}
 	}
 	return fyneGoModRunner
+}
+
+func (b *Builder) applyCAndLDFlags(env *[]string, goos string) {
+	cflags := []string{baseCFLAGSRegular, hardeningCFLAGS}
+	if b.release {
+		cflags[0] = baseCFLAGSRelease
+	}
+
+	ldflags := []string{}
+	switch goos {
+	case "linux":
+		ldflags = append(ldflags, hardeningLDFLAGSLinux)
+	case "darwin":
+		ldflags = append(ldflags, hardeningLDFLAGSDarwin)
+
+		cflags = append(cflags, "-mmacosx-version-min=10.13")
+		ldflags = append(ldflags, "-mmacosx-version-min=10.13")
+	}
+
+	switch targetArch() {
+	case "amd64":
+		cflags = append(cflags, "-fcf-protection")
+	case "arm64":
+		cflags = append(cflags, "-mbranch-protection=bti+pac-ret")
+	}
+
+	appendEnv(env, "CGO_CFLAGS", strings.Join(cflags, " "))
+	appendEnv(env, "CGO_LDFLAGS", strings.Join(ldflags, " "))
 }
 
 func createMetadataInitFile(srcdir string, app *appData) (func(), error) {
@@ -379,8 +381,21 @@ func injectMetadataIfPossible(runner runner, srcdir string, app *appData,
 	if fyneGoModVersionAtLeast2_3.Match(fyneGoModVersion) {
 		app.VersionAtLeast2_3 = true
 	}
+	fyneGoModVersionAtLeast2_6 := version.NewConstrainGroupFromString(">=2.6")
+	if fyneGoModVersionAtLeast2_6.Match(fyneGoModVersion) {
+		app.VersionAtLeast2_6 = true
+	}
 
 	return createMetadataInitFile(srcdir, app)
+}
+
+func targetArch() string {
+	archEnv, ok := os.LookupEnv("GOARCH")
+	if ok {
+		return archEnv
+	}
+
+	return runtime.GOARCH
 }
 
 func targetOS() string {
@@ -448,7 +463,9 @@ func normaliseVersion(str string) string {
 
 	if pos := strings.Index(str, "-0.20"); pos != -1 {
 		str = str[:pos] + "-dev"
-	} else if pos = strings.Index(str, "-rc"); pos != -1 {
+	}
+
+	if pos := strings.Index(str, "-rc"); pos != -1 {
 		str = str[:pos] + "-dev"
 	}
 	return version.Normalize(str)

@@ -4,15 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
 
 	"golang.org/x/mod/semver"
-	"golang.org/x/sys/execabs"
 )
 
 // General mobile build environment. Initialized by envInit.
@@ -95,7 +95,7 @@ func envInit() (err error) {
 	// This is because go-list tries to analyze the module at the current directory if no packages are given,
 	// and if the module doesn't have any Go file, go-list fails. See golang/go#36668.
 
-	ver, err := execabs.Command("go", "version").Output()
+	ver, err := exec.Command("go", "version").Output()
 	if err == nil && string(ver) != "" {
 		fields := strings.Split(string(ver), " ")
 		if len(fields) >= 3 {
@@ -212,8 +212,7 @@ func envInit() (err error) {
 		if before116 {
 			os = "darwin"
 		}
-		env = append(
-			env,
+		env = append(env,
 			"GOOS="+os,
 			"GOARCH="+arch,
 			"CC="+clang,
@@ -258,14 +257,14 @@ func envClang(sdkName string) (clang, cflags string, err error) {
 	if buildN {
 		return sdkName + "-clang", "-isysroot=" + sdkName, nil
 	}
-	cmd := execabs.Command("xcrun", "--sdk", sdkName, "--find", "clang")
+	cmd := exec.Command("xcrun", "--sdk", sdkName, "--find", "clang")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", "", fmt.Errorf("xcrun --find: %v\n%s", err, out)
 	}
 	clang = strings.TrimSpace(string(out))
 
-	cmd = execabs.Command("xcrun", "--sdk", sdkName, "--show-sdk-path")
+	cmd = exec.Command("xcrun", "--sdk", sdkName, "--show-sdk-path")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		return "", "", fmt.Errorf("xcrun --show-sdk-path: %v\n%s", err, out)
@@ -304,7 +303,7 @@ func environ(kv []string) []string {
 			new = append(new, ev)
 			continue
 		}
-		if goos == "windows" {
+		if runtime.GOOS == "windows" {
 			elem[0] = strings.ToUpper(elem[0])
 		}
 		envs[elem[0]] = elem[1]
@@ -314,7 +313,7 @@ func environ(kv []string) []string {
 		if len(elem) != 2 || elem[0] == "" {
 			panic(fmt.Sprintf("malformed env var %q from input", ev))
 		}
-		if goos == "windows" {
+		if runtime.GOOS == "windows" {
 			elem[0] = strings.ToUpper(elem[0])
 		}
 		envs[elem[0]] = elem[1]
@@ -436,6 +435,6 @@ var ndk = ndkConfig{
 }
 
 func xcodeAvailable() bool {
-	err := execabs.Command("xcrun", "xcodebuild", "-version").Run()
+	err := exec.Command("xcrun", "xcodebuild", "-version").Run()
 	return err == nil
 }
