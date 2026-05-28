@@ -11,7 +11,7 @@ import (
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
 
-	"github.com/alexballas/refyne/v2/internal/fancyfs"
+	"github.com/alexballas/refyne/v2/fancyfs"
 )
 
 const (
