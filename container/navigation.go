@@ -1,10 +1,10 @@
 package container
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/layout"
+	"github.com/alexballas/refyne/v2/theme"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 // Navigation container is used to provide your application with a control bar and an area for content objects.

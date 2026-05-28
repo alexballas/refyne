@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"fyne.io/fyne/v2/cmd/fyne/internal/templates"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 	"github.com/stretchr/testify/assert"
 )
 

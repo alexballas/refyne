@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sync"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // InMemoryPreferences provides an implementation of the fyne.Preferences API that is stored in memory.

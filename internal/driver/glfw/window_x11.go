@@ -2,7 +2,7 @@
 
 package glfw
 
-import "fyne.io/fyne/v2/driver"
+import "github.com/alexballas/refyne/v2/driver"
 
 // assert we are implementing driver.NativeWindow
 var _ driver.NativeWindow = (*window)(nil)

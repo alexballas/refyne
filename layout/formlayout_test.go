@@ -4,11 +4,11 @@ import (
 	"image/color"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/layout"
+	"github.com/alexballas/refyne/v2/theme"
+	"github.com/alexballas/refyne/v2/widget"
 
 	"github.com/stretchr/testify/assert"
 )

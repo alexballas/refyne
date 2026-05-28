@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/build"
-	"fyne.io/fyne/v2/internal/metadata"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2/internal/metadata"
 )
 
 func checkLocalMetadata() {

@@ -5,7 +5,7 @@ package app
 import (
 	"sync/atomic"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // CurrentVariant contains the system’s theme variant.

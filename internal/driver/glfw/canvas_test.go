@@ -10,14 +10,14 @@ import (
 	"os"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/internal/async"
-	"fyne.io/fyne/v2/internal/build"
-	internalTest "fyne.io/fyne/v2/internal/test"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/build"
+	internalTest "github.com/alexballas/refyne/v2/internal/test"
+	"github.com/alexballas/refyne/v2/theme"
+	"github.com/alexballas/refyne/v2/widget"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -3,7 +3,7 @@ package theme
 import (
 	_ "embed"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 //go:embed font/NotoSans-Regular.ttf

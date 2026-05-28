@@ -9,8 +9,8 @@ import (
 	"syscall/js"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/storage"
 
 	"github.com/hack-pad/go-indexeddb/idb"
 )

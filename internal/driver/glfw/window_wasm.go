@@ -7,12 +7,12 @@ import (
 	_ "image/png" // for the icon
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/internal/cache"
-	"fyne.io/fyne/v2/internal/painter/gl"
-	"fyne.io/fyne/v2/internal/scale"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2/internal/painter/gl"
+	"github.com/alexballas/refyne/v2/internal/scale"
 
 	"github.com/fyne-io/glfw-js"
 )

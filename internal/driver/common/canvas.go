@@ -4,16 +4,16 @@ import (
 	"image/color"
 	"reflect"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/internal"
-	"fyne.io/fyne/v2/internal/app"
-	"fyne.io/fyne/v2/internal/async"
-	"fyne.io/fyne/v2/internal/cache"
-	"fyne.io/fyne/v2/internal/driver"
-	"fyne.io/fyne/v2/internal/painter/gl"
-	"fyne.io/fyne/v2/internal/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/internal"
+	"github.com/alexballas/refyne/v2/internal/app"
+	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2/internal/driver"
+	"github.com/alexballas/refyne/v2/internal/painter/gl"
+	"github.com/alexballas/refyne/v2/internal/theme"
 )
 
 // SizeableCanvas defines a canvas with size related functions.

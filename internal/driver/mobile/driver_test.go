@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"fyne.io/fyne/v2"
-	fynecanvas "fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	fynecanvas "github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 func Test_mobileDriver_AbsolutePositionForObject(t *testing.T) {

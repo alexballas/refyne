@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"image"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal"
-	"fyne.io/fyne/v2/internal/driver"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
+	"github.com/alexballas/refyne/v2/internal/driver"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 // Painter defines the functionality of our OpenGL based renderer

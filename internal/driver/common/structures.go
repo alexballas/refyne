@@ -1,10 +1,10 @@
 package common
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal"
-	"fyne.io/fyne/v2/internal/async"
-	"fyne.io/fyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
+	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/build"
 )
 
 type deduplicatedObjectQueue struct {

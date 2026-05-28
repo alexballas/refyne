@@ -3,8 +3,8 @@ package widget
 import (
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/lang"
 )
 
 type weekday int

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage/repository"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/storage/repository"
 )
 
 // EqualURI returns true if the two URIs are equal.

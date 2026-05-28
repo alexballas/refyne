@@ -3,8 +3,8 @@ package dialog
 import (
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/test"
 )
 
 func Test_colorChannel_Layout(t *testing.T) {

@@ -1,8 +1,8 @@
 package app
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/cache"
 )
 
 // ApplyThemeTo ensures that the specified canvasobject and all widgets and themeable objects will

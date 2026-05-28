@@ -3,8 +3,8 @@ package binding
 import (
 	"fmt"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/storage"
 )
 
 // BoolToString creates a binding that connects a Bool data item to a String.

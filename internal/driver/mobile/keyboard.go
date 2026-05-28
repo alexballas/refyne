@@ -1,9 +1,9 @@
 package mobile
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/mobile"
-	"fyne.io/fyne/v2/internal/driver/mobile/app"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/mobile"
+	"github.com/alexballas/refyne/v2/internal/driver/mobile/app"
 )
 
 func (d *device) hideVirtualKeyboard() {

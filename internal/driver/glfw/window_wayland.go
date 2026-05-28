@@ -5,7 +5,7 @@ package glfw
 import (
 	"unsafe"
 
-	"fyne.io/fyne/v2/driver"
+	"github.com/alexballas/refyne/v2/driver"
 )
 
 // assert we are implementing driver.NativeWindow

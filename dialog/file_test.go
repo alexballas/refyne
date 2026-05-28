@@ -8,16 +8,16 @@ import (
 	"strings"
 	"testing"
 
-	intWidget "fyne.io/fyne/v2/internal/widget"
-	"fyne.io/fyne/v2/lang"
+	intWidget "github.com/alexballas/refyne/v2/internal/widget"
+	"github.com/alexballas/refyne/v2/lang"
 	"github.com/stretchr/testify/assert"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/storage"
+	"github.com/alexballas/refyne/v2/test"
+	"github.com/alexballas/refyne/v2/theme"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 func TestEffectiveStartingDir(t *testing.T) {

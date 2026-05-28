@@ -4,10 +4,10 @@ import (
 	"image/color"
 	"math"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/internal"
-	paint "fyne.io/fyne/v2/internal/painter"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal"
+	paint "github.com/alexballas/refyne/v2/internal/painter"
 )
 
 const edgeSoftness = 1.0

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // EqualURI returns true if the two URIs are equal.

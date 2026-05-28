@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"syscall/js"
 
-	"fyne.io/fyne/v2"
-	intRepo "fyne.io/fyne/v2/internal/repository"
-	"fyne.io/fyne/v2/storage/repository"
+	"github.com/alexballas/refyne/v2"
+	intRepo "github.com/alexballas/refyne/v2/internal/repository"
+	"github.com/alexballas/refyne/v2/storage/repository"
 )
 
 func (a *fyneApp) SendNotification(n *fyne.Notification) {

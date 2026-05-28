@@ -5,7 +5,7 @@ package app
 import (
 	"path/filepath"
 
-	"fyne.io/fyne/v2/internal/app"
+	"github.com/alexballas/refyne/v2/internal/app"
 )
 
 // storagePath returns the location of the settings storage

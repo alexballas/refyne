@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 var once sync.Once

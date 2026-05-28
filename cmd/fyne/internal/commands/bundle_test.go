@@ -42,7 +42,7 @@ func TestWriteResource(t *testing.T) {
 	writeHeader("test", f)
 	writeResource("testdata/bundle/content.txt", "contentTxt", f)
 
-	const header = fileHeader + "\n\npackage test\n\nimport \"fyne.io/fyne/v2\"\n\n"
+	const header = fileHeader + "\n\npackage test\n\nimport \"github.com/alexballas/refyne/v2\"\n\n"
 	const expected = header + "var contentTxt = &fyne.StaticResource{\n\tStaticName: \"content.txt\",\n\tStaticContent: []byte(\n\t\t\"I am bundled :)\"),\n}\n"
 
 	// Seek file to start so we can read the written data.

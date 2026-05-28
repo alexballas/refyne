@@ -4,12 +4,12 @@ import (
 	"math"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/driver/mobile"
-	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/driver/mobile"
+	"github.com/alexballas/refyne/v2/lang"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 type selectable struct {

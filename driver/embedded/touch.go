@@ -1,6 +1,6 @@
 package embedded
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 // TouchDownEvent is for indicating that an embedded device touch screen or pointing device was pressed.
 //

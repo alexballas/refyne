@@ -3,9 +3,9 @@ package widget
 import (
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/internal/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal/widget"
 )
 
 var _ fyne.Widget = (*CheckGroup)(nil)

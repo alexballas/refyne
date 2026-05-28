@@ -10,13 +10,13 @@ import (
 	"github.com/go-text/typesetting/shaping"
 	"golang.org/x/image/math/fixed"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/internal/cache"
-	paint "fyne.io/fyne/v2/internal/painter"
-	"fyne.io/fyne/v2/internal/widget"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	paint "github.com/alexballas/refyne/v2/internal/painter"
+	"github.com/alexballas/refyne/v2/internal/widget"
+	"github.com/alexballas/refyne/v2/layout"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 const passwordChar = "•"

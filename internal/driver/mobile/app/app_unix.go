@@ -2,7 +2,7 @@
 
 package app
 
-import "fyne.io/fyne/v2/internal/driver/mobile/event/size"
+import "github.com/alexballas/refyne/v2/internal/driver/mobile/event/size"
 
 // TODO: do this for all build targets, not just linux (x11 and Android)? If
 // so, should package gl instead of this package call RegisterFilter??

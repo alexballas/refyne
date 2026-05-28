@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/build"
 )
 
 // mainGoroutineID stores the main goroutine ID.

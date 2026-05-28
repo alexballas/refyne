@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/driver/software"
-	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/driver/software"
+	"github.com/alexballas/refyne/v2/storage"
+	"github.com/alexballas/refyne/v2/test"
+	"github.com/alexballas/refyne/v2/theme"
 
 	"github.com/stretchr/testify/assert"
 )

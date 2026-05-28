@@ -2,7 +2,7 @@
 
 package glfw
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 func (w *window) platformResize(canvasSize fyne.Size) {
 	w.canvas.Resize(canvasSize)

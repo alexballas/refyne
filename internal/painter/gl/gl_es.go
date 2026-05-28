@@ -7,7 +7,7 @@ import (
 
 	gl "github.com/go-gl/gl/v3.1/gles2"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 const (

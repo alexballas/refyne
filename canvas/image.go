@@ -10,11 +10,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/cache"
-	"fyne.io/fyne/v2/internal/scale"
-	"fyne.io/fyne/v2/internal/svg"
-	"fyne.io/fyne/v2/storage"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2/internal/scale"
+	"github.com/alexballas/refyne/v2/internal/svg"
+	"github.com/alexballas/refyne/v2/storage"
 )
 
 // ImageFill defines the different type of ways an image can stretch to fill its space.

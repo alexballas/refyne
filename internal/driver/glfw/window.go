@@ -8,17 +8,17 @@ import (
 	"runtime"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/internal/app"
-	"fyne.io/fyne/v2/internal/async"
-	"fyne.io/fyne/v2/internal/build"
-	"fyne.io/fyne/v2/internal/cache"
-	"fyne.io/fyne/v2/internal/driver"
-	"fyne.io/fyne/v2/internal/driver/common"
-	"fyne.io/fyne/v2/internal/scale"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal/app"
+	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2/internal/driver"
+	"github.com/alexballas/refyne/v2/internal/driver/common"
+	"github.com/alexballas/refyne/v2/internal/scale"
 )
 
 const (

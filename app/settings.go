@@ -4,11 +4,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/app"
-	"fyne.io/fyne/v2/internal/async"
-	"fyne.io/fyne/v2/internal/build"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/app"
+	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 // SettingsSchema is used for loading and storing global settings

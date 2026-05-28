@@ -1,8 +1,8 @@
 package layout
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 // Declare conformity with Layout interface

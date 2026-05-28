@@ -5,12 +5,12 @@ import (
 	"math"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/embedded"
-	"fyne.io/fyne/v2/internal/async"
-	"fyne.io/fyne/v2/internal/cache"
-	intdriver "fyne.io/fyne/v2/internal/driver"
-	"fyne.io/fyne/v2/internal/painter"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/embedded"
+	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	intdriver "github.com/alexballas/refyne/v2/internal/driver"
+	"github.com/alexballas/refyne/v2/internal/painter"
 )
 
 type noosDriver struct {

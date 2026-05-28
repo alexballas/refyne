@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/embedded"
-	intNoos "fyne.io/fyne/v2/internal/driver/embedded"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/embedded"
+	intNoos "github.com/alexballas/refyne/v2/internal/driver/embedded"
 	"github.com/stretchr/testify/assert"
 )
 

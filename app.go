@@ -9,7 +9,7 @@ import (
 // Apps can have multiple windows, by default they will exit when all windows
 // have been closed. This can be modified using SetMaster or SetCloseIntercept.
 // To start an application you need to call Run somewhere in your main function.
-// Alternatively use the [fyne.io/fyne/v2.Window.ShowAndRun] function for your main window.
+// Alternatively use the [github.com/alexballas/refyne/v2.Window.ShowAndRun] function for your main window.
 type App interface {
 	// Create a new window for the application.
 	// The first window to open is considered the "master" and when closed

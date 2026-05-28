@@ -1,6 +1,6 @@
 package app
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 func (a *fyneApp) SetCloudProvider(p fyne.CloudProvider) {
 	if p == nil {

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/lang"
+	"github.com/alexballas/refyne/v2/layout"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 // Declare conformity with Layout interface

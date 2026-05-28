@@ -3,9 +3,9 @@ package app
 import (
 	"os"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal"
-	"fyne.io/fyne/v2/storage"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
+	"github.com/alexballas/refyne/v2/storage"
 )
 
 type store struct {

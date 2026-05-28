@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"fyne.io/fyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/async"
 )
 
 func TestUnboundedChann(t *testing.T) {

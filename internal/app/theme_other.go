@@ -3,8 +3,8 @@
 package app
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/theme"
 )
 
 // DefaultVariant returns the systems default fyne.ThemeVariant.

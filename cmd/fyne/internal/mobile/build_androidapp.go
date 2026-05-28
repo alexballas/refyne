@@ -19,9 +19,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"fyne.io/fyne/v2/cmd/fyne/internal/mobile/binres"
-	"fyne.io/fyne/v2/cmd/fyne/internal/templates"
-	"fyne.io/fyne/v2/cmd/fyne/internal/util"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile/binres"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
 	"golang.org/x/sys/execabs"
 	"golang.org/x/tools/go/packages"
 )
@@ -296,11 +296,11 @@ func buildAPK(out io.Writer, nmpkgs map[string]map[string]bool, libFiles []strin
 
 	for _, arch := range androidArchs {
 		toolchain := ndk.Toolchain(arch)
-		if nmpkgs[arch]["fyne.io/fyne/v2/internal/driver/mobile/exp/audio/al"] {
+		if nmpkgs[arch]["github.com/alexballas/refyne/v2/internal/driver/mobile/exp/audio/al"] {
 			dst := "lib/" + toolchain.abi + "/libopenal.so"
 			src := filepath.Join(gomobilepath, dst)
 			if _, err := os.Stat(src); err != nil {
-				return nil, errors.New("the Android requires the fyne.io/fyne/v2/internal/driver/mobile/exp/audio/al, but the OpenAL libraries was not found. Please run gomobile init with the -openal Flag pointing to an OpenAL source directory")
+				return nil, errors.New("the Android requires the github.com/alexballas/refyne/v2/internal/driver/mobile/exp/audio/al, but the OpenAL libraries was not found. Please run gomobile init with the -openal Flag pointing to an OpenAL source directory")
 			}
 			if err := apkwWriteFile(dst, src, apkw); err != nil {
 				return nil, err

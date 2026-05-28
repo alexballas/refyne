@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 

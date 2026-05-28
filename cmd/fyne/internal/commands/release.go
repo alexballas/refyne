@@ -9,9 +9,9 @@ import (
 	"strings"
 	"text/template"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/cmd/fyne/internal/mobile"
-	"fyne.io/fyne/v2/cmd/fyne/internal/templates"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sys/execabs"

@@ -1,7 +1,7 @@
 package embedded
 
 import (
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 type noosWindow struct {

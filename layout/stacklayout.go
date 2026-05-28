@@ -1,7 +1,7 @@
 // Package layout defines the various layouts available to Fyne apps.
-package layout // import "fyne.io/fyne/v2/layout"
+package layout // import "github.com/alexballas/refyne/v2/layout"
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 // Declare conformity with Layout interface
 var _ fyne.Layout = (*stackLayout)(nil)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 func TestCustomShortcut_Shortcut(t *testing.T) {

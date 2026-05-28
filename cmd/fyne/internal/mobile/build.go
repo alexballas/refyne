@@ -16,7 +16,7 @@ import (
 	"runtime"
 	"strings"
 
-	"fyne.io/fyne/v2/cmd/fyne/internal/util"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
 
 	"golang.org/x/sys/execabs"
 	"golang.org/x/tools/go/packages"
@@ -184,18 +184,18 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 		}
 	}
 
-	if !nmpkgs["fyne.io/fyne/v2/internal/driver/mobile/app"] {
-		return nil, fmt.Errorf(`%s does not import "fyne.io/fyne/v2/internal/driver/mobile/app"`, pkg.PkgPath)
+	if !nmpkgs["github.com/alexballas/refyne/v2/internal/driver/mobile/app"] {
+		return nil, fmt.Errorf(`%s does not import "github.com/alexballas/refyne/v2/internal/driver/mobile/app"`, pkg.PkgPath)
 	}
 
 	return pkg, nil
 }
 
-var nmRE = regexp.MustCompile(`[0-9a-f]{8} t _?(?:.*/vendor/)?(fyne.io/fyne/v2/internal/driver/mobile.*/[^.]*)`)
+var nmRE = regexp.MustCompile(`[0-9a-f]{8} t _?(?:.*/vendor/)?(github.com/alexballas/refyne/v2/internal/driver/mobile.*/[^.]*)`)
 
 func extractPkgs(nm string, path string) (map[string]bool, error) {
 	if buildN {
-		return map[string]bool{"fyne.io/fyne/v2/internal/driver/mobile/app": true}, nil
+		return map[string]bool{"github.com/alexballas/refyne/v2/internal/driver/mobile/app": true}, nil
 	}
 	r, w := io.Pipe()
 	cmd := execabs.Command(nm, path)

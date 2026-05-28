@@ -1,6 +1,6 @@
 package layout
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 // Declare conformity with Layout interface
 var _ fyne.Layout = (*centerLayout)(nil)

@@ -10,15 +10,15 @@ import (
 	"runtime"
 	"syscall"
 
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/driver/software"
-	"fyne.io/fyne/v2/internal/painter"
-	"fyne.io/fyne/v2/internal/svg"
-	"fyne.io/fyne/v2/lang"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/driver/software"
+	"github.com/alexballas/refyne/v2/internal/painter"
+	"github.com/alexballas/refyne/v2/internal/svg"
+	"github.com/alexballas/refyne/v2/lang"
 	"fyne.io/systray"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 const systrayIconSize = 64

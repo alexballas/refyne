@@ -7,10 +7,10 @@ import (
 	"os"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	intRepo "fyne.io/fyne/v2/internal/repository"
-	"fyne.io/fyne/v2/internal/theme"
-	"fyne.io/fyne/v2/storage/repository"
+	"github.com/alexballas/refyne/v2"
+	intRepo "github.com/alexballas/refyne/v2/internal/repository"
+	"github.com/alexballas/refyne/v2/internal/theme"
+	"github.com/alexballas/refyne/v2/storage/repository"
 
 	"github.com/stretchr/testify/assert"
 )

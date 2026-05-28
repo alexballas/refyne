@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/mobile"
-	"fyne.io/fyne/v2/driver/software"
-	"fyne.io/fyne/v2/internal/driver"
-	"fyne.io/fyne/v2/test"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/mobile"
+	"github.com/alexballas/refyne/v2/driver/software"
+	"github.com/alexballas/refyne/v2/internal/driver"
+	"github.com/alexballas/refyne/v2/test"
 )
 
 const (

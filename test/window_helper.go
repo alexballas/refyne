@@ -5,7 +5,7 @@ package test
 import (
 	"testing"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // NewTempWindow creates and registers a new window for test purposes.

@@ -1,9 +1,9 @@
 <p align="center">
-  <a href="https://pkg.go.dev/fyne.io/fyne/v2?tab=doc" title="Go API Reference" rel="nofollow"><img src="https://img.shields.io/badge/go-documentation-blue.svg?style=flat" alt="Go API Reference"></a>
+  <a href="https://pkg.go.dev/github.com/alexballas/refyne/v2?tab=doc" title="Go API Reference" rel="nofollow"><img src="https://img.shields.io/badge/go-documentation-blue.svg?style=flat" alt="Go API Reference"></a>
   <a href="https://img.shields.io/github/v/release/fyne-io/fyne?include_prereleases" title="Latest Release" rel="nofollow"><img src="https://img.shields.io/github/v/release/fyne-io/fyne?include_prereleases" alt="Latest Release"></a>
   <a href='https://gophers.slack.com/messages/fyne'><img src='https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=blue' alt='Join us on Slack' /></a>
   <br />
-  <a href="https://goreportcard.com/report/fyne.io/fyne/v2"><img src="https://goreportcard.com/badge/fyne.io/fyne/v2" alt="Code Status" /></a>
+  <a href="https://goreportcard.com/report/github.com/alexballas/refyne/v2"><img src="https://goreportcard.com/badge/github.com/alexballas/refyne/v2" alt="Code Status" /></a>
   <a href="https://github.com/fyne-io/fyne/actions"><img src="https://github.com/fyne-io/fyne/workflows/Platform%20Tests/badge.svg" alt="Build Status" /></a>
   <a href='https://coveralls.io/github/fyne-io/fyne?branch=develop'><img src='https://coveralls.io/repos/github/fyne-io/fyne/badge.svg?branch=develop' alt='Coverage Status' /></a>
 </p>
@@ -22,7 +22,7 @@ If you're not sure if that's all installed or you don't know how then check out 
 
 Using the standard go tools you can install Fyne's core library using:
 
-    go get fyne.io/fyne/v2@latest
+    go get github.com/alexballas/refyne/v2@latest
 
 After importing a new module, run the following command before compiling the code for the first time. Avoid running it before writing code that uses the module to prevent accidental removal of dependencies:
 
@@ -32,7 +32,7 @@ After importing a new module, run the following command before compiling the cod
 
 To run a showcase of the features of Fyne execute the following:
 
-    go install fyne.io/fyne/v2/cmd/fyne_demo@latest
+    go install github.com/alexballas/refyne/v2/cmd/fyne_demo@latest
     fyne_demo
 
 And you should see something like this (after you click a few buttons):
@@ -65,9 +65,9 @@ Open a new file and you're ready to write your first app!
 package main
 
 import (
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2/app"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 func main() {
@@ -154,7 +154,7 @@ The above command will create a '.ipa' file that can then be uploaded to the iOS
 
 # Documentation
 
-More documentation is available at the [Fyne developer website](https://developer.fyne.io/) or on [pkg.go.dev](https://pkg.go.dev/fyne.io/fyne/v2?tab=doc).
+More documentation is available at the [Fyne developer website](https://developer.fyne.io/) or on [pkg.go.dev](https://pkg.go.dev/github.com/alexballas/refyne/v2?tab=doc).
 
 # Examples
 
@@ -172,7 +172,7 @@ It is recommended that you install the following additional apps:
 
 | app           | go install                          | description                                                            |
 | ------------- | ----------------------------------- | ---------------------------------------------------------------------- |
-| fyne_settings | `fyne.io/fyne/v2/cmd/fyne_settings` | A GUI for managing your global Fyne settings like theme and scaling    |
+| fyne_settings | `github.com/alexballas/refyne/v2/cmd/fyne_settings` | A GUI for managing your global Fyne settings like theme and scaling    |
 | apps          | `github.com/fyne-io/apps`           | A graphical installer for the Fyne apps listed at https://apps.fyne.io |
 
 These are optional applications but can help to create a more complete desktop experience.

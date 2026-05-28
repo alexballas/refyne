@@ -1,7 +1,7 @@
 package tutorials
 
 import (
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // OnChangeFuncs is a slice of functions that can be registered

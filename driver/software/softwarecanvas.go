@@ -1,8 +1,8 @@
 package software
 
 import (
-	"fyne.io/fyne/v2/internal/painter/software"
-	"fyne.io/fyne/v2/test"
+	"github.com/alexballas/refyne/v2/internal/painter/software"
+	"github.com/alexballas/refyne/v2/test"
 )
 
 // NewCanvas creates a new canvas in memory that can render without hardware support.

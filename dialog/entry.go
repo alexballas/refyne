@@ -1,9 +1,9 @@
 package dialog
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/lang"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 // EntryDialog is a variation of a dialog which prompts the user to enter some text.

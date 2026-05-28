@@ -4,13 +4,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/internal/cache"
-	intdriver "fyne.io/fyne/v2/internal/driver"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	intdriver "github.com/alexballas/refyne/v2/internal/driver"
 )
 
-// RenderObjectToMarkup renders the given [fyne.io/fyne/v2.CanvasObject] to a markup string.
+// RenderObjectToMarkup renders the given [github.com/alexballas/refyne/v2.CanvasObject] to a markup string.
 //
 // Since: 2.6
 func RenderObjectToMarkup(o fyne.CanvasObject) string {
@@ -23,7 +23,7 @@ func RenderObjectToMarkup(o fyne.CanvasObject) string {
 	return snapshot(c)
 }
 
-// RenderToMarkup renders the given [fyne.io/fyne/v2.Canvas] to a markup string.
+// RenderToMarkup renders the given [github.com/alexballas/refyne/v2.Canvas] to a markup string.
 //
 // Since: 2.6
 func RenderToMarkup(c fyne.Canvas) string {

@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"fyne.io/fyne/v2/storage/repository"
+	"github.com/alexballas/refyne/v2/storage/repository"
 )
 
 // URIRootError is a wrapper for repository.URIRootError

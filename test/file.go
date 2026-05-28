@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/storage"
 )
 
 var errUnsupportedURLProtocol = errors.New("unsupported URL protocol")

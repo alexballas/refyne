@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"fyne.io/fyne/v2"
-	internalApp "fyne.io/fyne/v2/internal/app"
+	"github.com/alexballas/refyne/v2"
+	internalApp "github.com/alexballas/refyne/v2/internal/app"
 )
 
 func setupSystemTheme(fallback fyne.Theme) fyne.Theme {

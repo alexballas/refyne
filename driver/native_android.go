@@ -2,7 +2,7 @@
 
 package driver
 
-import "fyne.io/fyne/v2/internal/driver/mobile/app"
+import "github.com/alexballas/refyne/v2/internal/driver/mobile/app"
 
 // RunNative provides a way to execute code within the platform-specific runtime context for various runtimes.
 // On Android this provides the JVM pointers required to execute various NDK calls or use JNI APIs.

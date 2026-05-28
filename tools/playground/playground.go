@@ -8,10 +8,10 @@ import (
 	"image"
 	"image/png"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/software"
-	"fyne.io/fyne/v2/internal/test"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/software"
+	"github.com/alexballas/refyne/v2/internal/test"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 func encodeImage(img image.Image) (string, error) {

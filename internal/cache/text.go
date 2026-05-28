@@ -4,8 +4,8 @@ import (
 	"image/color"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/async"
 )
 
 var fontSizeCache async.Map[fontSizeEntry, *fontMetric]

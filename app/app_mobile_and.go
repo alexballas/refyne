@@ -16,8 +16,8 @@ import (
 	"net/url"
 	"unsafe"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/driver/mobile/app"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/driver/mobile/app"
 )
 
 func (a *fyneApp) OpenURL(url *url.URL) error {

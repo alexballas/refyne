@@ -7,11 +7,11 @@ import (
 	"image/draw"
 	"math"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/internal/cache"
-	paint "fyne.io/fyne/v2/internal/painter"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	paint "github.com/alexballas/refyne/v2/internal/painter"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 const floatEqualityThreshold = 1e-9

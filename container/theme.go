@@ -1,10 +1,10 @@
 package container
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/cache"
-	intTheme "fyne.io/fyne/v2/internal/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	intTheme "github.com/alexballas/refyne/v2/internal/theme"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 // ThemeOverride is a container where the child widgets are themed by the specified theme.

@@ -7,13 +7,13 @@ import (
 	"math/cmplx"
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	col "fyne.io/fyne/v2/internal/color"
-	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/container"
+	col "github.com/alexballas/refyne/v2/internal/color"
+	"github.com/alexballas/refyne/v2/lang"
+	"github.com/alexballas/refyne/v2/theme"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 const (

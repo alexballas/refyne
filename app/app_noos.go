@@ -3,10 +3,10 @@
 package app
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/embedded"
-	intNoos "fyne.io/fyne/v2/internal/driver/embedded"
-	"fyne.io/fyne/v2/theme"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/driver/embedded"
+	intNoos "github.com/alexballas/refyne/v2/internal/driver/embedded"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 func NewWithID(id string) fyne.App {

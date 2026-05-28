@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/data/binding"
+	"github.com/alexballas/refyne/v2/layout"
+	"github.com/alexballas/refyne/v2/test"
+	"github.com/alexballas/refyne/v2/widget"
 )
 
 func TestCheck_Binding(t *testing.T) {

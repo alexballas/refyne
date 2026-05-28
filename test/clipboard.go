@@ -1,6 +1,6 @@
 package test
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 type clipboard struct {
 	content string

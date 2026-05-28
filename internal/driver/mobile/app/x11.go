@@ -27,10 +27,10 @@ import (
 	"runtime"
 	"time"
 
-	"fyne.io/fyne/v2/internal/driver/mobile/event/lifecycle"
-	"fyne.io/fyne/v2/internal/driver/mobile/event/paint"
-	"fyne.io/fyne/v2/internal/driver/mobile/event/size"
-	"fyne.io/fyne/v2/internal/driver/mobile/event/touch"
+	"github.com/alexballas/refyne/v2/internal/driver/mobile/event/lifecycle"
+	"github.com/alexballas/refyne/v2/internal/driver/mobile/event/paint"
+	"github.com/alexballas/refyne/v2/internal/driver/mobile/event/size"
+	"github.com/alexballas/refyne/v2/internal/driver/mobile/event/touch"
 )
 
 func init() {

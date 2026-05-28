@@ -5,7 +5,7 @@ package test
 import (
 	"testing"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // NewTempApp returns a new dummy app and tears it down at the end of the test.

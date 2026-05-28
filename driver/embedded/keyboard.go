@@ -1,6 +1,6 @@
 package embedded
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 // KeyDirection specifies the press/release of a key event
 //

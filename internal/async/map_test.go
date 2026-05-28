@@ -3,7 +3,7 @@ package async_test
 import (
 	"testing"
 
-	"fyne.io/fyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/stretchr/testify/assert"
 )
 

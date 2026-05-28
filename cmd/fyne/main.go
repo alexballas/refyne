@@ -8,7 +8,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"fyne.io/fyne/v2/cmd/fyne/internal/commands"
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/commands"
 	"github.com/urfave/cli/v2"
 )
 

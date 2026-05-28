@@ -2,7 +2,7 @@
 
 package glfw
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 func setupNativeMenu(_ *window, _ *fyne.MainMenu) {
 	// no-op

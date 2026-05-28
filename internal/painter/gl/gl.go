@@ -4,8 +4,8 @@ import (
 	"log"
 	"runtime"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/build"
 )
 
 const (

@@ -1,8 +1,8 @@
 package cache
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/async"
 )
 
 var (

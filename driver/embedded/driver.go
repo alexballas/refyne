@@ -3,7 +3,7 @@ package embedded
 import (
 	"image"
 
-	"fyne.io/fyne/v2"
+	"github.com/alexballas/refyne/v2"
 )
 
 // Driver is an embedded driver designed for handling custom hardware.

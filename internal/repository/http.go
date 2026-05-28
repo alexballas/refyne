@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage/repository"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/storage/repository"
 )
 
 var _ repository.Repository = (*HTTPRepository)(nil)

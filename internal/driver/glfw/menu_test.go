@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/lang"
 
 	"github.com/stretchr/testify/assert"
 )

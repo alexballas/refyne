@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	"fyne.io/fyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/canvas"
 
 	"github.com/stretchr/testify/assert"
 )

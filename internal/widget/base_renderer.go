@@ -1,6 +1,6 @@
 package widget
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 // BaseRenderer is a renderer base that provides part of the widget.Renderer interface.
 type BaseRenderer struct {

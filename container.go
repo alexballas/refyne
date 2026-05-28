@@ -16,7 +16,7 @@ type Container struct {
 
 // NewContainer returns a new [Container] instance holding the specified [CanvasObject]s.
 //
-// Deprecated: Use [fyne.io/fyne/v2/container.NewWithoutLayout] to create a container that uses manual layout.
+// Deprecated: Use [github.com/alexballas/refyne/v2/container.NewWithoutLayout] to create a container that uses manual layout.
 func NewContainer(objects ...CanvasObject) *Container {
 	return NewContainerWithoutLayout(objects...)
 }
@@ -24,7 +24,7 @@ func NewContainer(objects ...CanvasObject) *Container {
 // NewContainerWithoutLayout returns a new [Container] instance holding the specified
 // [CanvasObject]s that are manually arranged.
 //
-// Deprecated: Use [fyne.io/fyne/v2/container.NewWithoutLayout] instead.
+// Deprecated: Use [github.com/alexballas/refyne/v2/container.NewWithoutLayout] instead.
 func NewContainerWithoutLayout(objects ...CanvasObject) *Container {
 	ret := &Container{
 		Objects: objects,
@@ -37,7 +37,7 @@ func NewContainerWithoutLayout(objects ...CanvasObject) *Container {
 // NewContainerWithLayout returns a new [Container] instance holding the specified
 // [CanvasObject]s which will be laid out according to the specified Layout.
 //
-// Deprecated: Use [fyne.io/fyne/v2/container.New] instead.
+// Deprecated: Use [github.com/alexballas/refyne/v2/container.New] instead.
 func NewContainerWithLayout(layout Layout, objects ...CanvasObject) *Container {
 	ret := &Container{
 		Objects: objects,

@@ -4,13 +4,13 @@ import (
 	"image/color"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/internal/driver"
-	internal_widget "fyne.io/fyne/v2/internal/widget"
-	_ "fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/internal/driver"
+	internal_widget "github.com/alexballas/refyne/v2/internal/widget"
+	_ "github.com/alexballas/refyne/v2/test"
+	"github.com/alexballas/refyne/v2/widget"
 
 	"github.com/stretchr/testify/assert"
 )

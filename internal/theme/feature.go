@@ -1,8 +1,8 @@
 package theme
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/cache"
 )
 
 type FeatureName string

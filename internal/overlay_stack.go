@@ -1,9 +1,9 @@
 package internal
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/app"
-	"fyne.io/fyne/v2/internal/widget"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/app"
+	"github.com/alexballas/refyne/v2/internal/widget"
 )
 
 // OverlayStack allows stacking overlays on top of each other.

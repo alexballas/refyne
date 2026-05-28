@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	_ "fyne.io/fyne/v2/test"
+	_ "github.com/alexballas/refyne/v2/test"
 )
 
 func TestDevice_HideVirtualKeyboard_BeforeRun(t *testing.T) {

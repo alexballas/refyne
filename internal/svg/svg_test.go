@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"fyne.io/fyne/v2/internal/test"
+	"github.com/alexballas/refyne/v2/internal/test"
 )
 
 func TestColorize(t *testing.T) {

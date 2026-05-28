@@ -3,7 +3,7 @@
 
 package settings
 
-import "fyne.io/fyne/v2"
+import "github.com/alexballas/refyne/v2"
 
 var resourceAppearanceSvg = &fyne.StaticResource{
 	StaticName: "appearance.svg",

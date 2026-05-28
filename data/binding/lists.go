@@ -3,8 +3,8 @@ package binding
 import (
 	"bytes"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
+	"github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/storage"
 )
 
 // List supports binding a list of values with type T.

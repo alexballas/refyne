@@ -7,9 +7,9 @@
 //
 //	package main
 //
-//	import "fyne.io/fyne/v2/app"
-//	import "fyne.io/fyne/v2/container"
-//	import "fyne.io/fyne/v2/widget"
+//	import "github.com/alexballas/refyne/v2/app"
+//	import "github.com/alexballas/refyne/v2/container"
+//	import "github.com/alexballas/refyne/v2/widget"
 //
 //	func main() {
 //		a := app.New()
@@ -25,4 +25,4 @@
 //
 //		w.ShowAndRun()
 //	}
-package fyne // import "fyne.io/fyne/v2"
+package fyne // import "github.com/alexballas/refyne/v2"
