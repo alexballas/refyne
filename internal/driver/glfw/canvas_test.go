@@ -368,9 +368,7 @@ func TestGlCanvas_MinSizeShrinkTriggersLayout(t *testing.T) {
 	w.SetContent(content)
 
 	oldCanvasSize := fyne.NewSize(200+3*theme.Padding(), 100+3*theme.Padding())
-	runOnMain(func() {
-		assert.Equal(t, oldCanvasSize, c.Size())
-	})
+	ensureCanvasSize(t, w, oldCanvasSize)
 	repaintWindow(w)
 
 	var oldRightColSize fyne.Size
