@@ -278,7 +278,7 @@ func TestGlCanvas_FocusHandlingWhenAddingAndRemovingOverlays(t *testing.T) {
 	runOnMain(func() {
 		overs = c.Overlays()
 	})
-	overs.Add(overlay1)
+	runOnMain(func() { overs.Add(overlay1) })
 	ctxt := "adding overlay changes focus handler but does not remove focus from content"
 	assert.Nil(t, c.Focused(), ctxt)
 	assert.True(t, ce2.focused, ctxt)
@@ -290,7 +290,7 @@ func TestGlCanvas_FocusHandlingWhenAddingAndRemovingOverlays(t *testing.T) {
 	assert.True(t, ce2.focused, ctxt)
 	assert.True(t, o1e1.focused, ctxt)
 
-	overs.Add(overlay2)
+	runOnMain(func() { overs.Add(overlay2) })
 	ctxt = "adding overlay changes focus handler but does not remove focus from previous overlay"
 	assert.Nil(t, c.Focused(), ctxt)
 	assert.True(t, o1e1.focused, ctxt)
@@ -307,7 +307,7 @@ func TestGlCanvas_FocusHandlingWhenAddingAndRemovingOverlays(t *testing.T) {
 	assert.False(t, o2e2.focused)
 	assert.True(t, o2e1.focused)
 
-	overs.Remove(overlay2)
+	runOnMain(func() { overs.Remove(overlay2) })
 	ctxt = "removing overlay restores focus handler from previous overlay but does not remove focus from removed overlay"
 	assert.Equal(t, o1e1, c.Focused(), ctxt)
 	assert.True(t, o2e1.focused, ctxt)
@@ -319,7 +319,7 @@ func TestGlCanvas_FocusHandlingWhenAddingAndRemovingOverlays(t *testing.T) {
 	assert.False(t, o1e1.focused)
 	assert.True(t, o1e2.focused)
 
-	overs.Remove(overlay1)
+	runOnMain(func() { overs.Remove(overlay1) })
 	ctxt = "removing last overlay restores focus handler from content but does not remove focus from removed overlay"
 	assert.Equal(t, ce2, c.Focused(), ctxt)
 	assert.False(t, o1e1.focused, ctxt)
