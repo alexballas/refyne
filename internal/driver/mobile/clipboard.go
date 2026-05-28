@@ -1,7 +1,7 @@
 package mobile
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // Declare conformity with Clipboard interface

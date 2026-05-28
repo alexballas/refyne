@@ -1,7 +1,7 @@
 package mobile
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // KeyboardType represents a type of virtual keyboard

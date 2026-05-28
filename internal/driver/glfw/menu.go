@@ -1,8 +1,6 @@
 package glfw
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 func buildMenuOverlay(menus *fyne.MainMenu, w *window) fyne.CanvasObject {
 	if len(menus.Items) == 0 {

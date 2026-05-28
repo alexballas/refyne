@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/painter"
@@ -912,7 +912,8 @@ func (t *textGridRowRenderer) MinSize() fyne.Size {
 
 	return fyne.NewSize(
 		t.obj.text.cellSize.Width*float32(len(t.obj.text.text.Rows[t.obj.row].Cells)),
-		t.obj.text.cellSize.Height)
+		t.obj.text.cellSize.Height,
+	)
 }
 
 func (t *textGridRowRenderer) Refresh() {

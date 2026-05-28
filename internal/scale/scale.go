@@ -3,7 +3,7 @@ package scale
 import (
 	"math"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // ToScreenCoordinate converts a fyne coordinate in the given canvas to a screen coordinate

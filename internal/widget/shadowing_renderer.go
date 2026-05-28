@@ -1,8 +1,6 @@
 package widget
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 // ShadowingRenderer is a renderer that adds a shadow around the rendered content.
 // When using the ShadowingRenderer the embedding renderer should call

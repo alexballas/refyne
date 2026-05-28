@@ -8,7 +8,7 @@ import (
 	"image"
 	"image/png"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver/software"
 	"github.com/alexballas/refyne/v2/internal/test"
 	"github.com/alexballas/refyne/v2/theme"

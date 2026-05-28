@@ -3,7 +3,7 @@ package app_test
 import (
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/internal/app"
 	internalWidget "github.com/alexballas/refyne/v2/internal/widget"

@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 )

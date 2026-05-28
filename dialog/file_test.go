@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	fyne "github.com/alexballas/refyne/v2"
 	intWidget "github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/lang"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/storage"
 	"github.com/alexballas/refyne/v2/test"

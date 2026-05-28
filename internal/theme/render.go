@@ -1,7 +1,7 @@
 package theme
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 var themeStack []fyne.Theme

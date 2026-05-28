@@ -7,7 +7,7 @@ import (
 	"math"
 	"math/cmplx"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	internalwidget "github.com/alexballas/refyne/v2/internal/widget"

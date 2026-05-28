@@ -1,6 +1,6 @@
 package widget
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 var _ fyne.WidgetRenderer = (*SimpleRenderer)(nil)
 

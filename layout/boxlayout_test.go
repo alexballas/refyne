@@ -3,7 +3,7 @@ package layout_test
 import (
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/layout"
@@ -76,7 +76,7 @@ func TestHBoxLayout_HiddenItem(t *testing.T) {
 	// We are not in a window. Resize the container to a default size.
 	container.Resize(container.MinSize())
 
-	assert.Equal(t, container.MinSize(), fyne.NewSize(100+(theme.Padding()), 50))
+	assert.Equal(t, container.MinSize(), fyne.NewSize(100+theme.Padding(), 50))
 
 	assert.Equal(t, obj1.Size(), cellSize)
 	cell3Pos := fyne.NewPos(50+theme.Padding(), 0)
@@ -218,7 +218,7 @@ func TestVBoxLayout_HiddenItem(t *testing.T) {
 	// We are not in a window. Resize the container to a default size.
 	container.Resize(container.MinSize())
 
-	assert.Equal(t, container.MinSize(), fyne.NewSize(50, 100+(theme.Padding())))
+	assert.Equal(t, container.MinSize(), fyne.NewSize(50, 100+theme.Padding()))
 
 	assert.Equal(t, obj1.Size(), cellSize)
 	cell3Pos := fyne.NewPos(0, 50+theme.Padding())

@@ -1,6 +1,6 @@
 package desktop
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 // App defines the desktop specific extensions to a fyne.App.
 //

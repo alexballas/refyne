@@ -6,7 +6,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	internalWidget "github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/test"
@@ -141,7 +141,8 @@ func TestMenu_Dragging(t *testing.T) {
 	w.SetPadded(false)
 	c := w.Canvas()
 
-	menu := fyne.NewMenu("",
+	menu := fyne.NewMenu(
+		"",
 		fyne.NewMenuItem("A", nil),
 		fyne.NewMenuItem("B", nil),
 		fyne.NewMenuItem("C", nil),

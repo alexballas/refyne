@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
@@ -717,7 +717,8 @@ func (w *window) RescaleContext() {
 		w.width, w.height = w.viewport.GetSize()
 		scaledFull := fyne.NewSize(
 			scale.ToFyneCoordinate(w.canvas, w.width),
-			scale.ToFyneCoordinate(w.canvas, w.height))
+			scale.ToFyneCoordinate(w.canvas, w.height),
+		)
 		w.canvas.Resize(scaledFull)
 		return
 	}

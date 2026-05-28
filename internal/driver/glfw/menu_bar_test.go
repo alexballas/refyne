@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/test"
 	"github.com/alexballas/refyne/v2/widget"

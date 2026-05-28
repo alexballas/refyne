@@ -3,7 +3,7 @@
 package app
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver/embedded"
 	intNoos "github.com/alexballas/refyne/v2/internal/driver/embedded"
 	"github.com/alexballas/refyne/v2/theme"

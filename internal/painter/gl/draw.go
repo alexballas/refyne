@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/internal"
 	paint "github.com/alexballas/refyne/v2/internal/painter"

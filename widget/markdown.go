@@ -5,11 +5,10 @@ import (
 	"net/url"
 	"strings"
 
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/renderer"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 // NewRichTextFromMarkdown configures a RichText widget by parsing the provided markdown content.

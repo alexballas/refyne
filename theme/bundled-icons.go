@@ -3,7 +3,7 @@ package theme
 import (
 	_ "embed"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 //go:embed icons/fyne.png

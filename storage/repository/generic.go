@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // GenericParent can be used as a common-case implementation of

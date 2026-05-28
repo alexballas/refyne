@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 var meta = fyne.AppMetadata{

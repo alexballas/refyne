@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 
 	"github.com/srwiley/rasterx"
@@ -422,14 +422,16 @@ func drawRegularPolygon(cx, cy, radius, cornerRadius, rot float64, sides int, p 
 
 	// start at s0, arc corner 0, then line+arc around, close last edge
 	p.Start(rasterx.ToFixedP(sPts[0].x, sPts[0].y))
-	gf(p,
+	gf(
+		p,
 		rasterx.ToFixedP(cPts[0].x, cPts[0].y),
 		rasterx.ToFixedP(vS[0].x, vS[0].y),
 		rasterx.ToFixedP(vE[0].x, vE[0].y),
 	)
 	for i := 1; i < sides; i++ {
 		p.Line(rasterx.ToFixedP(sPts[i].x, sPts[i].y))
-		gf(p,
+		gf(
+			p,
 			rasterx.ToFixedP(cPts[i].x, cPts[i].y),
 			rasterx.ToFixedP(vS[i].x, vS[i].y),
 			rasterx.ToFixedP(vE[i].x, vE[i].y),

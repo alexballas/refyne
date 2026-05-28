@@ -2,9 +2,7 @@
 
 package dialog
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 func (f *fileDialog) loadPlaces() []fyne.CanvasObject {
 	return nil

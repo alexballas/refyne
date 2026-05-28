@@ -4,7 +4,7 @@ package storage
 import (
 	"errors"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // OpenFileFromURI loads a file read stream from a resource identifier.

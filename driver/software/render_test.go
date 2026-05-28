@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/internal/painter"
@@ -44,7 +44,8 @@ func TestRenderCanvas(t *testing.T) {
 		container.NewTabItem("Tab 1", container.NewVBox(
 			widget.NewLabel("Label"),
 			widget.NewButton("Button", func() {}),
-		)))
+		)),
+	)
 
 	c := NewCanvas()
 	c.SetContent(obj)

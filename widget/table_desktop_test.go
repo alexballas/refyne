@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/test"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,8 @@ func TestTable_Hovered(t *testing.T) {
 		},
 		func(id TableCellID, c fyne.CanvasObject) {
 			c.(*Label).SetText(fmt.Sprintf("Cell %d, %d", id.Row, id.Col))
-		})
+		},
+	)
 
 	w := test.NewWindow(table)
 	defer w.Close()

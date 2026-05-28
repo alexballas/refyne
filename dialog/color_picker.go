@@ -3,7 +3,7 @@ package dialog
 import (
 	"image/color"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
 	col "github.com/alexballas/refyne/v2/internal/color"
 	"github.com/alexballas/refyne/v2/theme"
@@ -187,7 +187,8 @@ func (p *colorAdvancedPicker) CreateRenderer() fyne.WidgetRenderer {
 			container.NewPadded(wheel),
 			hslBox,
 			rgbBox),
-		container.NewGridWithColumns(3,
+		container.NewGridWithColumns(
+			3,
 			container.NewPadded(preview),
 
 			hex,

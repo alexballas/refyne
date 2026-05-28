@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	internalapp "github.com/alexballas/refyne/v2/internal/app"
 )
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-gl/gl/v2.1/gl"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 const (
@@ -108,7 +108,8 @@ func (p *painter) Init() {
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
-	p.getUniformLocations(p.roundRectangleProgram,
+	p.getUniformLocations(
+		p.roundRectangleProgram,
 		"frame_size", "rect_coords",
 		"stroke_width_half", "rect_size_half",
 		"radius", "edge_softness",
@@ -122,7 +123,8 @@ func (p *painter) Init() {
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
-	p.getUniformLocations(p.polygonProgram,
+	p.getUniformLocations(
+		p.polygonProgram,
 		"frame_size", "rect_coords", "edge_softness",
 		"outer_radius", "angle", "sides",
 		"fill_color", "corner_radius",
@@ -136,7 +138,8 @@ func (p *painter) Init() {
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
-	p.getUniformLocations(p.arcProgram,
+	p.getUniformLocations(
+		p.arcProgram,
 		"frame_size", "rect_coords",
 		"inner_radius", "outer_radius",
 		"start_angle", "end_angle",
@@ -152,7 +155,8 @@ func (p *painter) Init() {
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
-	p.getUniformLocations(p.bezierCurveProgram,
+	p.getUniformLocations(
+		p.bezierCurveProgram,
 		"frame_size", "rect_coords", "edge_softness",
 		"start_point", "end_point", "num_control_points",
 		"control_point1", "control_point2",

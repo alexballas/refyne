@@ -1,6 +1,6 @@
 package desktop
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 // MouseButton represents a single button in a desktop MouseEvent
 type MouseButton int

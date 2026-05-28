@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile"
 
 	"github.com/urfave/cli/v2"
@@ -243,7 +243,8 @@ func (i *Installer) installToIOSSimulator(target string) error {
 	cmd := execabs.Command(
 		"xcrun", "simctl", "install",
 		"booted", // Install to the booted simulator.
-		target)
+		target,
+	)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("Install to a simulator error: %s%s", out, err)
 	}

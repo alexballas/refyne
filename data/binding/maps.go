@@ -4,7 +4,7 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // DataMap is the base interface for all bindable data maps.

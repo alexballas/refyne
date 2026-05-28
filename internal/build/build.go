@@ -4,7 +4,7 @@ package build
 import (
 	"sync"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 var (

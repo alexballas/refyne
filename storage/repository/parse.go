@@ -6,9 +6,8 @@ import (
 	"runtime"
 	"strings"
 
+	fyne "github.com/alexballas/refyne/v2"
 	uriParser "github.com/fredbi/uri"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 // NewFileURI implements the back-end logic to storage.NewFileURI, which you

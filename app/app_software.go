@@ -3,7 +3,7 @@
 package app
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/painter/software"
 	"github.com/alexballas/refyne/v2/test"
 )

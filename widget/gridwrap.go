@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/data/binding"
 	"github.com/alexballas/refyne/v2/driver/desktop"
@@ -101,7 +101,8 @@ func NewGridWrapWithData(data binding.DataList, createItem func() fyne.CanvasObj
 				return
 			}
 			updateItem(item, o)
-		})
+		},
+	)
 
 	data.AddListener(binding.NewDataListener(gwList.Refresh))
 	return gwList

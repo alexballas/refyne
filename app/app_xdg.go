@@ -14,7 +14,7 @@ import (
 	portalSettings "github.com/rymdport/portal/settings"
 	"github.com/rymdport/portal/settings/appearance"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	internalapp "github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/theme"

@@ -18,7 +18,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 func (a *fyneApp) OpenURL(url *url.URL) error {

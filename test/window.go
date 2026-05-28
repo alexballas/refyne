@@ -1,7 +1,7 @@
 package test
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 type window struct {

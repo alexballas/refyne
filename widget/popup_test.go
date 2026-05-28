@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/widget"
@@ -69,7 +69,8 @@ func TestShowPopUpAtRelativePosition(t *testing.T) {
 	parent1 := NewLabel("Parent1")
 	parent2 := NewLabel("Parent2")
 	w := test.NewTempWindow(
-		t, &fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{parent1, parent2}})
+		t, &fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{parent1, parent2}},
+	)
 	w.Resize(fyne.NewSize(100, 200))
 
 	ShowPopUpAtRelativePosition(label, w.Canvas(), pos, parent2)

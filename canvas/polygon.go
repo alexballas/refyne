@@ -3,7 +3,7 @@ package canvas
 import (
 	"image/color"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // Declare conformity with CanvasObject interface

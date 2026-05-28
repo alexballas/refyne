@@ -6,7 +6,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/cmd/fyne_demo/data"
 	"github.com/alexballas/refyne/v2/container"
@@ -21,7 +21,8 @@ func containerScreen(_ fyne.Window) fyne.CanvasObject {
 		widget.NewLabelWithStyle("Bottom", fyne.TextAlignCenter, fyne.TextStyle{}),
 		widget.NewLabel("Left"),
 		widget.NewLabel("Right"),
-		widget.NewLabel("Border Container"))
+		widget.NewLabel("Border Container"),
+	)
 	return container.NewCenter(content)
 }
 
@@ -115,7 +116,8 @@ func makeInnerWindowTab(_ fyne.Window) fyne.CanvasObject {
 		label,
 		widget.NewButton("Tap Me", func() {
 			label.SetText("Tapped")
-		})))
+		}),
+	))
 	win1.Icon = data.FyneLogo
 	win1.OnMaximized = func() {
 		log.Println("Should maximize here")

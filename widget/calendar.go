@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/lang"
 	"github.com/alexballas/refyne/v2/layout"
 	"github.com/alexballas/refyne/v2/theme"
@@ -220,8 +220,8 @@ func (g *calendarLayout) MinSize(_ []fyne.CanvasObject) fyne.Size {
 // Get the leading edge position of a grid cell.
 // The row and col specify where the cell is in the calendar.
 func (g *calendarLayout) getLeading(row, col int) fyne.Position {
-	x := (g.cellSize.Width) * float32(col)
-	y := (g.cellSize.Height) * float32(row)
+	x := g.cellSize.Width * float32(col)
+	y := g.cellSize.Height * float32(row)
 
 	return fyne.NewPos(float32(math.Round(float64(x))), float32(math.Round(float64(y))))
 }

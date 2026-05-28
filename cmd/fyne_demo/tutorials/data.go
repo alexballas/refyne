@@ -1,8 +1,6 @@
 package tutorials
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 // OnChangeFuncs is a slice of functions that can be registered
 // to run when the user switches tutorial.

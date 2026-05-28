@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // Declare conformity with CanvasObject interface

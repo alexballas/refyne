@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver/mobile"
 	"github.com/alexballas/refyne/v2/driver/software"
 	"github.com/alexballas/refyne/v2/internal/driver"

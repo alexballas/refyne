@@ -1,10 +1,9 @@
 package lang
 
 import (
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/jeandeaual/go-locale"
 	"golang.org/x/text/language"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 // SystemLocale returns the primary locale on the current system.

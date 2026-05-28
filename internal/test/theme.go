@@ -3,7 +3,7 @@ package test
 import (
 	"image/color"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 func DarkTheme(fallback fyne.Theme) fyne.Theme {

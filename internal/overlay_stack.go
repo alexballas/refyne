@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/widget"
 )

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 

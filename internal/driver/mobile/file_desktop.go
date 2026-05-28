@@ -5,7 +5,7 @@ package mobile
 import (
 	"io"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	intRepo "github.com/alexballas/refyne/v2/internal/repository"
 	"github.com/alexballas/refyne/v2/storage/repository"
 )

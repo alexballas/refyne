@@ -2,7 +2,7 @@
 
 package async
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 const defaultQueueCapacity = 64
 

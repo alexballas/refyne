@@ -2,7 +2,7 @@
 package container
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // New returns a new Container instance holding the specified CanvasObjects which will be laid out according to the specified Layout.

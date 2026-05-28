@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	fynecanvas "github.com/alexballas/refyne/v2/canvas"
 	col "github.com/alexballas/refyne/v2/internal/color"
 	intdriver "github.com/alexballas/refyne/v2/internal/driver"

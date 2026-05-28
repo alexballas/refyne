@@ -3,7 +3,7 @@ package tutorials
 import (
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/widget"
@@ -60,7 +60,8 @@ func windowScreen(_ fyne.Window) fyne.CanvasObject {
 				visibilityWindow.Show()
 			}
 			visibilityState = !visibilityState
-		}))
+		}),
+	)
 
 	drv := fyne.CurrentApp().Driver()
 	if drv, ok := drv.(desktop.Driver); ok {

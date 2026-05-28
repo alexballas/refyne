@@ -1,6 +1,6 @@
 package layout
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 // SpacerObject is any object that can be used to space out child objects
 type SpacerObject interface {

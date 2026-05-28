@@ -3,7 +3,7 @@ package test
 import (
 	"runtime"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 type device struct{}

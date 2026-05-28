@@ -3,7 +3,7 @@ package theme
 import (
 	"image/color"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // DefaultEmojiFont returns the font resource for the built-in emoji font.

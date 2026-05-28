@@ -3,7 +3,7 @@ package mobile
 import (
 	"errors"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 type lister struct {

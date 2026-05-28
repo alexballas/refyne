@@ -3,9 +3,8 @@ package test
 import (
 	"testing"
 
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 func TestTestApp_CloudProvider(t *testing.T) {

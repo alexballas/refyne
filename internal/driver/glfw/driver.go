@@ -11,7 +11,7 @@ import (
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/fyne-io/image/ico"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/animation"
 	intapp "github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/driver"

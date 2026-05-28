@@ -5,7 +5,7 @@ package glfw
 import (
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 const webDefaultDoubleTapDelay = 300 * time.Millisecond

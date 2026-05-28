@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"testing"
 
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 func Test_NewTheme(t *testing.T) {

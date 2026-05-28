@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/data/binding"
 	"github.com/alexballas/refyne/v2/driver/desktop"
@@ -488,13 +488,15 @@ func (s *sliderRenderer) Layout(size fyne.Size) {
 		activeSize = fyne.NewSize(trackWidth, trackSize.Height-activeOffset+endPad)
 
 		thumbPos = fyne.NewPos(
-			trackPos.X-(diameter-trackSize.Width)/2, activeOffset-(diameter/2))
+			trackPos.X-(diameter-trackSize.Width)/2, activeOffset-(diameter/2),
+		)
 	case Horizontal:
 		activePos = trackPos
 		activeSize = fyne.NewSize(activeOffset-endPad, trackWidth)
 
 		thumbPos = fyne.NewPos(
-			activeOffset-(diameter/2), trackPos.Y-(diameter-trackSize.Height)/2)
+			activeOffset-(diameter/2), trackPos.Y-(diameter-trackSize.Height)/2,
+		)
 	}
 
 	s.active.Move(activePos)

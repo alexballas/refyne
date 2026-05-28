@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
 
 	"golang.org/x/mod/semver"
@@ -212,7 +212,8 @@ func envInit() (err error) {
 		if before116 {
 			os = "darwin"
 		}
-		env = append(env,
+		env = append(
+			env,
 			"GOOS="+os,
 			"GOARCH="+arch,
 			"CC="+clang,

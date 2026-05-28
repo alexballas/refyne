@@ -3,7 +3,7 @@
 
 package templates
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 var resourceAndroidManifestXml = &fyne.StaticResource{
 	StaticName: "AndroidManifest.xml",

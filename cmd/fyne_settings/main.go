@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/app"
 	"github.com/alexballas/refyne/v2/cmd/fyne_settings/settings"
 	"github.com/alexballas/refyne/v2/container"
@@ -15,7 +15,8 @@ func main() {
 
 	appearance := s.LoadAppearanceScreen(w)
 	tabs := container.NewAppTabs(
-		&container.TabItem{Text: "Appearance", Icon: s.AppearanceIcon(), Content: appearance})
+		&container.TabItem{Text: "Appearance", Icon: s.AppearanceIcon(), Content: appearance},
+	)
 	tabs.SetTabLocation(container.TabLocationLeading)
 	w.SetContent(tabs)
 

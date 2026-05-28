@@ -1,6 +1,6 @@
 package glfw
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 func (d *gLDriver) StartAnimation(a *fyne.Animation) {
 	d.animation.Start(a)

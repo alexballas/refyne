@@ -3,9 +3,8 @@ package theme
 import (
 	"testing"
 
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 func helperNewStaticResource() *fyne.StaticResource {

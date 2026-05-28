@@ -1,7 +1,7 @@
 package container
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	intTheme "github.com/alexballas/refyne/v2/internal/theme"
 	"github.com/alexballas/refyne/v2/widget"

@@ -2,7 +2,7 @@
 
 package widget
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 // DragEnd will stop scrolling on mobile has stopped
 func (s *Scroll) DragEnd() {

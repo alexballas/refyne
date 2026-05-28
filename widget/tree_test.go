@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/data/binding"
@@ -32,7 +32,8 @@ func TestNewTreeWithData(t *testing.T) {
 		data.Append("1", fmt.Sprintf("%d", 1000+i), fmt.Sprintf("Child Item %d", i))
 	}
 
-	tree := widget.NewTreeWithData(data,
+	tree := widget.NewTreeWithData(
+		data,
 		func(bool) fyne.CanvasObject {
 			return widget.NewLabel("Template Object")
 		},

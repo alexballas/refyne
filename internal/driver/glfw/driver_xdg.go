@@ -7,9 +7,8 @@ import "C"
 import (
 	"time"
 
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/godbus/dbus/v5"
-
-	"github.com/alexballas/refyne/v2"
 )
 
 var inhibitCookie uint32

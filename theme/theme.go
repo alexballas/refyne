@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	internaltheme "github.com/alexballas/refyne/v2/internal/theme"
 )

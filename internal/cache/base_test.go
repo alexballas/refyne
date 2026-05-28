@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/stretchr/testify/assert"
 )
 

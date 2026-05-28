@@ -10,14 +10,14 @@ import (
 	"runtime"
 	"syscall"
 
+	"fyne.io/systray"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/driver/software"
 	"github.com/alexballas/refyne/v2/internal/painter"
 	"github.com/alexballas/refyne/v2/internal/svg"
 	"github.com/alexballas/refyne/v2/lang"
-	"fyne.io/systray"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/theme"
 )
 

@@ -3,10 +3,10 @@ package container
 import (
 	"testing"
 
+	fyne "github.com/alexballas/refyne/v2"
 	internalTest "github.com/alexballas/refyne/v2/internal/test"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/test"
@@ -31,7 +31,8 @@ func TestTab_ThemeChange(t *testing.T) {
 
 	tabs := NewAppTabs(
 		NewTabItem("a", widget.NewLabel("a")),
-		NewTabItem("b", widget.NewLabel("b")))
+		NewTabItem("b", widget.NewLabel("b")),
+	)
 	w := test.NewTempWindow(t, tabs)
 	w.Resize(fyne.NewSize(180, 120))
 

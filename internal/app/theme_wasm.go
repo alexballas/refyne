@@ -5,7 +5,7 @@ package app
 import (
 	"syscall/js"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/theme"
 )
 

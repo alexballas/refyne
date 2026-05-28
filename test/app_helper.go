@@ -5,7 +5,7 @@ package test
 import (
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // NewTempApp returns a new dummy app and tears it down at the end of the test.

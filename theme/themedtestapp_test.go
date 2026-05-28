@@ -3,7 +3,7 @@ package theme_test
 import (
 	"net/url"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/theme"
 )
 

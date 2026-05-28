@@ -1,7 +1,7 @@
 package mobile
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver/mobile"
 	"github.com/alexballas/refyne/v2/internal/driver/mobile/app"
 )

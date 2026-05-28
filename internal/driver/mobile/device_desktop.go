@@ -2,7 +2,7 @@
 
 package mobile
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 const tapYOffset = 0 // no finger compensation on desktop (simulation)
 

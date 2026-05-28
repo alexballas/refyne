@@ -2,9 +2,7 @@
 
 package mobile
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 func canListURI(fyne.URI) bool {
 	// no-op as we use the internal FileRepository

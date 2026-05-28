@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // Runner is the main driver for animations package

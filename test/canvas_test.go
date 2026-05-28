@@ -4,10 +4,10 @@ import (
 	"image/color"
 	"testing"
 
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/widget"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/theme"
 )
 

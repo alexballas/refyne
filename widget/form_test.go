@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/data/validation"
 	"github.com/alexballas/refyne/v2/test"
@@ -156,7 +156,8 @@ func TestForm_Disabled(t *testing.T) {
 	disabled.Disable()
 	f := NewForm(
 		NewFormItem("Form Item 1", NewEntry()),
-		NewFormItem("Form Item 2", disabled))
+		NewFormItem("Form Item 2", disabled),
+	)
 
 	w := test.NewWindow(f)
 	defer w.Close()

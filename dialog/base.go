@@ -4,7 +4,7 @@ package dialog // import "github.com/alexballas/refyne/v2/dialog"
 import (
 	"image/color"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	col "github.com/alexballas/refyne/v2/internal/color"
@@ -135,7 +135,8 @@ func (d *dialog) create(buttons fyne.CanvasObject) {
 		image = &layout.Spacer{}
 	}
 
-	content := container.New(&dialogLayout{d: d},
+	content := container.New(
+		&dialogLayout{d: d},
 		image,
 		newThemedBackground(),
 		d.content,

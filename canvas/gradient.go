@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // LinearGradient defines a Gradient travelling straight at a given angle.

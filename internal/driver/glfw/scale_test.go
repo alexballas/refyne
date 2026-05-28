@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	_ "github.com/alexballas/refyne/v2/test"
 
 	"github.com/stretchr/testify/assert"

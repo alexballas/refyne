@@ -3,7 +3,7 @@ package widget_test
 import (
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	internalWidget "github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/test"
 	"github.com/alexballas/refyne/v2/theme"
@@ -26,7 +26,8 @@ func TestMenu_RefreshOptions(t *testing.T) {
 	itemBar.Icon = theme.AccountIcon()
 	itemBaz := fyne.NewMenuItem("Baz", nil)
 
-	m := widget.NewMenu(fyne.NewMenu("",
+	m := widget.NewMenu(fyne.NewMenu(
+		"",
 		itemFoo,
 		fyne.NewMenuItemSeparator(),
 		itemBar,
@@ -73,7 +74,8 @@ func TestMenu_TappedPaddingOrSeparator(t *testing.T) {
 	c := w.Canvas()
 
 	var item1Hit, item2Hit, overlayContainerHit bool
-	m := widget.NewMenu(fyne.NewMenu("",
+	m := widget.NewMenu(fyne.NewMenu(
+		"",
 		fyne.NewMenuItem("Foo", func() { item1Hit = true }),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Bar", func() { item2Hit = true }),

@@ -5,7 +5,7 @@ package async
 import (
 	"sync/atomic"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 // CanvasObjectQueue implements lock-free FIFO freelist based queue.

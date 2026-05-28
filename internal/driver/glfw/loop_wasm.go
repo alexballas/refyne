@@ -3,8 +3,7 @@
 package glfw
 
 import (
-	"github.com/alexballas/refyne/v2"
-
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/fyne-io/gl-js"
 	"github.com/fyne-io/glfw-js"
 )

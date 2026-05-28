@@ -2,9 +2,7 @@
 
 package app
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 // SystemTheme contains the system’s theme variant.
 // It is intended for internal use, only!

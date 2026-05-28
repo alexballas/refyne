@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 func (s *settings) load() {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/test"
@@ -89,7 +89,8 @@ func setupList(t *testing.T) (*widget.List, fyne.Window, []*resizeRefreshCountin
 		},
 		func(id widget.ListItemID, o fyne.CanvasObject) {
 			o.(*resizeRefreshCountingLabel).SetText(fmt.Sprintf("Test Item %d", id))
-		})
+		},
+	)
 	w := test.NewTempWindow(t, list)
 	w.SetPadded(false)
 	w.Resize(fyne.NewSize(200, 200))

@@ -1,6 +1,6 @@
 package mobile
 
-import "github.com/alexballas/refyne/v2"
+import fyne "github.com/alexballas/refyne/v2"
 
 // TouchEvent contains data relating to mobile touch events
 type TouchEvent struct {

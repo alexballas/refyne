@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	internalapp "github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/build"
 	internalTest "github.com/alexballas/refyne/v2/internal/test"

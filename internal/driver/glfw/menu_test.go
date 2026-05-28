@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/lang"
 
 	"github.com/stretchr/testify/assert"

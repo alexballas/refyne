@@ -7,9 +7,7 @@
 // widget.
 package canvas // import "github.com/alexballas/refyne/v2/canvas"
 
-import (
-	"github.com/alexballas/refyne/v2"
-)
+import fyne "github.com/alexballas/refyne/v2"
 
 type baseObject struct {
 	size     fyne.Size     // The current size of the canvas object

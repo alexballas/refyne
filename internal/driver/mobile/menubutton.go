@@ -1,7 +1,7 @@
 package mobile
 
 import (
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 	fynecanvas "github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
