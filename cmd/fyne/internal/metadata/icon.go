@@ -7,7 +7,7 @@ import (
 
 	"github.com/nfnt/resize"
 
-	"github.com/alexballas/refyne/v2"
+	fyne "github.com/alexballas/refyne/v2"
 )
 
 func ScaleIcon(data fyne.Resource, size int) fyne.Resource {

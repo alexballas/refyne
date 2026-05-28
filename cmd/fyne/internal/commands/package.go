@@ -20,8 +20,7 @@ import (
 	"golang.org/x/mod/module"
 	"golang.org/x/mod/semver"
 
-	"github.com/alexballas/refyne/v2"
-
+	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 )
 
