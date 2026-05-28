@@ -1,4 +1,4 @@
-// Run a command line helper for various Fyne tools.
+// Run a command line helper for various Refyne tools.
 package main
 
 import (
