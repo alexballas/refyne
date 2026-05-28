@@ -47,6 +47,14 @@ A new extension interface parallel to `URIReadCloser`:
 // is suitable for consumers such as http.ServeContent that require random
 // access.
 //
+// Seek supports the standard io.Seeker whence values io.SeekStart,
+// io.SeekCurrent and io.SeekEnd, and Read reads from the current offset, so the
+// stream behaves like an *os.File. A single reader has one shared file offset
+// and is therefore not safe for concurrent Read/Seek from multiple goroutines;
+// callers needing concurrent or overlapping random access (for example,
+// simultaneous HTTP range requests) must open one reader per consumer rather
+// than sharing one.
+//
 // Since: 2.8
 type URIReadSeekCloser interface {
 	URIReadCloser
@@ -87,9 +95,13 @@ type SeekableReadableRepository interface {
 // to a temporary seekable file) should handle a returned
 // repository.ErrOperationNotSupported error.
 //
-// Each returned reader has an independent file offset; callers needing
-// concurrent access (such as overlapping HTTP range requests) should open one
-// reader per consumer.
+// The returned reader supports random access via Seek (io.SeekStart,
+// io.SeekCurrent, io.SeekEnd) and is suitable for passing directly to
+// http.ServeContent. Each call returns an independent reader with its own file
+// offset; the reader is not safe for concurrent use, so callers serving
+// overlapping HTTP range requests must open one reader per request rather than
+// sharing a single reader across goroutines. Each reader owns an underlying OS
+// resource (a file descriptor) and must be closed.
 //
 // Since: 2.8
 func ReaderSeeker(u fyne.URI) (fyne.URIReadSeekCloser, error) {
@@ -243,6 +255,10 @@ func nativeFileOpenSeeker(f *fileOpen) (io.ReadSeekCloser, error) {
 
 	file := os.NewFile(uintptr(fd), f.uri.Name())
 	if file == nil {
+		// Defensive: os.NewFile only returns nil for an invalid fd (already
+		// guarded above), but if it does we still own the raw fd and must
+		// close it to avoid a leak.
+		syscall.Close(fd)
 		return nil, repository.ErrOperationNotSupported
 	}
 
@@ -325,6 +341,7 @@ func nativeFileOpenSeeker(f *fileOpen) (io.ReadSeekCloser, error) {
 
 	file := os.NewFile(uintptr(fd), f.uri.Name())
 	if file == nil {
+		syscall.Close(fd) // own the raw fd; close it to avoid a leak
 		return nil, repository.ErrOperationNotSupported
 	}
 	if _, err := file.Seek(0, io.SeekCurrent); err != nil {
@@ -383,13 +400,30 @@ caller
 
 Unit tests (run on desktop CI):
 
-- `storage.ReaderSeeker` on a temp file: read from start, `Seek` to mid-file
-  and read, `SeekEnd`, verify bytes; confirm offset independence between two
-  readers of the same URI.
+- `storage.ReaderSeeker` on a temp file with known contents, asserting each
+  `io.Seeker` whence value explicitly, because `http.ServeContent` relies on
+  all three:
+  - **`io.SeekEnd`**: `Seek(0, io.SeekEnd)` returns the file size (this is how
+    `ServeContent` discovers content length), and a subsequent read returns
+    `io.EOF`.
+  - **`io.SeekStart`**: `Seek(off, io.SeekStart)` then `Read` returns the bytes
+    at `off`; `Seek(0, io.SeekStart)` rewinds to the beginning (the
+    `ServeContent` "seek back to start after sizing" step).
+  - **`io.SeekCurrent`**: relative seek from the current offset reads the
+    expected bytes; the returned absolute offset is correct.
+  - Negative/invalid seeks return an error rather than corrupt offsets.
+- A `ServeContent`-shaped integration test: open via `storage.ReaderSeeker`,
+  hand the reader to `http.ServeContent`, issue a ranged request
+  (`Range: bytes=N-M`) against `httptest`, and assert a `206 Partial Content`
+  with the correct `Content-Range` and body slice.
+- Offset independence: two readers opened for the same URI seek/read
+  independently without affecting each other.
 - `storage.ReaderSeeker` returns `ErrOperationNotSupported` for a repository
   that does not implement `SeekableReadableRepository` (e.g. the in-memory
   repository).
 - `internal/repository.FileRepository.ReaderSeeker` repository-level test.
+- Reader closes its underlying fd: after `Close`, further `Read`/`Seek` return
+  an error (guards the fd-ownership / leak path).
 - Compile-time interface assertions (`var _ ...`) for `FileRepository`,
   `mobileFileRepo`, and the `*file` / `fileOpenSeeker` reader types.
 
@@ -426,9 +460,11 @@ if errors.Is(err, repository.ErrOperationNotSupported) {
   `seekableFileReaderForURI`.
 - `internal/driver/mobile/repository.go` — add `ReaderSeeker`, add assertion.
 - `internal/driver/mobile/file_android.go` — `nativeFileOpenSeeker`,
-  `openFileDescriptor` wrapper + cgo decl.
+  `openFileDescriptor` wrapper + cgo decl (adds `syscall` import).
 - `internal/driver/mobile/android.c` — `openFileDescriptor` C function.
-- `internal/driver/mobile/file_ios.go` — `nativeFileOpenSeeker` + cgo decl.
-- `internal/driver/mobile/file_ios.m` — `iosOpenFileDescriptor`.
+- `internal/driver/mobile/file_ios.go` — `nativeFileOpenSeeker` + cgo decl
+  (adds `syscall` import).
+- `internal/driver/mobile/file_ios.m` — `iosOpenFileDescriptor`
+  (`#import <fcntl.h>`).
 - `internal/driver/mobile/file_desktop.go` — `nativeFileOpenSeeker` stub.
 - `CHANGELOG.md` — note the new API (2.8).
