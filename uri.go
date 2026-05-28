@@ -13,6 +13,26 @@ type URIReadCloser interface {
 	URI() URI
 }
 
+// URIReadSeekCloser represents a seekable, cross platform data stream from a
+// file or data provider. It is the seekable counterpart of [URIReadCloser] and
+// is suitable for consumers such as [net/http.ServeContent] that require random
+// access.
+//
+// Seek supports the standard [io.Seeker] whence values [io.SeekStart],
+// [io.SeekCurrent] and [io.SeekEnd], and Read reads from the current offset, so
+// the stream behaves like an [os.File]. A single reader has one shared file
+// offset and is therefore not safe for concurrent Read/Seek from multiple
+// goroutines; callers needing concurrent or overlapping random access (for
+// example, simultaneous HTTP range requests) must open one reader per consumer
+// rather than sharing one.
+//
+// Since: 2.8
+type URIReadSeekCloser interface {
+	URIReadCloser
+
+	io.Seeker
+}
+
 // URIWriteCloser represents a cross platform data writer for a file resource.
 // This will normally refer to a local file resource.
 type URIWriteCloser interface {

@@ -120,6 +120,23 @@ type WritableRepository interface {
 	Delete(u fyne.URI) error
 }
 
+// SeekableReadableRepository is an extension of the Repository interface for
+// backends able to provide a seekable reader (for example, a backend with a
+// real file descriptor). Repositories that cannot support seeking must not
+// implement this interface; storage.ReaderSeeker will then report
+// ErrOperationNotSupported so that callers can fall back to another strategy.
+//
+// Since: 2.8
+type SeekableReadableRepository interface {
+	Repository
+
+	// ReaderSeeker will be used to implement calls to storage.ReaderSeeker()
+	// for the registered scheme of this repository.
+	//
+	// Since: 2.8
+	ReaderSeeker(u fyne.URI) (fyne.URIReadSeekCloser, error)
+}
+
 // AppendableRepository is an extension of the WritableRepository interface which also
 // supports opening a writer for URIs in append mode, without truncating their contents
 //

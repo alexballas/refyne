@@ -27,8 +27,11 @@ var (
 )
 
 var (
-	_ fyne.URIReadCloser  = (*file)(nil)
-	_ fyne.URIWriteCloser = (*file)(nil)
+	_ fyne.URIReadCloser     = (*file)(nil)
+	_ fyne.URIReadSeekCloser = (*file)(nil)
+	_ fyne.URIWriteCloser    = (*file)(nil)
+
+	_ repository.SeekableReadableRepository = (*FileRepository)(nil)
 )
 
 type file struct {
@@ -76,6 +79,13 @@ func (r *FileRepository) Exists(u fyne.URI) (bool, error) {
 //
 // Since: 2.0
 func (r *FileRepository) Reader(u fyne.URI) (fyne.URIReadCloser, error) {
+	return openFile(u, false, false)
+}
+
+// ReaderSeeker returns a seekable reader for the given URI.
+//
+// Since: 2.8
+func (r *FileRepository) ReaderSeeker(u fyne.URI) (fyne.URIReadSeekCloser, error) {
 	return openFile(u, false, false)
 }
 

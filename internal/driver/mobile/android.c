@@ -144,6 +144,45 @@ void* openStream(uintptr_t jni_env, uintptr_t ctx, char* uriCstr) {
 	return (*env)->NewGlobalRef(env, stream);
 }
 
+// openFileDescriptor returns a detached, owned POSIX file descriptor for the
+// content URI, or -1 if the provider cannot supply one (exception, null, or a
+// provider that does not support "r" mode). The caller owns the descriptor and
+// must close it.
+int openFileDescriptor(uintptr_t jni_env, uintptr_t ctx, char* uriCstr) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jobject resolver = getContentResolver(jni_env, ctx);
+
+	jclass resolverClass = (*env)->GetObjectClass(env, resolver);
+	jmethodID openFd = find_method(env, resolverClass, "openFileDescriptor", "(Landroid/net/Uri;Ljava/lang/String;)Landroid/os/ParcelFileDescriptor;");
+
+	jobject uri = parseURI(jni_env, ctx, uriCstr);
+	jstring mode = (*env)->NewStringUTF(env, "r");
+	jobject pfd = (jobject)(*env)->CallObjectMethod(env, resolver, openFd, uri, mode);
+	jthrowable loadErr = (*env)->ExceptionOccurred(env);
+
+	if (loadErr != NULL) {
+		(*env)->ExceptionClear(env);
+		return -1;
+	}
+	if (pfd == NULL) {
+		return -1;
+	}
+
+	// detachFd transfers ownership of the descriptor out of the
+	// ParcelFileDescriptor, so it stays valid after pfd is collected.
+	jclass pfdClass = (*env)->GetObjectClass(env, pfd);
+	jmethodID detachFd = find_method(env, pfdClass, "detachFd", "()I");
+	jint fd = (*env)->CallIntMethod(env, pfd, detachFd);
+	loadErr = (*env)->ExceptionOccurred(env);
+
+	if (loadErr != NULL) {
+		(*env)->ExceptionClear(env);
+		return -1;
+	}
+
+	return (int)fd;
+}
+
 void* saveStream(uintptr_t jni_env, uintptr_t ctx, char* uriCstr, bool truncate) {
 	JNIEnv *env = (JNIEnv*)jni_env;
 	jobject resolver = getContentResolver(jni_env, ctx);

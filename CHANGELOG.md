@@ -3,6 +3,12 @@
 This file lists the main changes with each version of the Fyne toolkit.
 More detailed release notes can be found on the [releases page](https://github.com/fyne-io/fyne/releases). 
 
+## Unreleased
+
+### Added
+
+* `storage.ReaderSeeker` and the `fyne.URIReadSeekCloser` / `repository.SeekableReadableRepository` types, providing seekable reads for backends that support them (local files, Android `content://`, and iOS `file://`) so resources can be passed directly to `http.ServeContent` without copying. Returns `repository.ErrOperationNotSupported` when seeking is unavailable.
+
 ## 2.7.2 - 6 Jan 2026
 
 ### Changed
