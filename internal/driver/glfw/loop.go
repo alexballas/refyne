@@ -72,37 +72,40 @@ func (d *gLDriver) drawSingleFrame() {
 			continue
 		}
 
-		// CheckDirtyAndClear must be checked after visibility,
-		// because when a window becomes visible, it could be
-		// showing old content without a dirty flag set to true.
-		// Do the clear if and only if the window is visible.
-		if !w.visible || !w.canvas.CheckDirtyAndClear() {
-			// Window hidden or not being redrawn, mark canvasForObject
-			// cache alive if it hasn't been done recently
-			// n.b. we need to make sure threshold is a bit *after*
-			// time.Now() - CacheDuration()
-			threshold := time.Now().Add(10*time.Second - cache.ValidDuration)
-			if w.lastWalkedTime.Before(threshold) {
-				w.canvas.WalkTrees(nil, func(node *common.RenderCacheNode, _ fyne.Position) {
-					// marks canvas for object cache entry alive
-					_ = cache.GetCanvasForObject(node.Obj())
-					// marks renderer cache entry alive
-					if wid, ok := node.Obj().(fyne.Widget); ok {
-						_, _ = cache.CachedRenderer(wid)
-					}
-				})
-				w.lastWalkedTime = time.Now()
-			}
-			continue
+		// Repaint only when the window is visible AND the compositor is ready
+		// to present it (Wayland frame callback). decideRepaint consults the
+		// dirty flag last, so a window that is not yet presentable keeps its
+		// dirty flag and the frame is deferred until the compositor is ready
+		// (issue #6080). When we are not repainting, keep the render caches
+		// alive instead.
+		if decideRepaint(w.visible, w.frame.ready(), w.canvas.CheckDirtyAndClear) {
+			w.RunWithContext(func() {
+				if w.driver.repaintWindow(w) {
+					refreshed = true
+				}
+			})
+		} else {
+			w.markCacheAlive()
 		}
-
-		w.RunWithContext(func() {
-			if w.driver.repaintWindow(w) {
-				refreshed = true
-			}
-		})
 	}
 	cache.Clean(refreshed)
+}
+
+// markCacheAlive keeps a non-drawn window's render caches from expiring without
+// repainting it.
+func (w *window) markCacheAlive() {
+	threshold := time.Now().Add(10*time.Second - cache.ValidDuration)
+	if w.lastWalkedTime.Before(threshold) {
+		w.canvas.WalkTrees(nil, func(node *common.RenderCacheNode, _ fyne.Position) {
+			// marks canvas for object cache entry alive
+			_ = cache.GetCanvasForObject(node.Obj())
+			// marks renderer cache entry alive
+			if wid, ok := node.Obj().(fyne.Widget); ok {
+				_, _ = cache.CachedRenderer(wid)
+			}
+		})
+		w.lastWalkedTime = time.Now()
+	}
 }
 
 func (d *gLDriver) runGL() {
