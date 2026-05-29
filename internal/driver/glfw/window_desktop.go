@@ -778,6 +778,14 @@ func (w *window) create() {
 	w.RunWithContext(func() {
 		w.canvas.SetPainter(gl.NewPainter(w.canvas, w))
 		w.canvas.Painter().Init()
+
+		// On Wayland, presentability is driven by frame callbacks (see the
+		// presentGate); disable the EGL swap-interval throttle so the swap that
+		// lands as a window is hidden returns immediately instead of blocking
+		// on a frame callback that never arrives (issue #6080).
+		if build.IsWayland {
+			glfw.SwapInterval(0)
+		}
 	})
 
 	w.setDarkMode()
