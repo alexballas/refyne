@@ -232,6 +232,11 @@ func (d *gLDriver) repaintWindow(w *window) bool {
 	visible := w.visible
 
 	if view != nil && visible {
+		// Request a frame callback for the surface; the SwapBuffers commit
+		// below delivers the request. No-op off Wayland. After this, the gate
+		// reports not-ready until the compositor presents us again, so we will
+		// not issue another (potentially blocking) swap on a suspended surface.
+		w.frame.arm(windowSurface(w))
 		view.SwapBuffers()
 	}
 
