@@ -4,10 +4,14 @@ package glfw
 
 import (
 	fyne "github.com/alexballas/refyne/v2"
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/go-gl/glfw/v3.4/glfw"
 )
 
 func (d *gLDriver) initGLFW() {
+	// TEMPORARY: disable libdecor for Wayland window decorations (GLFW 3.4).
+	// Must be called before glfw.Init(); ignored on non-Wayland platforms.
+	glfw.InitHint(glfw.WaylandLibdecor, glfw.WaylandDisableLibdecor)
+
 	err := glfw.Init()
 	if err != nil {
 		fyne.LogError("failed to initialise GLFW", err)

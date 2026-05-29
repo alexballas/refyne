@@ -22,7 +22,7 @@ import (
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/go-gl/glfw/v3.4/glfw"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

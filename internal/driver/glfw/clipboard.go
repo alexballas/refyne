@@ -8,7 +8,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/go-gl/glfw/v3.4/glfw"
 )
 
 // Declare conformity with Clipboard interface
