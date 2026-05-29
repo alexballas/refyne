@@ -72,6 +72,10 @@ func (d *gLDriver) drawSingleFrame() {
 			continue
 		}
 
+		// Apply any coalesced interactive resize before deciding to repaint, so
+		// a burst of configure events costs a single canvas.Resize per frame.
+		w.applyPendingResize()
+
 		// Repaint only when the window is visible AND the compositor is ready
 		// to present it (Wayland frame callback). decideRepaint consults the
 		// dirty flag last, so a window that is not yet presentable keeps its

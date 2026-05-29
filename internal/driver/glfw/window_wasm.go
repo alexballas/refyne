@@ -164,6 +164,10 @@ func (w *window) resized(_ *glfw.Window, width, height int) {
 	})
 }
 
+// applyPendingResize is a no-op on wasm: resize events are applied immediately
+// in resized above. The coalescing of interactive resizes is desktop-only.
+func (w *window) applyPendingResize() {}
+
 func (w *window) frameSized(_ *glfw.Window, width, height int) {
 	runOnMain(func() {
 		w.processFrameSized(width, height)

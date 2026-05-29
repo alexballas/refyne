@@ -114,6 +114,12 @@ type window struct {
 	shouldWidth, shouldHeight       int
 	shouldExpand                    bool
 
+	// pendingResize coalesces interactive-resize configure events delivered to
+	// the resized callback; the latest size is applied once per frame in
+	// applyPendingResize.
+	pendingResize                           bool
+	pendingResizeWidth, pendingResizeHeight int
+
 	pending []func()
 
 	lastWalkedTime time.Time
@@ -340,7 +346,24 @@ func (w *window) moved(_ *glfw.Window, x, y int) {
 }
 
 func (w *window) resized(_ *glfw.Window, width, height int) {
-	w.processResized(width, height)
+	// Coalesce interactive-resize configure events. A fast drag delivers many
+	// between frames; running the full resize (PopUp.Refresh over an open
+	// dialog) for each saturates the main thread. Stash the latest and apply it
+	// once per frame from applyPendingResize.
+	w.pendingResizeWidth, w.pendingResizeHeight = width, height
+	w.pendingResize = true
+}
+
+// applyPendingResize applies the most recent coalesced resize, if any. It is
+// called on the main thread once per frame from drawSingleFrame, before
+// painting, so a burst of configure events costs one canvas.Resize per frame.
+func (w *window) applyPendingResize() {
+	if !w.pendingResize {
+		return
+	}
+	w.pendingResize = false
+	w.processResized(w.pendingResizeWidth, w.pendingResizeHeight)
+	w.canvas.SetDirty() // a resize always warrants a repaint
 }
 
 func (w *window) scaled(_ *glfw.Window, x float32, y float32) {
