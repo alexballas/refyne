@@ -43,3 +43,13 @@ func TestDecideRepaint(t *testing.T) {
 		})
 	}
 }
+
+func TestNewPresentGateReadyByDefault(t *testing.T) {
+	// On the default (non-Wayland) test build this returns noGate; a freshly
+	// constructed gate must report ready so the first frame draws.
+	g := newPresentGate()
+	if !g.ready() {
+		t.Fatal("newPresentGate().ready() = false, want true")
+	}
+	g.free()
+}
