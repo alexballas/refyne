@@ -743,6 +743,13 @@ func (w *window) processFocused(focus bool) {
 		}
 		curWindow = w
 		w.canvas.FocusGained()
+
+		// Backstop for issue #6080: if a compositor discarded a pending frame
+		// callback while the window was hidden instead of firing it on return,
+		// force the surface presentable again and request a repaint so updates
+		// resume even in that pathological case. No-op off Wayland.
+		w.frame.markReady()
+		w.canvas.SetDirty()
 	} else {
 		w.canvas.FocusLost()
 		w.mousePos = fyne.Position{}
