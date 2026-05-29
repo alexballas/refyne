@@ -56,6 +56,14 @@ func runOnMainWithWait(f func(), wait bool) {
 	}
 }
 
+// decideRepaint reports whether a window should be repainted this frame.
+// checkDirtyAndClear is only called when the window is visible and presentable,
+// so a window that is not yet presentable keeps its dirty flag and the frame is
+// deferred until the compositor is ready (see issue #6080).
+func decideRepaint(visible, ready bool, checkDirtyAndClear func() bool) bool {
+	return visible && ready && checkDirtyAndClear()
+}
+
 func (d *gLDriver) drawSingleFrame() {
 	refreshed := false
 	for _, win := range d.windowList() {
