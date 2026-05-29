@@ -7,13 +7,18 @@ package glfw
 #include <stdlib.h>
 #include <wayland-client.h>
 
-// frame_state holds the presentable flag for one surface. It lives in C so no
-// Go pointer is stored across the cgo boundary.
-typedef struct { int ready; } frame_state;
+// frame_state holds the presentable flag and the currently pending frame
+// callback for one surface. It lives in C so no Go pointer is stored across the
+// cgo boundary. We track cb so it can be destroyed on re-arm and on free,
+// otherwise a callback left pending when a suspended window is closed (or
+// re-armed) would leak its proxy and could fire frame_done into freed memory.
+typedef struct { int ready; struct wl_callback *cb; } frame_state;
 
 static void frame_done(void *data, struct wl_callback *cb, uint32_t t) {
     (void)t;
-    ((frame_state *)data)->ready = 1;   // compositor presented us
+    frame_state *s = (frame_state *)data;
+    s->ready = 1;                        // compositor presented us
+    if (s->cb == cb) s->cb = NULL;       // it has fired; stop tracking it
     wl_callback_destroy(cb);
 }
 static const struct wl_callback_listener frame_listener = { frame_done };
@@ -24,14 +29,20 @@ static frame_state *frame_state_new(void) {
     return s;
 }
 // frame_arm requests a frame callback and marks the surface not-ready. No
-// commit here: the eglSwapBuffers that follows carries the request.
+// commit here: the eglSwapBuffers that follows carries the request. Any
+// still-pending callback (e.g. one armed while the surface was suspended) is
+// destroyed first so it cannot fire later or leak.
 static void frame_arm(struct wl_surface *surface, frame_state *s) {
     s->ready = 0;
-    struct wl_callback *cb = wl_surface_frame(surface);
-    wl_callback_add_listener(cb, &frame_listener, s);
+    if (s->cb) wl_callback_destroy(s->cb);
+    s->cb = wl_surface_frame(surface);
+    wl_callback_add_listener(s->cb, &frame_listener, s);
 }
 static int  frame_ready(frame_state *s) { return s->ready; }
-static void frame_state_free(frame_state *s) { free(s); }
+static void frame_state_free(frame_state *s) {
+    if (s->cb) wl_callback_destroy(s->cb);
+    free(s);
+}
 */
 import "C"
 
