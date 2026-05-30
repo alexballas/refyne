@@ -116,7 +116,8 @@ type window struct {
 
 	// pendingResize coalesces interactive-resize configure events delivered to
 	// the resized callback; the latest size is applied once per frame in
-	// applyPendingResize.
+	// applyPendingResize. Used only on the Linux/BSD (xdg) coalescing path; the
+	// Windows/macOS path resizes synchronously and leaves these unused.
 	pendingResize                           bool
 	pendingResizeWidth, pendingResizeHeight int
 
@@ -345,26 +346,9 @@ func (w *window) moved(_ *glfw.Window, x, y int) {
 	w.processMoved(x, y)
 }
 
-func (w *window) resized(_ *glfw.Window, width, height int) {
-	// Coalesce interactive-resize configure events. A fast drag delivers many
-	// between frames; running the full resize (PopUp.Refresh over an open
-	// dialog) for each saturates the main thread. Stash the latest and apply it
-	// once per frame from applyPendingResize.
-	w.pendingResizeWidth, w.pendingResizeHeight = width, height
-	w.pendingResize = true
-}
-
-// applyPendingResize applies the most recent coalesced resize, if any. It is
-// called on the main thread once per frame from drawSingleFrame, before
-// painting, so a burst of configure events costs one canvas.Resize per frame.
-func (w *window) applyPendingResize() {
-	if !w.pendingResize {
-		return
-	}
-	w.pendingResize = false
-	w.processResized(w.pendingResizeWidth, w.pendingResizeHeight)
-	w.canvas.SetDirty() // a resize always warrants a repaint
-}
+// resized and applyPendingResize are platform-specific: Linux/BSD coalesces
+// interactive resizes (resize_coalesce.go), Windows/macOS applies them
+// synchronously in-callback (resize_sync.go). See those files for why.
 
 func (w *window) scaled(_ *glfw.Window, x float32, y float32) {
 	if !build.IsWayland { // other platforms handle this using older APIs
