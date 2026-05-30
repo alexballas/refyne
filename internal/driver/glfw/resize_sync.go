@@ -2,7 +2,7 @@
 
 package glfw
 
-import "github.com/go-gl/glfw/v3.4/glfw"
+import "github.com/alexballas/refyne/v2/internal/glfw"
 
 // resized applies the resize synchronously, inside the GLFW size callback.
 //

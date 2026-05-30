@@ -7,7 +7,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver/desktop"
-	"github.com/go-gl/glfw/v3.4/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -25,7 +25,7 @@ import (
 	"github.com/alexballas/refyne/v2/internal/svg"
 	"github.com/alexballas/refyne/v2/storage"
 
-	"github.com/go-gl/glfw/v3.4/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 )
 
 const (

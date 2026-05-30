@@ -4,7 +4,7 @@ package glfw
 
 import (
 	fyne "github.com/alexballas/refyne/v2"
-	"github.com/go-gl/glfw/v3.4/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 )
 
 func (d *gLDriver) initGLFW() {
