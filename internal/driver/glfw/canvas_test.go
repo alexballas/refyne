@@ -598,6 +598,42 @@ func TestGlCanvas_SetContent(t *testing.T) {
 	}
 }
 
+func TestGlCanvas_SetDecorationRelayoutsTopLevelObjects(t *testing.T) {
+	w := createWindow("Test")
+	w.SetPadded(false)
+
+	content := canvas.NewRectangle(color.Black)
+	w.SetContent(content)
+	size := fyne.NewSize(300, 200)
+	w.Resize(size)
+	ensureCanvasSize(t, w, size)
+
+	menu := canvas.NewRectangle(color.White)
+	menu.SetMinSize(fyne.NewSize(1, 20))
+	decoration := canvas.NewRectangle(color.Transparent)
+	decoration.SetMinSize(fyne.NewSize(1, 32))
+	c := w.Canvas().glCanvas
+
+	runOnMain(func() {
+		c.setMenuOverlay(menu)
+		c.CheckDirtyAndClear()
+
+		c.setDecoration(decoration)
+		assert.Equal(t, fyne.NewPos(0, 0), decoration.Position())
+		assert.Equal(t, fyne.NewSize(300, 32), decoration.Size())
+		assert.Equal(t, fyne.NewPos(0, 32), menu.Position())
+		assert.Equal(t, fyne.NewSize(300, 20), menu.Size())
+		assert.Equal(t, fyne.NewPos(0, 52), content.Position())
+		assert.Equal(t, fyne.NewSize(300, 148), content.Size())
+		assert.True(t, c.CheckDirtyAndClear())
+
+		c.setDecoration(nil)
+		assert.Equal(t, fyne.NewPos(0, 0), menu.Position())
+		assert.Equal(t, fyne.NewPos(0, 20), content.Position())
+		assert.Equal(t, fyne.NewSize(300, 180), content.Size())
+	})
+}
+
 var _ fyne.Layout = (*recordingLayout)(nil)
 
 type recordingLayout struct {

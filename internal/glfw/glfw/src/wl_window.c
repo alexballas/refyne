@@ -2596,6 +2596,11 @@ void _glfwSetWindowDecoratedWayland(_GLFWwindow* window, GLFWbool enabled)
             createFallbackDecorations(window);
         else
             destroyFallbackDecorations(window);
+
+        // The fallback edges affect the compositor-derived window geometry.
+        // Commit their addition/removal immediately instead of leaving Mutter
+        // with stale extents until the next resize or buffer swap.
+        wl_surface_commit(window->wl.surface);
     }
 }
 

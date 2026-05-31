@@ -322,14 +322,10 @@ func (c *glCanvas) setDecoration(obj fyne.CanvasObject) {
 	c.decoration = obj
 	c.SetDecorationTreeAndFocusMgr(obj)
 
-	if c.decoration != nil && !c.size.IsZero() {
-		c.content.Resize(c.contentSize(c.size))
-		c.content.Move(c.contentPos())
-
-		c.decoration.Refresh()
-		c.decoration.Resize(fyne.NewSize(c.size.Width, c.decoration.MinSize().Height))
-		c.decoration.Move(fyne.NewPos(0, 0))
+	if !c.size.IsZero() {
+		c.Resize(c.size)
 	}
+	c.SetDirty()
 }
 
 func (c *glCanvas) applyThemeOutOfTreeObjects() {
