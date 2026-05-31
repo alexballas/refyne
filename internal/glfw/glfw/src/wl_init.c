@@ -166,6 +166,13 @@ static void registryHandleGlobal(void* userData,
                              &zxdg_decoration_manager_v1_interface,
                              1);
     }
+    else if (strcmp(interface, "xdg_toplevel_icon_manager_v1") == 0)
+    {
+        _glfw.wl.iconManager =
+            wl_registry_bind(registry, name,
+                             &xdg_toplevel_icon_manager_v1_interface,
+                             1);
+    }
     else if (strcmp(interface, "wp_viewporter") == 0)
     {
         _glfw.wl.viewporter =
@@ -960,6 +967,8 @@ void _glfwTerminateWayland(void)
         wp_viewporter_destroy(_glfw.wl.viewporter);
     if (_glfw.wl.decorationManager)
         zxdg_decoration_manager_v1_destroy(_glfw.wl.decorationManager);
+    if (_glfw.wl.iconManager)
+        xdg_toplevel_icon_manager_v1_destroy(_glfw.wl.iconManager);
     if (_glfw.wl.wmBase)
         xdg_wm_base_destroy(_glfw.wl.wmBase);
     if (_glfw.wl.selectionOffer)
