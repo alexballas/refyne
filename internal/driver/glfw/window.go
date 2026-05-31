@@ -321,7 +321,7 @@ func (w *window) processRefresh() {
 }
 
 func (w *window) findObjectAtPositionMatching(canvas *glCanvas, mouse fyne.Position, matches func(object fyne.CanvasObject) bool) (fyne.CanvasObject, fyne.Position, int) {
-	return driver.FindObjectAtPositionMatching(mouse, matches, canvas.Overlays().Top(), canvas.menu, canvas.Content())
+	return driver.FindObjectAtPositionMatching(mouse, matches, canvas.Overlays().Top(), canvas.menu, canvas.decoration, canvas.Content())
 }
 
 func (w *window) processMouseMoved(xpos float64, ypos float64) {

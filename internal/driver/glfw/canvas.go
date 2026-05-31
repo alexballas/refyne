@@ -22,10 +22,11 @@ var _ fyne.Canvas = (*glCanvas)(nil)
 type glCanvas struct {
 	common.Canvas
 
-	content fyne.CanvasObject
-	menu    fyne.CanvasObject
-	padded  bool
-	size    fyne.Size
+	content    fyne.CanvasObject
+	menu       fyne.CanvasObject
+	decoration fyne.CanvasObject // client-side title bar, Wayland CSD only
+	padded     bool
+	size       fyne.Size
 
 	onTypedRune func(rune)
 	onTypedKey  func(*fyne.KeyEvent)
@@ -122,13 +123,22 @@ func (c *glCanvas) Resize(size fyne.Size) {
 	contentPos := c.contentPos()
 	menu := c.menu
 	menuHeight := c.menuHeight()
+	decoration := c.decoration
+	decorationHeight := c.decorationHeight()
 
 	content.Resize(contentSize)
 	content.Move(contentPos)
 
+	if decoration != nil {
+		decoration.Refresh()
+		decoration.Resize(fyne.NewSize(nearestSize.Width, decorationHeight))
+		decoration.Move(fyne.NewPos(0, 0))
+	}
+
 	if menu != nil {
 		menu.Refresh()
 		menu.Resize(fyne.NewSize(nearestSize.Width, menuHeight))
+		menu.Move(fyne.NewPos(0, decorationHeight))
 	}
 }
 
@@ -207,7 +217,7 @@ func (c *glCanvas) buildMenu(w *window, m *fyne.MainMenu) {
 
 // canvasSize computes the needed canvas size for the given content size
 func (c *glCanvas) canvasSize(contentSize fyne.Size) fyne.Size {
-	canvasSize := contentSize.Add(fyne.NewSize(0, c.menuHeight()))
+	canvasSize := contentSize.Add(fyne.NewSize(0, c.menuHeight()+c.decorationHeight()))
 	if c.Padded() {
 		return canvasSize.Add(fyne.NewSquareSize(theme.Padding() * 2))
 	}
@@ -215,7 +225,7 @@ func (c *glCanvas) canvasSize(contentSize fyne.Size) fyne.Size {
 }
 
 func (c *glCanvas) contentPos() fyne.Position {
-	contentPos := fyne.NewPos(0, c.menuHeight())
+	contentPos := fyne.NewPos(0, c.decorationHeight()+c.menuHeight())
 	if c.Padded() {
 		return contentPos.Add(fyne.NewSquareOffsetPos(theme.Padding()))
 	}
@@ -223,7 +233,7 @@ func (c *glCanvas) contentPos() fyne.Position {
 }
 
 func (c *glCanvas) contentSize(canvasSize fyne.Size) fyne.Size {
-	contentSize := fyne.NewSize(canvasSize.Width, canvasSize.Height-c.menuHeight())
+	contentSize := fyne.NewSize(canvasSize.Width, canvasSize.Height-c.menuHeight()-c.decorationHeight())
 	if c.Padded() {
 		return contentSize.Subtract(fyne.NewSquareSize(theme.Padding() * 2))
 	}
@@ -236,6 +246,16 @@ func (c *glCanvas) menuHeight() float32 {
 	}
 
 	return c.menu.MinSize().Height
+}
+
+// decorationHeight returns the height reserved at the very top of the canvas for
+// the client-side title bar, or 0 when none is shown (the common case).
+func (c *glCanvas) decorationHeight() float32 {
+	if c.decoration == nil {
+		return 0
+	}
+
+	return c.decoration.MinSize().Height
 }
 
 func (c *glCanvas) overlayChanged() {
@@ -292,12 +312,32 @@ func (c *glCanvas) setMenuOverlay(b fyne.CanvasObject) {
 
 		c.menu.Refresh()
 		c.menu.Resize(fyne.NewSize(c.size.Width, c.menu.MinSize().Height))
+		c.menu.Move(fyne.NewPos(0, c.decorationHeight()))
+	}
+}
+
+// setDecoration installs (or clears) the client-side title bar at the top of the
+// canvas, mirroring setMenuOverlay. Used for Wayland CSD.
+func (c *glCanvas) setDecoration(obj fyne.CanvasObject) {
+	c.decoration = obj
+	c.SetDecorationTreeAndFocusMgr(obj)
+
+	if c.decoration != nil && !c.size.IsZero() {
+		c.content.Resize(c.contentSize(c.size))
+		c.content.Move(c.contentPos())
+
+		c.decoration.Refresh()
+		c.decoration.Resize(fyne.NewSize(c.size.Width, c.decoration.MinSize().Height))
+		c.decoration.Move(fyne.NewPos(0, 0))
 	}
 }
 
 func (c *glCanvas) applyThemeOutOfTreeObjects() {
 	if c.menu != nil {
 		app.ApplyThemeTo(c.menu, c) // Ensure our menu gets the theme change message as it's out-of-tree
+	}
+	if c.decoration != nil {
+		app.ApplyThemeTo(c.decoration, c) // decoration is out-of-tree too (Wayland CSD)
 	}
 
 	c.SetPadded(c.padded) // refresh the padding for potential theme differences
