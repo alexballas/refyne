@@ -198,6 +198,13 @@ func (w *window) RequestFocus() {
 func (w *window) SetIcon(icon fyne.Resource) {
 	w.icon = icon
 	if build.IsWayland {
+		// Update the custom title bar (if drawn) and push the new icon to the
+		// compositor via xdg-toplevel-icon-v1.
+		if d, ok := w.canvas.decoration.(*windowDecoration); ok && d != nil {
+			d.icon.Resource = icon
+			d.icon.Refresh()
+		}
+		w.pushWaylandIcon()
 		return
 	}
 
@@ -415,6 +422,12 @@ func (w *window) mouseMoved(_ *glfw.Window, xpos, ypos float64) {
 }
 
 func (w *window) mouseClicked(_ *glfw.Window, btn glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
+	if build.IsWayland && btn == glfw.MouseButton1 && action == glfw.Press && w.handleWaylandEdgeResize() {
+		// An interactive edge/corner resize was started; the compositor now
+		// drives it, so don't dispatch the click into the canvas.
+		return
+	}
+
 	button, modifiers := convertMouseButton(btn, mods)
 	mouseAction := convertAction(action)
 

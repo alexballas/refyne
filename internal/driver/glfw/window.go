@@ -168,6 +168,13 @@ func (w *window) Show() {
 			w.doSetFullScreen(true)
 		}
 
+		if build.IsWayland {
+			// Now the surface is shown the compositor can report its decoration
+			// mode; decide SSD vs custom decorations and push the app icon.
+			w.setupWaylandDecorations()
+			w.pushWaylandIcon()
+		}
+
 		// show top canvas element
 		if content := w.canvas.Content(); content != nil {
 			w.RunWithContext(func() {
