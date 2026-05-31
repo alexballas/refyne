@@ -12,7 +12,10 @@ package glfw
 //extern void glfwRefyneStartWindowMove(GLFWwindow* handle);
 //extern void glfwRefyneStartWindowResize(GLFWwindow* handle, int edges);
 //extern int  glfwRefyneDecorationMode(GLFWwindow* handle);
+//extern int  glfwRefyneSetWindowIcon(GLFWwindow* handle, const unsigned char* pixels, int width, int height);
 import "C"
+
+import "unsafe"
 
 // ResizeEdge identifies which window edge or corner an interactive resize
 // grabs. Values match xdg_toplevel.resize_edge.
@@ -66,4 +69,20 @@ func (w *Window) DecorationMode() DecorationMode {
 	mode := C.glfwRefyneDecorationMode(w.data)
 	panicError()
 	return DecorationMode(mode)
+}
+
+// SetWindowIconWayland pushes an application icon to the compositor via the
+// xdg-toplevel-icon-v1 protocol. pixels must be tightly-packed, non-premultiplied
+// RGBA8888 of length width*height*4, and the icon must be square (width==height)
+// — the protocol rejects non-square buffers. Returns false when the compositor
+// does not support the protocol (e.g. GNOME) or on invalid input. Wayland only;
+// call on the main thread.
+func (w *Window) SetWindowIconWayland(pixels []byte, width, height int) bool {
+	if width <= 0 || height <= 0 || len(pixels) < width*height*4 {
+		return false
+	}
+	res := C.glfwRefyneSetWindowIcon(w.data,
+		(*C.uchar)(unsafe.Pointer(&pixels[0])), C.int(width), C.int(height))
+	panicError()
+	return res != 0
 }
