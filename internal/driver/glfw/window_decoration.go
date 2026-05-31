@@ -130,3 +130,27 @@ func (r *windowDecorationRenderer) Refresh() {
 
 func (r *windowDecorationRenderer) Objects() []fyne.CanvasObject { return r.objects }
 func (r *windowDecorationRenderer) Destroy()                     {}
+
+// Dragged is the user grabbing the title bar. Hand off to the compositor for an
+// interactive move (the very first drag delta triggers it; Wayland then drives
+// the move and we receive no further deltas).
+func (d *windowDecoration) Dragged(_ *fyne.DragEvent) {
+	if d.onDragStart != nil {
+		d.onDragStart()
+	}
+}
+
+func (d *windowDecoration) DragEnd() {}
+
+// DoubleTapped toggles maximize/restore.
+func (d *windowDecoration) DoubleTapped(_ *fyne.PointEvent) {
+	if d.onDoubleTap != nil {
+		d.onDoubleTap()
+	}
+}
+
+// Ensure the widget satisfies the interaction interfaces.
+var (
+	_ fyne.Draggable      = (*windowDecoration)(nil)
+	_ fyne.DoubleTappable = (*windowDecoration)(nil)
+)

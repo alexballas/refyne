@@ -41,3 +41,16 @@ func TestWindowDecoration_MinSizeHasTitleBarHeight(t *testing.T) {
 	d := newWindowDecoration("X", theme.FyneLogo())
 	assert.Greater(t, d.MinSize().Height, float32(0))
 }
+
+func TestWindowDecoration_DragAndDoubleTap(t *testing.T) {
+	var dragged, doubled int
+	d := newWindowDecoration("X", theme.FyneLogo())
+	d.onDragStart = func() { dragged++ }
+	d.onDoubleTap = func() { doubled++ }
+
+	d.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(2, 0)})
+	d.DoubleTapped(&fyne.PointEvent{})
+
+	assert.Equal(t, 1, dragged)
+	assert.Equal(t, 1, doubled)
+}
