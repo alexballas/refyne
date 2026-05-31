@@ -49,6 +49,7 @@
 #include "fractional-scale-v1-client-protocol.h"
 #include "xdg-activation-v1-client-protocol.h"
 #include "idle-inhibit-unstable-v1-client-protocol.h"
+#include "xdg-toplevel-icon-v1-client-protocol.h"
 
 // NOTE: Versions of wayland-scanner prior to 1.17.91 named every global array of
 //       wl_interface pointers 'types', making it impossible to combine several unmodified
@@ -89,6 +90,10 @@
 
 #define types _glfw_idle_inhibit_types
 #include "idle-inhibit-unstable-v1-client-protocol-code.h"
+#undef types
+
+#define types _glfw_xdg_toplevel_icon_types
+#include "xdg-toplevel-icon-v1-client-protocol-code.h"
 #undef types
 
 static void wmBaseHandlePing(void* userData,

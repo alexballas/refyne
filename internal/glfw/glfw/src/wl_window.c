@@ -52,6 +52,7 @@
 #include "pointer-constraints-unstable-v1-client-protocol.h"
 #include "xdg-activation-v1-client-protocol.h"
 #include "idle-inhibit-unstable-v1-client-protocol.h"
+#include "xdg-toplevel-icon-v1-client-protocol.h"
 #include "fractional-scale-v1-client-protocol.h"
 
 #define GLFW_BORDER_SIZE    4
