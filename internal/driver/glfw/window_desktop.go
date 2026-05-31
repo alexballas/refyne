@@ -759,6 +759,7 @@ func (w *window) create() {
 	}
 	glfw.WindowHint(glfw.AutoIconify, glfw.False)
 	initWindowHints()
+	applyWaylandWindowHints()
 
 	pixWidth, pixHeight := w.screenSize(w.canvas.size)
 	pixWidth = int(fyne.Max(float32(pixWidth), float32(w.width)))
