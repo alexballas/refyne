@@ -33,7 +33,7 @@ func (p *painter) drawCircle(circle *canvas.Circle, pos fyne.Position, frame fyn
 	p.UpdateVertexArray(program, "vert", 2, 4, 0)
 	p.UpdateVertexArray(program, "normal", 2, 4, 2)
 
-	p.ctx.BlendFunc(srcAlpha, oneMinusSrcAlpha)
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
 	p.logError()
 	// Vertex: END
 
@@ -91,7 +91,7 @@ func (p *painter) drawLine(line *canvas.Line, pos fyne.Position, frame fyne.Size
 	p.UpdateVertexArray(p.lineProgram, "vert", 2, 4, 0)
 	p.UpdateVertexArray(p.lineProgram, "normal", 2, 4, 2)
 
-	p.ctx.BlendFunc(srcAlpha, oneMinusSrcAlpha)
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
 	p.logError()
 
 	r, g, b, a := getFragmentColor(line.StrokeColor)
@@ -118,7 +118,7 @@ func (p *painter) drawBezierCurve(bezierCurve *canvas.BezierCurve, pos fyne.Posi
 	p.UpdateVertexArray(program, "vert", 2, 4, 0)
 	p.UpdateVertexArray(program, "normal", 2, 4, 2)
 
-	p.ctx.BlendFunc(srcAlpha, oneMinusSrcAlpha)
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
 	p.logError()
 	// Vertex: END
 
@@ -229,7 +229,7 @@ func (p *painter) drawOblong(obj fyne.CanvasObject, fill, stroke color.Color, st
 	p.UpdateVertexArray(program, "vert", 2, 4, 0)
 	p.UpdateVertexArray(program, "normal", 2, 4, 2)
 
-	p.ctx.BlendFunc(srcAlpha, oneMinusSrcAlpha)
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
 	p.logError()
 	// Vertex: END
 
@@ -304,7 +304,7 @@ func (p *painter) drawPolygon(polygon *canvas.Polygon, pos fyne.Position, frame 
 	p.UpdateVertexArray(program, "vert", 2, 4, 0)
 	p.UpdateVertexArray(program, "normal", 2, 4, 2)
 
-	p.ctx.BlendFunc(srcAlpha, oneMinusSrcAlpha)
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
 	p.logError()
 	// Vertex: END
 
@@ -362,7 +362,7 @@ func (p *painter) drawArc(arc *canvas.Arc, pos fyne.Position, frame fyne.Size) {
 	p.UpdateVertexArray(program, "vert", 2, 4, 0)
 	p.UpdateVertexArray(program, "normal", 2, 4, 2)
 
-	p.ctx.BlendFunc(srcAlpha, oneMinusSrcAlpha)
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
 	p.logError()
 	// Vertex: END
 
@@ -484,7 +484,7 @@ func (p *painter) drawTextureWithDetails(o fyne.CanvasObject, creator func(canva
 
 	p.SetUniform1f(p.program, "alpha", alpha)
 
-	p.ctx.BlendFunc(one, oneMinusSrcAlpha)
+	p.blendFunc(one, oneMinusSrcAlpha)
 	p.logError()
 
 	p.ctx.ActiveTexture(texture0)

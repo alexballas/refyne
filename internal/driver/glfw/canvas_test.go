@@ -665,6 +665,10 @@ func TestGlCanvas_SetWindowOutline(t *testing.T) {
 		assert.Equal(t, theme.Color(theme.ColorNameShadow), c.outline.StrokeColor)
 		assert.Equal(t, float32(1), c.outline.StrokeWidth)
 		assert.Equal(t, size, c.outline.Size())
+		assert.Equal(t, windowCornerRadius, c.outline.TopLeftCornerRadius)
+		assert.Equal(t, windowCornerRadius, c.outline.TopRightCornerRadius)
+		assert.Equal(t, float32(0), c.outline.BottomLeftCornerRadius)
+		assert.Equal(t, float32(0), c.outline.BottomRightCornerRadius)
 		assert.True(t, c.CheckDirtyAndClear())
 
 		resized := fyne.NewSize(320, 240)
@@ -674,6 +678,64 @@ func TestGlCanvas_SetWindowOutline(t *testing.T) {
 		c.setDecoration(nil)
 		assert.Nil(t, c.outline)
 		assert.True(t, c.CheckDirtyAndClear())
+	})
+}
+
+func TestGlCanvas_SetWindowBackground(t *testing.T) {
+	w := createWindow("Test")
+	c := w.Canvas().glCanvas
+	size := fyne.NewSize(300, 200)
+	decoration := canvas.NewRectangle(color.Transparent)
+	decoration.SetMinSize(fyne.NewSize(1, titleBarHeight))
+
+	runOnMain(func() {
+		c.Resize(size)
+		c.setDecoration(decoration)
+		c.CheckDirtyAndClear()
+
+		c.setWindowBackground(true)
+		assert.NotNil(t, c.background)
+		assert.Equal(t, theme.Color(theme.ColorNameBackground), c.background.FillColor)
+		assert.Equal(t, fyne.NewSize(size.Width, size.Height-titleBarHeight), c.background.Size())
+		assert.True(t, c.CheckDirtyAndClear())
+
+		resized := fyne.NewSize(320, 240)
+		c.Resize(resized)
+		assert.Equal(t, fyne.NewSize(resized.Width, resized.Height-titleBarHeight), c.background.Size())
+
+		c.setDecoration(nil)
+		assert.Nil(t, c.background)
+		assert.True(t, c.CheckDirtyAndClear())
+	})
+}
+
+func TestGlCanvas_SetWindowCornersSquare(t *testing.T) {
+	w := createWindow("Test")
+	c := w.Canvas().glCanvas
+	decoration := newWindowDecoration("Test", theme.FyneLogo())
+
+	runOnMain(func() {
+		c.setDecoration(decoration)
+		c.setWindowOutline(true)
+		c.CheckDirtyAndClear()
+
+		c.setWindowCornersSquare(true)
+		assert.Equal(t, float32(0), c.outline.TopLeftCornerRadius)
+		assert.Equal(t, float32(0), c.outline.TopRightCornerRadius)
+		assert.True(t, decoration.squareCorners)
+		assert.True(t, c.CheckDirtyAndClear())
+
+		c.setWindowCornersSquare(false)
+		assert.Equal(t, windowCornerRadius, c.outline.TopLeftCornerRadius)
+		assert.Equal(t, windowCornerRadius, c.outline.TopRightCornerRadius)
+		assert.False(t, decoration.squareCorners)
+
+		// Re-applying state must update a newly installed decoration too.
+		c.squareCorners = true
+		replacement := newWindowDecoration("Replacement", theme.FyneLogo())
+		c.setDecoration(replacement)
+		c.setWindowCornersSquare(true)
+		assert.True(t, replacement.squareCorners)
 	})
 }
 

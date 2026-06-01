@@ -75,6 +75,38 @@ static void destroyRefyneShadowSurfaces(_GLFWwindow* window)
     destroyRefyneShadowSlice(&window->wl.refyneShadow.bottom);
     destroyRefyneShadowSlice(&window->wl.refyneShadow.bottomRight);
     window->wl.refyneShadow.visible = GLFW_FALSE;
+    window->wl.refyneShadow.focus = NULL;
+}
+
+uint32_t _glfwRefyneWindowShadowEdge(_GLFWwindow* window,
+                                    struct wl_surface* surface)
+{
+    if (!surface || !window->wl.refyneShadow.visible)
+        return XDG_TOPLEVEL_RESIZE_EDGE_NONE;
+
+    const struct
+    {
+        struct wl_surface* surface;
+        uint32_t edge;
+    } slices[] =
+    {
+        { window->wl.refyneShadow.topLeft.surface,     XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT },
+        { window->wl.refyneShadow.top.surface,         XDG_TOPLEVEL_RESIZE_EDGE_TOP },
+        { window->wl.refyneShadow.topRight.surface,    XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT },
+        { window->wl.refyneShadow.left.surface,        XDG_TOPLEVEL_RESIZE_EDGE_LEFT },
+        { window->wl.refyneShadow.right.surface,       XDG_TOPLEVEL_RESIZE_EDGE_RIGHT },
+        { window->wl.refyneShadow.bottomLeft.surface,  XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT },
+        { window->wl.refyneShadow.bottom.surface,      XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM },
+        { window->wl.refyneShadow.bottomRight.surface, XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT },
+    };
+
+    for (size_t i = 0;  i < sizeof(slices) / sizeof(slices[0]);  i++)
+    {
+        if (slices[i].surface == surface)
+            return slices[i].edge;
+    }
+
+    return XDG_TOPLEVEL_RESIZE_EDGE_NONE;
 }
 
 static void setRefyneWindowGeometry(_GLFWwindow* window)
@@ -176,14 +208,9 @@ static GLFWbool createRefyneShadowSlice(_GLFWwindow* window,
     wp_viewport_set_destination(slice->viewport, width, height);
     wl_surface_attach(slice->surface, window->wl.refyneShadow.buffer, 0, 0);
 
-    // Shadows are visual only. Pointer input continues to windows underneath.
-    struct wl_region* region =
-        wl_compositor_create_region(_glfw.wl.compositor);
-    if (region)
-    {
-        wl_surface_set_input_region(slice->surface, region);
-        wl_region_destroy(region);
-    }
+    // Keep the default whole-surface input region. The eight non-overlapping
+    // slices double as forgiving edge/corner resize handles, matching native
+    // CSD where the shadow margin contributes to the effective resize area.
 
     wl_surface_commit(slice->surface);
     return GLFW_TRUE;

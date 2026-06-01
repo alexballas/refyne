@@ -134,6 +134,10 @@ func (w *window) SetFullScreen(full bool) {
 
 	if w.view() != nil {
 		async.EnsureMain(func() {
+			// Fullscreen windows are square like native ones. No-op without
+			// Wayland CSD.
+			maximized := w.viewport.GetAttrib(glfw.Maximized) == glfw.True
+			w.canvas.setWindowCornersSquare(full || maximized)
 			w.doSetFullScreen(full)
 		})
 	}
@@ -749,6 +753,8 @@ func (w *window) maximized(_ *glfw.Window, maximized bool) {
 	if d, ok := w.canvas.decoration.(*windowDecoration); ok && d != nil {
 		d.SetMaximized(maximized)
 	}
+	// Maximized windows are square like native ones. No-op without Wayland CSD.
+	w.canvas.setWindowCornersSquare(maximized || w.fullScreen)
 }
 
 func (w *window) DetachCurrentContext() {
@@ -799,7 +805,7 @@ func (w *window) create() {
 	}
 	glfw.WindowHint(glfw.AutoIconify, glfw.False)
 	initWindowHints()
-	applyWaylandWindowHints()
+	applyWaylandWindowHints(w.decorate)
 
 	pixWidth, pixHeight := w.screenSize(w.canvas.size)
 	pixWidth = int(fyne.Max(float32(pixWidth), float32(w.width)))

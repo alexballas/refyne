@@ -1369,6 +1369,64 @@ static char* readDataOfferAsString(struct wl_data_offer* offer, const char* mime
     return string;
 }
 
+static void setCursorNameWayland(_GLFWwindow* window, const char* cursorName)
+{
+    if (_glfw.wl.cursorPreviousName == cursorName)
+        return;
+
+    struct wl_surface* surface = _glfw.wl.cursorSurface;
+    struct wl_cursor_theme* theme = _glfw.wl.cursorTheme;
+    int scale = 1;
+
+    if (window->wl.bufferScale > 1 && _glfw.wl.cursorThemeHiDPI)
+    {
+        // We only support up to scale=2 for now, since libwayland-cursor
+        // requires us to load a different theme for each size.
+        scale = 2;
+        theme = _glfw.wl.cursorThemeHiDPI;
+    }
+
+    struct wl_cursor* cursor = wl_cursor_theme_get_cursor(theme, cursorName);
+    if (!cursor)
+        return;
+
+    // TODO: handle animated cursors too.
+    struct wl_cursor_image* image = cursor->images[0];
+    if (!image)
+        return;
+
+    struct wl_buffer* buffer = wl_cursor_image_get_buffer(image);
+    if (!buffer)
+        return;
+
+    wl_pointer_set_cursor(_glfw.wl.pointer, _glfw.wl.pointerEnterSerial,
+                          surface,
+                          image->hotspot_x / scale,
+                          image->hotspot_y / scale);
+    wl_surface_set_buffer_scale(surface, scale);
+    wl_surface_attach(surface, buffer, 0, 0);
+    wl_surface_damage(surface, 0, 0, image->width, image->height);
+    wl_surface_commit(surface);
+
+    _glfw.wl.cursorPreviousName = cursorName;
+}
+
+static const char* refyneWindowShadowCursorName(uint32_t edge)
+{
+    switch (edge)
+    {
+        case XDG_TOPLEVEL_RESIZE_EDGE_TOP:          return "n-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:       return "s-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:         return "w-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:        return "e-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:     return "nw-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:    return "ne-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:  return "sw-resize";
+        case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: return "se-resize";
+        default:                                    return "left_ptr";
+    }
+}
+
 static void pointerHandleEnter(void* userData,
                                struct wl_pointer* pointer,
                                uint32_t serial,
@@ -1399,6 +1457,16 @@ static void pointerHandleEnter(void* userData,
     {
         if (window->wl.fallback.decorations)
             window->wl.fallback.focus = surface;
+
+        const uint32_t edge = _glfwRefyneWindowShadowEdge(window, surface);
+        if (edge != XDG_TOPLEVEL_RESIZE_EDGE_NONE)
+        {
+            window->wl.refyneShadow.focus = surface;
+            setCursorNameWayland(window,
+                                 window->resizable ?
+                                 refyneWindowShadowCursorName(edge) :
+                                 "left_ptr");
+        }
     }
 }
 
@@ -1428,8 +1496,10 @@ static void pointerHandleLeave(void* userData,
     }
     else
     {
-        if (window->wl.fallback.decorations)
+        if (window->wl.fallback.focus == surface)
             window->wl.fallback.focus = NULL;
+        if (window->wl.refyneShadow.focus == surface)
+            window->wl.refyneShadow.focus = NULL;
     }
 }
 
@@ -1494,44 +1564,17 @@ static void pointerHandleMotion(void* userData,
             }
         }
 
-        if (_glfw.wl.cursorPreviousName != cursorName)
-        {
-            struct wl_surface* surface = _glfw.wl.cursorSurface;
-            struct wl_cursor_theme* theme = _glfw.wl.cursorTheme;
-            int scale = 1;
+        setCursorNameWayland(window, cursorName);
+    }
 
-            if (window->wl.bufferScale > 1 && _glfw.wl.cursorThemeHiDPI)
-            {
-                // We only support up to scale=2 for now, since libwayland-cursor
-                // requires us to load a different theme for each size.
-                scale = 2;
-                theme = _glfw.wl.cursorThemeHiDPI;
-            }
-
-            struct wl_cursor* cursor = wl_cursor_theme_get_cursor(theme, cursorName);
-            if (!cursor)
-                return;
-
-            // TODO: handle animated cursors too.
-            struct wl_cursor_image* image = cursor->images[0];
-            if (!image)
-                return;
-
-            struct wl_buffer* buffer = wl_cursor_image_get_buffer(image);
-            if (!buffer)
-                return;
-
-            wl_pointer_set_cursor(_glfw.wl.pointer, _glfw.wl.pointerEnterSerial,
-                                  surface,
-                                  image->hotspot_x / scale,
-                                  image->hotspot_y / scale);
-            wl_surface_set_buffer_scale(surface, scale);
-            wl_surface_attach(surface, buffer, 0, 0);
-            wl_surface_damage(surface, 0, 0, image->width, image->height);
-            wl_surface_commit(surface);
-
-            _glfw.wl.cursorPreviousName = cursorName;
-        }
+    if (window->wl.refyneShadow.focus)
+    {
+        const uint32_t edge =
+            _glfwRefyneWindowShadowEdge(window, window->wl.refyneShadow.focus);
+        setCursorNameWayland(window,
+                             window->resizable ?
+                             refyneWindowShadowCursorName(edge) :
+                             "left_ptr");
     }
 }
 
@@ -1554,6 +1597,27 @@ static void pointerHandleButton(void* userData,
                              button - BTN_LEFT,
                              state == WL_POINTER_BUTTON_STATE_PRESSED,
                              _glfw.wl.xkb.modifiers);
+        return;
+    }
+
+    if (window->wl.refyneShadow.focus)
+    {
+        _glfw.wl.serial = serial;
+
+        if (button == BTN_LEFT &&
+            state == WL_POINTER_BUTTON_STATE_PRESSED &&
+            window->resizable &&
+            window->wl.xdg.toplevel &&
+            _glfw.wl.seat)
+        {
+            const uint32_t edges =
+                _glfwRefyneWindowShadowEdge(window, window->wl.refyneShadow.focus);
+            if (edges != XDG_TOPLEVEL_RESIZE_EDGE_NONE)
+            {
+                xdg_toplevel_resize(window->wl.xdg.toplevel, _glfw.wl.seat,
+                                    serial, edges);
+            }
+        }
         return;
     }
 
@@ -1621,6 +1685,9 @@ static void pointerHandleAxis(void* userData,
 {
     _GLFWwindow* window = _glfw.wl.pointerFocus;
     if (!window)
+        return;
+
+    if (window->wl.refyneShadow.focus)
         return;
 
     // NOTE: 10 units of motion per mouse wheel step seems to be a common ratio

@@ -30,6 +30,7 @@ type windowDecoration struct {
 	onClose          func()
 	onDragStart      func() // called when a drag begins on the title bar
 	onDoubleTap      func() // double-click title bar -> toggle maximize
+	squareCorners    bool
 }
 
 func newWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration {
@@ -79,8 +80,27 @@ func (d *windowDecoration) SetMaximized(max bool) {
 	}
 }
 
+// SetCornersSquare flattens (square=true) or restores the rounded top corners.
+// Maximized/fullscreen Wayland CSD windows use square corners.
+func (d *windowDecoration) SetCornersSquare(square bool) {
+	if d.squareCorners == square {
+		return
+	}
+	d.squareCorners = square
+	d.Refresh()
+}
+
+func (d *windowDecoration) cornerRadius() float32 {
+	if d.squareCorners {
+		return 0
+	}
+	return windowCornerRadius
+}
+
 func (d *windowDecoration) CreateRenderer() fyne.WidgetRenderer {
 	bg := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
+	bg.TopLeftCornerRadius = d.cornerRadius()
+	bg.TopRightCornerRadius = d.cornerRadius()
 	buttons := []fyne.CanvasObject{d.minimizeButton, d.maximizeButton, d.closeButton}
 	return &windowDecorationRenderer{
 		d:       d,
@@ -133,6 +153,8 @@ func (r *windowDecorationRenderer) MinSize() fyne.Size {
 
 func (r *windowDecorationRenderer) Refresh() {
 	r.bg.FillColor = theme.Color(theme.ColorNameBackground)
+	r.bg.TopLeftCornerRadius = r.d.cornerRadius()
+	r.bg.TopRightCornerRadius = r.d.cornerRadius()
 	r.bg.Refresh()
 	canvas.Refresh(r.d)
 }

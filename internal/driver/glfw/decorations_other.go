@@ -4,7 +4,7 @@ package glfw
 
 // applyWaylandWindowHints is a no-op outside Wayland desktop builds (Windows,
 // macOS, X11, wasm). The real implementation lives in decorations_wayland.go.
-func applyWaylandWindowHints() {}
+func applyWaylandWindowHints(bool) {}
 
 // initWaylandDecorationCursors is a no-op outside Wayland builds.
 func initWaylandDecorationCursors() {}

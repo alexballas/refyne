@@ -224,6 +224,14 @@ func (c *mobileContext) BlendFunc(srcFactor, destFactor uint32) {
 	c.glContext.BlendFunc(gl.Enum(srcFactor), gl.Enum(destFactor))
 }
 
+// BlendFuncSeparate falls back to the combined BlendFunc: the mobile GL binding
+// exposes no separate-alpha blending. Separate alpha is only requested for
+// alpha-capable Wayland surfaces (desktop), so this path is never reached on
+// mobile — it exists only to satisfy the context interface.
+func (c *mobileContext) BlendFuncSeparate(srcRGB, destRGB, _, _ uint32) {
+	c.glContext.BlendFunc(gl.Enum(srcRGB), gl.Enum(destRGB))
+}
+
 func (c *mobileContext) BufferData(target uint32, points []float32, usage uint32) {
 	data := toLEByteOrder(points...)
 	c.glContext.BufferData(gl.Enum(target), data, gl.Enum(usage))

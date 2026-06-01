@@ -421,6 +421,7 @@ typedef struct _GLFWwindowWayland
         _GLFWfallbackEdgeWayland    topLeft, top, topRight;
         _GLFWfallbackEdgeWayland    left, right;
         _GLFWfallbackEdgeWayland    bottomLeft, bottom, bottomRight;
+        struct wl_surface*          focus;
     } refyneShadow;
 } _GLFWwindowWayland;
 
@@ -658,6 +659,8 @@ void _glfwSetWindowMousePassthroughWayland(_GLFWwindow* window, GLFWbool enabled
 
 void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window);
 void _glfwRefyneDestroyWindowShadow(_GLFWwindow* window);
+uint32_t _glfwRefyneWindowShadowEdge(_GLFWwindow* window,
+                                    struct wl_surface* surface);
 
 void _glfwSetRawMouseMotionWayland(_GLFWwindow* window, GLFWbool enabled);
 GLFWbool _glfwRawMouseMotionSupportedWayland(void);

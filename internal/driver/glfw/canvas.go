@@ -20,15 +20,28 @@ import (
 // Declare conformity with Canvas interface
 var _ fyne.Canvas = (*glCanvas)(nil)
 
+// windowCornerRadius is the radius (logical px) of the rounded top corners drawn
+// for Wayland client-side decorations.
+const windowCornerRadius = float32(12)
+
 type glCanvas struct {
 	common.Canvas
 
 	content    fyne.CanvasObject
 	menu       fyne.CanvasObject
 	decoration fyne.CanvasObject // client-side title bar, Wayland CSD only
+	background *canvas.Rectangle // opaque body below the rounded title bar, Wayland CSD only
 	outline    *canvas.Rectangle // one-pixel inner border, Wayland CSD only
-	padded     bool
-	size       fyne.Size
+	// squareCorners flattens the rounded top corners while maximized/fullscreen.
+	// Wayland CSD only.
+	squareCorners bool
+	// transparentSurface marks a window presented on an alpha-capable (ARGB)
+	// Wayland surface (any decorated window: CSD draws rounded corners, SSD
+	// stays opaque). It keeps the painter's framebuffer alpha opaque where
+	// content is drawn so semi-transparent widgets are not rendered see-through.
+	transparentSurface bool
+	padded             bool
+	size               fyne.Size
 
 	onTypedRune func(rune)
 	onTypedKey  func(*fyne.KeyEvent)
@@ -135,6 +148,9 @@ func (c *glCanvas) Resize(size fyne.Size) {
 		decoration.Refresh()
 		decoration.Resize(fyne.NewSize(nearestSize.Width, decorationHeight))
 		decoration.Move(fyne.NewPos(0, 0))
+	}
+	if c.background != nil {
+		c.background.Resize(c.windowBackgroundSize(nearestSize))
 	}
 	if c.outline != nil {
 		c.outline.Resize(nearestSize)
@@ -287,7 +303,18 @@ func (c *glCanvas) paint(size fyne.Size) {
 	if c.Content() == nil {
 		return
 	}
+	// Rounded Wayland CSD corners require transparent clear pixels outside the
+	// title bar shape. The explicit lower body restores opacity behind content.
+	c.Painter().SetTransparentBackground(c.background != nil)
+	// On an alpha-capable Wayland surface, keep drawn pixels opaque so
+	// semi-transparent widgets are not blended away to see-through (the
+	// compositor honours the surface alpha). CSD additionally clears the corners
+	// transparent above; SSD/fullscreen keep the opaque clear.
+	c.Painter().SetPreserveFramebufferAlpha(c.transparentSurface)
 	c.Painter().Clear()
+	if c.background != nil {
+		c.Painter().Paint(c.background, fyne.NewPos(0, c.decorationHeight()), size, nil)
+	}
 
 	paint := func(node *common.RenderCacheNode, pos fyne.Position) {
 		obj := node.Obj()
@@ -346,6 +373,7 @@ func (c *glCanvas) setDecoration(obj fyne.CanvasObject) {
 	c.SetDecorationTreeAndFocusMgr(obj)
 	if obj == nil {
 		c.setWindowOutline(false)
+		c.setWindowBackground(false)
 	}
 
 	if !c.size.IsZero() {
@@ -354,8 +382,20 @@ func (c *glCanvas) setDecoration(obj fyne.CanvasObject) {
 	c.SetDirty()
 }
 
+func (c *glCanvas) effectiveCornerRadius() float32 {
+	if c.squareCorners {
+		return 0
+	}
+	return windowCornerRadius
+}
+
+func (c *glCanvas) windowBackgroundSize(size fyne.Size) fyne.Size {
+	return fyne.NewSize(size.Width, fyne.Max(0, size.Height-c.decorationHeight()))
+}
+
 // setWindowOutline enables or clears the inexpensive inner border used to keep
-// overlapping Wayland CSD windows visually distinct.
+// overlapping Wayland CSD windows visually distinct. The top corners follow the
+// rounded title bar; the bottom stays square.
 func (c *glCanvas) setWindowOutline(enabled bool) {
 	if !enabled {
 		c.outline = nil
@@ -366,8 +406,48 @@ func (c *glCanvas) setWindowOutline(enabled bool) {
 	outline := canvas.NewRectangle(color.Transparent)
 	outline.StrokeColor = theme.Color(theme.ColorNameShadow)
 	outline.StrokeWidth = 1
+	outline.TopLeftCornerRadius = c.effectiveCornerRadius()
+	outline.TopRightCornerRadius = c.effectiveCornerRadius()
 	outline.Resize(c.size)
 	c.outline = outline
+	c.SetDirty()
+}
+
+// setWindowBackground enables or clears the opaque lower window body painted
+// behind Wayland CSD content. The title bar paints the rounded top separately.
+func (c *glCanvas) setWindowBackground(enabled bool) {
+	if !enabled {
+		c.background = nil
+		c.SetDirty()
+		return
+	}
+
+	background := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
+	background.Resize(c.windowBackgroundSize(c.size))
+	c.background = background
+	c.SetDirty()
+}
+
+// setWindowCornersSquare flattens (square=true) or restores the rounded top
+// corners of the title bar and outline. Maximized/fullscreen windows are square
+// and have no external shadow, matching native decorations.
+func (c *glCanvas) setWindowCornersSquare(square bool) {
+	decoration, hasRoundedDecoration := c.decoration.(interface{ SetCornersSquare(bool) })
+	if c.outline == nil && !hasRoundedDecoration {
+		return
+	}
+
+	c.squareCorners = square
+
+	radius := c.effectiveCornerRadius()
+	if c.outline != nil {
+		c.outline.TopLeftCornerRadius = radius
+		c.outline.TopRightCornerRadius = radius
+		c.outline.Refresh()
+	}
+	if hasRoundedDecoration {
+		decoration.SetCornersSquare(square)
+	}
 	c.SetDirty()
 }
 
@@ -377,6 +457,10 @@ func (c *glCanvas) applyThemeOutOfTreeObjects() {
 	}
 	if c.decoration != nil {
 		app.ApplyThemeTo(c.decoration, c) // decoration is out-of-tree too (Wayland CSD)
+	}
+	if c.background != nil {
+		c.background.FillColor = theme.Color(theme.ColorNameBackground)
+		c.SetDirty()
 	}
 	if c.outline != nil {
 		c.outline.StrokeColor = theme.Color(theme.ColorNameShadow)

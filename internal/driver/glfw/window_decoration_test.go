@@ -37,6 +37,20 @@ func TestWindowDecoration_SetTitle(t *testing.T) {
 	assert.Equal(t, "After", d.titleLabel.Text)
 }
 
+func TestWindowDecoration_BackgroundRoundedTopCorners(t *testing.T) {
+	d := newWindowDecoration("My App", theme.FyneLogo())
+	r := d.CreateRenderer().(*windowDecorationRenderer)
+	assert.Equal(t, windowCornerRadius, r.bg.TopLeftCornerRadius)
+	assert.Equal(t, windowCornerRadius, r.bg.TopRightCornerRadius)
+	assert.Equal(t, float32(0), r.bg.BottomLeftCornerRadius)
+	assert.Equal(t, float32(0), r.bg.BottomRightCornerRadius)
+
+	d.SetCornersSquare(true)
+	r.Refresh()
+	assert.Equal(t, float32(0), r.bg.TopLeftCornerRadius)
+	assert.Equal(t, float32(0), r.bg.TopRightCornerRadius)
+}
+
 func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
 	d := newWindowDecoration("Centered", theme.FyneLogo())
 	r := test.TempWidgetRenderer(t, d)

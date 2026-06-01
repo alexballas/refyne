@@ -996,6 +996,11 @@ func (w *window) doShowAgain() {
 		w.doSetFullScreen(true)
 	}
 
+	if build.IsWayland {
+		w.setupWaylandDecorations()
+		w.pushWaylandIcon()
+	}
+
 	w.RunWithContext(func() {
 		w.driver.repaintWindow(w)
 	})

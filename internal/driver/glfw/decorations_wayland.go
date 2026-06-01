@@ -36,10 +36,19 @@ func waylandAppID() string {
 	return "refyne"
 }
 
-// applyWaylandWindowHints sets the pre-create window hints specific to Wayland
-// (currently only the app_id). Must be called before glfw.CreateWindow.
-func applyWaylandWindowHints() {
+// applyWaylandWindowHints sets the pre-create window hints specific to Wayland.
+// Must be called before glfw.CreateWindow. Decorated windows request an alpha
+// framebuffer up front because Mutter CSD is selected only after creation; SSD
+// windows continue to render an opaque clear.
+func applyWaylandWindowHints(decorate bool) {
 	glfw.WindowHintString(glfw.WaylandAppID, waylandAppID())
+	transparent := glfw.False
+	if decorate {
+		transparent = glfw.True
+	}
+	// Window hints persist until explicitly changed, so reset this for every
+	// window rather than leaving undecorated windows to inherit a prior value.
+	glfw.WindowHint(glfw.TransparentFramebuffer, transparent)
 }
 
 // waylandResizeBorder is the distance (in logical pixels) from a window edge
@@ -87,7 +96,28 @@ func (w *window) decorationIcon() fyne.Resource {
 // (GNOME/Mutter, or no decoration manager) we suppress GLFW's minimal fallback
 // bars and draw our own themed title bar inside the canvas.
 func (w *window) setupWaylandDecorations() {
-	if !w.decorate || w.fullScreen {
+	if !w.decorate {
+		return
+	}
+
+	// Decorated windows requested a transparent (ARGB) framebuffer before
+	// creation (applyWaylandWindowHints), so the compositor honours the surface
+	// alpha and no opaque region is set. Keep drawn pixels opaque in the painter
+	// for every decorated window — CSD relies on it for the rounded-corner body,
+	// SSD/fullscreen rely on it to avoid see-through semi-transparent widgets.
+	w.canvas.transparentSurface = true
+
+	// Hide destroys the xdg shell objects and their shadow subsurfaces. The
+	// in-canvas decoration remains installed, so a later Show only needs to
+	// restore the shadow request for the recreated shell objects. Keep the
+	// request active in fullscreen too: the C layer hides the surfaces while
+	// fullscreen and recreates them when the window returns to normal.
+	if w.canvas.decoration != nil {
+		w.viewport.SetWindowShadowWayland(true)
+		return
+	}
+
+	if w.fullScreen {
 		return
 	}
 
@@ -118,7 +148,9 @@ func (w *window) setupWaylandDecorations() {
 	d.onDoubleTap = d.onMaximizeToggle
 
 	w.canvas.setDecoration(d)
+	w.canvas.setWindowBackground(true)
 	w.canvas.setWindowOutline(true)
+	w.canvas.setWindowCornersSquare(w.viewport.GetAttrib(glfw.Maximized) == glfw.True || w.fullScreen)
 	w.viewport.SetWindowShadowWayland(true)
 }
 
