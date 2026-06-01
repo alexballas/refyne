@@ -104,6 +104,7 @@ func (w *window) setupWaylandDecorations() {
 	d.onDoubleTap = d.onMaximizeToggle
 
 	w.canvas.setDecoration(d)
+	w.canvas.setWindowOutline(true)
 }
 
 // handleWaylandEdgeResize starts an interactive edge/corner resize if the

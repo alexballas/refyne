@@ -2,6 +2,7 @@ package glfw
 
 import (
 	"image"
+	"image/color"
 	"math"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -25,6 +26,7 @@ type glCanvas struct {
 	content    fyne.CanvasObject
 	menu       fyne.CanvasObject
 	decoration fyne.CanvasObject // client-side title bar, Wayland CSD only
+	outline    *canvas.Rectangle // one-pixel inner border, Wayland CSD only
 	padded     bool
 	size       fyne.Size
 
@@ -133,6 +135,9 @@ func (c *glCanvas) Resize(size fyne.Size) {
 		decoration.Refresh()
 		decoration.Resize(fyne.NewSize(nearestSize.Width, decorationHeight))
 		decoration.Move(fyne.NewPos(0, 0))
+	}
+	if c.outline != nil {
+		c.outline.Resize(nearestSize)
 	}
 
 	if menu != nil {
@@ -310,6 +315,9 @@ func (c *glCanvas) paint(size fyne.Size) {
 		}
 	}
 	c.WalkTrees(paint, afterPaint)
+	if c.outline != nil {
+		c.Painter().Paint(c.outline, fyne.NewPos(0, 0), size, nil)
+	}
 }
 
 func (c *glCanvas) setContent(content fyne.CanvasObject) {
@@ -336,10 +344,30 @@ func (c *glCanvas) setMenuOverlay(b fyne.CanvasObject) {
 func (c *glCanvas) setDecoration(obj fyne.CanvasObject) {
 	c.decoration = obj
 	c.SetDecorationTreeAndFocusMgr(obj)
+	if obj == nil {
+		c.setWindowOutline(false)
+	}
 
 	if !c.size.IsZero() {
 		c.Resize(c.size)
 	}
+	c.SetDirty()
+}
+
+// setWindowOutline enables or clears the inexpensive inner border used to keep
+// overlapping Wayland CSD windows visually distinct.
+func (c *glCanvas) setWindowOutline(enabled bool) {
+	if !enabled {
+		c.outline = nil
+		c.SetDirty()
+		return
+	}
+
+	outline := canvas.NewRectangle(color.Transparent)
+	outline.StrokeColor = theme.Color(theme.ColorNameShadow)
+	outline.StrokeWidth = 1
+	outline.Resize(c.size)
+	c.outline = outline
 	c.SetDirty()
 }
 
@@ -349,6 +377,10 @@ func (c *glCanvas) applyThemeOutOfTreeObjects() {
 	}
 	if c.decoration != nil {
 		app.ApplyThemeTo(c.decoration, c) // decoration is out-of-tree too (Wayland CSD)
+	}
+	if c.outline != nil {
+		c.outline.StrokeColor = theme.Color(theme.ColorNameShadow)
+		c.SetDirty()
 	}
 
 	c.SetPadded(c.padded) // refresh the padding for potential theme differences

@@ -650,6 +650,33 @@ func TestGlCanvas_SetDecorationRelayoutsTopLevelObjects(t *testing.T) {
 	})
 }
 
+func TestGlCanvas_SetWindowOutline(t *testing.T) {
+	w := createWindow("Test")
+	c := w.Canvas().glCanvas
+	size := fyne.NewSize(300, 200)
+
+	runOnMain(func() {
+		c.Resize(size)
+		c.CheckDirtyAndClear()
+
+		c.setWindowOutline(true)
+		assert.NotNil(t, c.outline)
+		assert.Equal(t, color.Transparent, c.outline.FillColor)
+		assert.Equal(t, theme.Color(theme.ColorNameShadow), c.outline.StrokeColor)
+		assert.Equal(t, float32(1), c.outline.StrokeWidth)
+		assert.Equal(t, size, c.outline.Size())
+		assert.True(t, c.CheckDirtyAndClear())
+
+		resized := fyne.NewSize(320, 240)
+		c.Resize(resized)
+		assert.Equal(t, resized, c.outline.Size())
+
+		c.setDecoration(nil)
+		assert.Nil(t, c.outline)
+		assert.True(t, c.CheckDirtyAndClear())
+	})
+}
+
 func TestWindow_FindObjectAtPositionMatchingPrefersDecorationOverOverlay(t *testing.T) {
 	w := createWindow("Test")
 	w.SetPadded(false)
