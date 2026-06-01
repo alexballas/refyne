@@ -101,6 +101,7 @@ type window struct {
 	mousePressed               fyne.CanvasObject
 	mouseClickCount            int
 	mouseCancelFunc            context.CancelFunc
+	waylandWindowMenuPressed   bool
 
 	onClosed           func()
 	onCloseIntercepted func()
@@ -422,10 +423,28 @@ func (w *window) mouseMoved(_ *glfw.Window, xpos, ypos float64) {
 }
 
 func (w *window) mouseClicked(_ *glfw.Window, btn glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
-	if build.IsWayland && btn == glfw.MouseButton1 && action == glfw.Press && w.handleWaylandEdgeResize() {
-		// An interactive edge/corner resize was started; the compositor now
-		// drives it, so don't dispatch the click into the canvas.
-		return
+	if build.IsWayland {
+		if btn == glfw.MouseButton1 && action == glfw.Press && w.handleWaylandEdgeResize() {
+			// An interactive edge/corner resize was started; the compositor now
+			// drives it, so don't dispatch the click into the canvas.
+			return
+		}
+		if btn == glfw.MouseButtonRight {
+			switch action {
+			case glfw.Press:
+				w.waylandWindowMenuPressed = w.handleWaylandWindowMenu()
+				if w.waylandWindowMenuPressed {
+					// The compositor owns the title-bar window menu; don't
+					// dispatch the click into the canvas.
+					return
+				}
+			case glfw.Release:
+				if w.waylandWindowMenuPressed {
+					w.waylandWindowMenuPressed = false
+					return
+				}
+			}
+		}
 	}
 
 	button, modifiers := convertMouseButton(btn, mods)
@@ -724,6 +743,12 @@ func (w *window) focused(_ *glfw.Window, focused bool) {
 	w.processFocused(focused)
 }
 
+func (w *window) maximized(_ *glfw.Window, maximized bool) {
+	if d, ok := w.canvas.decoration.(*windowDecoration); ok && d != nil {
+		d.SetMaximized(maximized)
+	}
+}
+
 func (w *window) DetachCurrentContext() {
 	glfw.DetachCurrentContext()
 }
@@ -823,6 +848,7 @@ func (w *window) create() {
 	win.SetKeyCallback(w.keyPressed)
 	win.SetCharCallback(w.charInput)
 	win.SetFocusCallback(w.focused)
+	win.SetMaximizeCallback(w.maximized)
 
 	w.canvas.detectedScale = w.detectScale()
 	w.canvas.scale = w.calculatedScale()

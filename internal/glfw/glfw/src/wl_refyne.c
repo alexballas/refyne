@@ -5,10 +5,11 @@
 // (see c_glfw_lin_wayland.go), so internal.h, the _glfw global and all
 // _GLFW* types plus the generated xdg-shell wrappers are already in scope.
 //
-// These expose the three things refyne cannot otherwise reach for custom
+// These expose the things refyne cannot otherwise reach for custom
 // client-side decorations, all by reusing state GLFW already tracks:
 //   - interactive move           -> xdg_toplevel_move
 //   - interactive edge/corner resize -> xdg_toplevel_resize
+//   - compositor window menu     -> xdg_toplevel_show_window_menu
 //   - the granted xdg-decoration mode (SSD vs CSD detection)
 //
 // This file is a local patch; see ../../VENDORING.md. Keep it self-contained
@@ -36,6 +37,16 @@ GLFWAPI void glfwRefyneStartWindowResize(GLFWwindow* handle, int edges)
     if (window && window->wl.xdg.toplevel && _glfw.wl.seat)
         xdg_toplevel_resize(window->wl.xdg.toplevel, _glfw.wl.seat,
                             (uint32_t) edges, _glfw.wl.serial);
+}
+
+GLFWAPI void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    if (window && window->wl.xdg.toplevel && _glfw.wl.seat)
+    {
+        xdg_toplevel_show_window_menu(window->wl.xdg.toplevel, _glfw.wl.seat,
+                                      _glfw.wl.serial, xpos, ypos);
+    }
 }
 
 // 0 = unknown/none (e.g. GNOME, no decoration manager),

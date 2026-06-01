@@ -15,3 +15,7 @@ func (w *window) pushWaylandIcon() {}
 // handleWaylandEdgeResize is a no-op outside Wayland builds; it never starts a
 // resize, so the click is processed normally.
 func (w *window) handleWaylandEdgeResize() bool { return false }
+
+// handleWaylandWindowMenu is a no-op outside Wayland builds; the secondary
+// click is processed normally.
+func (w *window) handleWaylandWindowMenu() bool { return false }

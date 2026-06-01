@@ -47,6 +47,14 @@ func applyWaylandWindowHints() {
 // while custom (client-side) decorations are active.
 const waylandResizeBorder = float32(5)
 
+func (w *window) waylandCursorPosition() (float64, float64, fyne.Position) {
+	xpos, ypos := w.viewport.GetCursorPos()
+	return xpos, ypos, fyne.NewPos(
+		scale.ToFyneCoordinate(w.canvas, int(xpos)),
+		scale.ToFyneCoordinate(w.canvas, int(ypos)),
+	)
+}
+
 // decorationIcon resolves the resource to show in the title bar / push to the
 // compositor: the window icon if set, otherwise the application icon.
 func (w *window) decorationIcon() fyne.Resource {
@@ -82,6 +90,7 @@ func (w *window) setupWaylandDecorations() {
 	w.viewport.SetAttrib(glfw.Decorated, glfw.False)
 
 	d := newWindowDecoration(w.title, w.decorationIcon())
+	d.SetMaximized(w.viewport.GetAttrib(glfw.Maximized) == glfw.True)
 	d.onClose = w.Close
 	d.onMinimize = func() { w.viewport.Iconify() }
 	d.onMaximizeToggle = func() {
@@ -90,7 +99,6 @@ func (w *window) setupWaylandDecorations() {
 		} else {
 			w.viewport.Maximize()
 		}
-		d.SetMaximized(w.viewport.GetAttrib(glfw.Maximized) == glfw.True)
 	}
 	d.onDragStart = func() { w.viewport.StartWindowMove() }
 	d.onDoubleTap = d.onMaximizeToggle
@@ -107,11 +115,7 @@ func (w *window) handleWaylandEdgeResize() bool {
 		return false
 	}
 
-	xpos, ypos := w.viewport.GetCursorPos()
-	pos := fyne.NewPos(
-		scale.ToFyneCoordinate(w.canvas, int(xpos)),
-		scale.ToFyneCoordinate(w.canvas, int(ypos)),
-	)
+	_, _, pos := w.waylandCursorPosition()
 	size := w.canvas.Size()
 	border := waylandResizeBorder
 
@@ -143,6 +147,22 @@ func (w *window) handleWaylandEdgeResize() bool {
 	}
 
 	w.viewport.StartWindowResize(edge)
+	return true
+}
+
+// handleWaylandWindowMenu asks the compositor to show its standard window menu
+// when a secondary-button press lands anywhere in our custom title bar.
+func (w *window) handleWaylandWindowMenu() bool {
+	if w.fullScreen {
+		return false
+	}
+
+	xpos, ypos, pos := w.waylandCursorPosition()
+	if !pointInWindowDecoration(w.canvas, pos) {
+		return false
+	}
+
+	w.viewport.ShowWindowMenu(int(xpos), int(ypos))
 	return true
 }
 

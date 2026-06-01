@@ -54,3 +54,26 @@ func TestWindowDecoration_DragAndDoubleTap(t *testing.T) {
 	assert.Equal(t, 1, dragged)
 	assert.Equal(t, 1, doubled)
 }
+
+func TestWindow_MaximizedUpdatesDecorationIcon(t *testing.T) {
+	d := newWindowDecoration("X", theme.FyneLogo())
+	w := &window{canvas: &glCanvas{decoration: d}}
+
+	w.maximized(nil, true)
+	assert.Equal(t, theme.ViewRestoreIcon(), d.maximizeButton.Icon)
+
+	w.maximized(nil, false)
+	assert.Equal(t, theme.WindowMaximizeIcon(), d.maximizeButton.Icon)
+}
+
+func TestPointInWindowDecoration(t *testing.T) {
+	d := newWindowDecoration("X", theme.FyneLogo())
+	c := &glCanvas{decoration: d, size: fyne.NewSize(400, 200)}
+
+	assert.True(t, pointInWindowDecoration(c, fyne.NewPos(0, 0)))
+	assert.True(t, pointInWindowDecoration(c, fyne.NewPos(399, titleBarHeight-1)))
+	assert.False(t, pointInWindowDecoration(c, fyne.NewPos(400, 0)))
+	assert.False(t, pointInWindowDecoration(c, fyne.NewPos(0, titleBarHeight)))
+	assert.False(t, pointInWindowDecoration(c, fyne.NewPos(0, -1)))
+	assert.False(t, pointInWindowDecoration(&glCanvas{}, fyne.NewPos(0, 0)))
+}

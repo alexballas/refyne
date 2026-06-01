@@ -149,6 +149,16 @@ func (d *windowDecoration) DoubleTapped(_ *fyne.PointEvent) {
 	}
 }
 
+func pointInWindowDecoration(c *glCanvas, pos fyne.Position) bool {
+	if c == nil || c.decoration == nil {
+		return false
+	}
+
+	size := c.Size()
+	return pos.X >= 0 && pos.X < size.Width &&
+		pos.Y >= 0 && pos.Y < c.decorationHeight()
+}
+
 // Ensure the widget satisfies the interaction interfaces.
 var (
 	_ fyne.Draggable      = (*windowDecoration)(nil)

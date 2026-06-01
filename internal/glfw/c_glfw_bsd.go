@@ -8,6 +8,7 @@ package glfw
 	#include "glfw/src/wl_init.c"
 	#include "glfw/src/wl_monitor.c"
 	#include "glfw/src/wl_window.c"
+	#include "glfw/src/wl_refyne.c"
 	#include "glfw/src/wayland-idle-inhibit-unstable-v1-client-protocol.c"
 	#include "glfw/src/wayland-pointer-constraints-unstable-v1-client-protocol.c"
 	#include "glfw/src/wayland-relative-pointer-unstable-v1-client-protocol.c"

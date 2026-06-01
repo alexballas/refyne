@@ -11,6 +11,7 @@ package glfw
 //#include "glfw/include/GLFW/glfw3.h"
 //extern void glfwRefyneStartWindowMove(GLFWwindow* handle);
 //extern void glfwRefyneStartWindowResize(GLFWwindow* handle, int edges);
+//extern void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos);
 //extern int  glfwRefyneDecorationMode(GLFWwindow* handle);
 //extern int  glfwRefyneSetWindowIcon(GLFWwindow* handle, const unsigned char* pixels, int width, int height);
 import "C"
@@ -59,6 +60,15 @@ func (w *Window) StartWindowMove() {
 // resize of the window, reusing GLFW's tracked seat and input serial. Wayland only.
 func (w *Window) StartWindowResize(edge ResizeEdge) {
 	C.glfwRefyneStartWindowResize(w.data, C.int(edge))
+	panicError()
+}
+
+// ShowWindowMenu asks the compositor to show its standard window menu at the
+// given surface-local coordinates, reusing GLFW's tracked seat and input serial.
+// Call it directly from a user-action handler so the serial is still fresh.
+// Wayland only.
+func (w *Window) ShowWindowMenu(xpos, ypos int) {
+	C.glfwRefyneShowWindowMenu(w.data, C.int(xpos), C.int(ypos))
 	panicError()
 }
 
