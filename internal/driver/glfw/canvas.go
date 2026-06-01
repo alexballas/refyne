@@ -61,7 +61,8 @@ func (c *glCanvas) DismissMenu() bool {
 }
 
 func (c *glCanvas) InteractiveArea() (fyne.Position, fyne.Size) {
-	return fyne.Position{}, c.Size()
+	offset := c.decorationHeight()
+	return fyne.NewPos(0, offset), c.Size().SubtractWidthHeight(0, offset)
 }
 
 func (c *glCanvas) MinSize() fyne.Size {
@@ -97,6 +98,13 @@ func (c *glCanvas) PixelCoordinateForPosition(pos fyne.Position) (int, int) {
 	return scaleInt(pos.X), scaleInt(pos.Y)
 }
 
+// PopUpArea returns the part of the GLFW window available to pop-ups. The
+// method is consumed by widget.PopUp without changing pop-up behavior on
+// canvases that do not provide explicit bounds.
+func (c *glCanvas) PopUpArea() (fyne.Position, fyne.Size) {
+	return c.InteractiveArea()
+}
+
 func (c *glCanvas) Resize(size fyne.Size) {
 	// This might not be the ideal solution, but it effectively avoid the first frame to be blurry due to the
 	// rounding of the size to the loower integer when scale == 1. It does not affect the other cases as far as we tested.
@@ -108,15 +116,7 @@ func (c *glCanvas) Resize(size fyne.Size) {
 	if c.webExtraWindows != nil {
 		c.webExtraWindows.Resize(size)
 	}
-	for _, overlay := range c.Overlays().List() {
-		if p, ok := overlay.(*widget.PopUp); ok {
-			// TODO: remove this when #707 is being addressed.
-			// “Notifies” the PopUp of the canvas size change.
-			p.Refresh()
-		} else {
-			overlay.Resize(nearestSize)
-		}
-	}
+	c.resizeOverlays()
 
 	content := c.content
 	contentSize := c.contentSize(nearestSize)
@@ -259,7 +259,22 @@ func (c *glCanvas) decorationHeight() float32 {
 }
 
 func (c *glCanvas) overlayChanged() {
+	c.resizeOverlays()
 	c.SetDirty()
+}
+
+func (c *glCanvas) resizeOverlays() {
+	areaPos, areaSize := c.InteractiveArea()
+	for _, overlay := range c.Overlays().List() {
+		if p, ok := overlay.(*widget.PopUp); ok {
+			// TODO: remove this when #707 is being addressed.
+			// “Notifies” the PopUp of the canvas size change.
+			p.Refresh()
+		} else {
+			overlay.Resize(areaSize)
+			overlay.Move(areaPos)
+		}
+	}
 }
 
 func (c *glCanvas) paint(size fyne.Size) {

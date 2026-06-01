@@ -266,10 +266,10 @@ func (c *Canvas) ObjectTrees() []fyne.CanvasObject {
 	if menu != nil {
 		trees = append(trees, menu)
 	}
+	trees = append(trees, c.Overlays().List()...)
 	if decoration != nil {
 		trees = append(trees, decoration)
 	}
-	trees = append(trees, c.Overlays().List()...)
 	return trees
 }
 
@@ -388,13 +388,13 @@ func (c *Canvas) WalkTrees(
 	if c.menuTree != nil && c.menuTree.root.obj != nil {
 		c.walkTree(c.menuTree, beforeChildren, afterChildren)
 	}
-	if c.decorationTree != nil && c.decorationTree.root.obj != nil {
-		c.walkTree(c.decorationTree, beforeChildren, afterChildren)
-	}
 	for _, tree := range c.overlays.renderCaches {
 		if tree != nil {
 			c.walkTree(tree, beforeChildren, afterChildren)
 		}
+	}
+	if c.decorationTree != nil && c.decorationTree.root.obj != nil {
+		c.walkTree(c.decorationTree, beforeChildren, afterChildren)
 	}
 }
 

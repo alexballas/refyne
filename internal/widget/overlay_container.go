@@ -91,7 +91,8 @@ func (r *overlayRenderer) Layout(fyne.Size) {
 }
 
 func (r *overlayRenderer) MinSize() fyne.Size {
-	return r.o.canvas.Size()
+	_, size := r.o.canvas.InteractiveArea()
+	return size
 }
 
 func (r *overlayRenderer) Refresh() {

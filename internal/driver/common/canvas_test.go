@@ -374,6 +374,29 @@ func TestCanvas_OverlayStack(t *testing.T) {
 	assert.Equal(t, 0, len(o.List()))
 }
 
+func TestCanvas_DecorationIsWalkedAfterOverlays(t *testing.T) {
+	content := canvas.NewRectangle(color.Black)
+	menu := canvas.NewRectangle(color.White)
+	overlay := canvas.NewRectangle(color.Gray{Y: 0x80})
+	decoration := canvas.NewRectangle(color.Transparent)
+
+	c := &Canvas{}
+	c.Initialize(nil, func() {})
+	c.SetContentTreeAndFocusMgr(content)
+	c.SetMenuTreeAndFocusMgr(menu)
+	c.Overlays().Add(overlay)
+	c.SetDecorationTreeAndFocusMgr(decoration)
+
+	expected := []fyne.CanvasObject{content, menu, overlay, decoration}
+	assert.Equal(t, expected, c.ObjectTrees())
+
+	var walked []fyne.CanvasObject
+	c.WalkTrees(func(node *RenderCacheNode, _ fyne.Position) {
+		walked = append(walked, node.Obj())
+	}, nil)
+	assert.Equal(t, expected, walked)
+}
+
 func deleteAt(c *fyne.Container, index int) {
 	if index < len(c.Objects)-1 {
 		c.Objects = append(c.Objects[:index], c.Objects[index+1:]...)

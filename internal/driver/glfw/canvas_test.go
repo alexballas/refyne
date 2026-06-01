@@ -612,25 +612,76 @@ func TestGlCanvas_SetDecorationRelayoutsTopLevelObjects(t *testing.T) {
 	menu.SetMinSize(fyne.NewSize(1, 20))
 	decoration := canvas.NewRectangle(color.Transparent)
 	decoration.SetMinSize(fyne.NewSize(1, 32))
+	overlay := canvas.NewRectangle(color.NRGBA{R: 0x80, A: 0xff})
 	c := w.Canvas().glCanvas
 
 	runOnMain(func() {
 		c.setMenuOverlay(menu)
+		c.Overlays().Add(overlay)
 		c.CheckDirtyAndClear()
 
 		c.setDecoration(decoration)
+		areaPos, areaSize := c.InteractiveArea()
+		assert.Equal(t, fyne.NewPos(0, 32), areaPos)
+		assert.Equal(t, fyne.NewSize(300, 168), areaSize)
 		assert.Equal(t, fyne.NewPos(0, 0), decoration.Position())
 		assert.Equal(t, fyne.NewSize(300, 32), decoration.Size())
 		assert.Equal(t, fyne.NewPos(0, 32), menu.Position())
 		assert.Equal(t, fyne.NewSize(300, 20), menu.Size())
 		assert.Equal(t, fyne.NewPos(0, 52), content.Position())
 		assert.Equal(t, fyne.NewSize(300, 148), content.Size())
+		assert.Equal(t, areaPos, overlay.Position())
+		assert.Equal(t, areaSize, overlay.Size())
 		assert.True(t, c.CheckDirtyAndClear())
+
+		popup := widget.NewModalPopUp(widget.NewLabel("PopUp"), c)
+		popup.Show()
+		assert.Equal(t, areaPos, popup.Position())
+		assert.Equal(t, areaSize, popup.Size())
 
 		c.setDecoration(nil)
 		assert.Equal(t, fyne.NewPos(0, 0), menu.Position())
 		assert.Equal(t, fyne.NewPos(0, 20), content.Position())
 		assert.Equal(t, fyne.NewSize(300, 180), content.Size())
+		assert.Equal(t, fyne.NewPos(0, 0), overlay.Position())
+		assert.Equal(t, size, overlay.Size())
+		assert.Equal(t, fyne.NewPos(0, 0), popup.Position())
+		assert.Equal(t, size, popup.Size())
+	})
+}
+
+func TestWindow_FindObjectAtPositionMatchingPrefersDecorationOverOverlay(t *testing.T) {
+	w := createWindow("Test")
+	w.SetPadded(false)
+
+	size := fyne.NewSize(300, 200)
+	w.Resize(size)
+	ensureCanvasSize(t, w, size)
+
+	decoration := canvas.NewRectangle(color.Transparent)
+	decoration.SetMinSize(fyne.NewSize(1, 32))
+	overlay := canvas.NewRectangle(color.Black)
+	c := w.Canvas().glCanvas
+
+	runOnMain(func() {
+		c.setDecoration(decoration)
+		c.Overlays().Add(overlay)
+		assert.Equal(t, fyne.NewPos(0, 32), overlay.Position())
+		assert.Equal(t, fyne.NewSize(300, 168), overlay.Size())
+
+		// Force an invalid full-window overlay to verify the decoration still
+		// wins hit testing even if a caller bypasses normal overlay layout.
+		overlay.Resize(size)
+		overlay.Move(fyne.NewPos(0, 0))
+
+		matches := func(object fyne.CanvasObject) bool {
+			return object == decoration || object == overlay
+		}
+		obj, _, _ := w.window.findObjectAtPositionMatching(c, fyne.NewPos(1, 1), matches)
+		assert.Equal(t, decoration, obj)
+
+		obj, _, _ = w.window.findObjectAtPositionMatching(c, fyne.NewPos(1, 33), matches)
+		assert.Equal(t, overlay, obj)
 	})
 }
 

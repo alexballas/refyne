@@ -24,6 +24,10 @@ type PopUp struct {
 	overlayShown bool
 }
 
+type popUpAreaCanvas interface {
+	PopUpArea() (fyne.Position, fyne.Size)
+}
+
 // Hide this widget, if it was previously visible
 func (p *PopUp) Hide() {
 	if p.overlayShown {
@@ -127,6 +131,17 @@ func (p *PopUp) isInsideContent(pos fyne.Position) bool {
 		pos.Y <= p.innerPos.Y+p.innerSize.Height
 }
 
+func (p *PopUp) resizeToCanvasArea() {
+	pos := fyne.Position{}
+	size := p.Canvas.Size()
+	if c, ok := p.Canvas.(popUpAreaCanvas); ok {
+		pos, size = c.PopUpArea()
+	}
+
+	p.BaseWidget.Move(pos)
+	p.BaseWidget.Resize(size)
+}
+
 // ShowPopUpAtPosition creates a new popUp for the specified content at the specified absolute position.
 // It will then display the popup on the passed canvas.
 func ShowPopUpAtPosition(content fyne.CanvasObject, canvas fyne.Canvas, pos fyne.Position) {
@@ -227,6 +242,8 @@ func (r *popUpRenderer) MinSize() fyne.Size {
 }
 
 func (r *popUpRenderer) Refresh() {
+	r.popUp.resizeToCanvasArea()
+
 	th := r.popUp.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 	r.background.FillColor = th.Color(theme.ColorNameOverlayBackground, v)
@@ -235,9 +252,6 @@ func (r *popUpRenderer) Refresh() {
 
 	if r.background.Size() != r.popUp.innerSize || r.background.Position() != r.popUp.innerPos || shouldRelayout {
 		r.Layout(r.popUp.Size())
-	}
-	if r.popUp.Canvas.Size() != r.popUp.BaseWidget.Size() {
-		r.popUp.BaseWidget.Resize(r.popUp.Canvas.Size())
 	}
 	r.popUp.Content.Refresh()
 	r.background.Refresh()
@@ -274,6 +288,8 @@ func (r *modalPopUpRenderer) MinSize() fyne.Size {
 }
 
 func (r *modalPopUpRenderer) Refresh() {
+	r.popUp.resizeToCanvasArea()
+
 	th := r.popUp.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 	r.underlay.FillColor = th.Color(theme.ColorNameShadow, v)
@@ -283,9 +299,6 @@ func (r *modalPopUpRenderer) Refresh() {
 
 	if r.background.Size() != r.popUp.innerSize || shouldLayout {
 		r.Layout(r.popUp.Size())
-	}
-	if r.popUp.Canvas.Size() != r.popUp.BaseWidget.Size() {
-		r.popUp.BaseWidget.Resize(r.popUp.Canvas.Size())
 	}
 	r.popUp.Content.Refresh()
 	r.background.Refresh()

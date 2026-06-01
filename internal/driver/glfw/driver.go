@@ -89,7 +89,9 @@ func (d *gLDriver) AbsolutePositionForObject(co fyne.CanvasObject) fyne.Position
 	}
 
 	glc := c.(*glCanvas)
-	return driver.AbsolutePositionForObject(co, glc.ObjectTrees())
+	pos := driver.AbsolutePositionForObject(co, glc.ObjectTrees())
+	inset, _ := glc.InteractiveArea()
+	return pos.Subtract(inset)
 }
 
 func (d *gLDriver) Device() fyne.Device {

@@ -328,6 +328,10 @@ func (w *window) processRefresh() {
 }
 
 func (w *window) findObjectAtPositionMatching(canvas *glCanvas, mouse fyne.Position, matches func(object fyne.CanvasObject) bool) (fyne.CanvasObject, fyne.Position, int) {
+	if pointInWindowDecoration(canvas, mouse) {
+		return driver.FindObjectAtPositionMatching(mouse, matches, nil, canvas.decoration)
+	}
+
 	return driver.FindObjectAtPositionMatching(mouse, matches, canvas.Overlays().Top(), canvas.menu, canvas.decoration, canvas.Content())
 }
 
