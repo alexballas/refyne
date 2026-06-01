@@ -6,11 +6,17 @@ package glfw
 // macOS, X11, wasm). The real implementation lives in decorations_wayland.go.
 func applyWaylandWindowHints() {}
 
+// initWaylandDecorationCursors is a no-op outside Wayland builds.
+func initWaylandDecorationCursors() {}
+
 // setupWaylandDecorations is a no-op outside Wayland builds.
 func (w *window) setupWaylandDecorations() {}
 
 // pushWaylandIcon is a no-op outside Wayland builds.
 func (w *window) pushWaylandIcon() {}
+
+// updateWaylandResizeCursor is a no-op outside Wayland builds.
+func (w *window) updateWaylandResizeCursor() {}
 
 // handleWaylandEdgeResize is a no-op outside Wayland builds; it never starts a
 // resize, so the click is processed normally.

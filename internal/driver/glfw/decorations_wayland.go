@@ -47,6 +47,20 @@ func applyWaylandWindowHints() {
 // while custom (client-side) decorations are active.
 const waylandResizeBorder = float32(5)
 
+var waylandDecorationCursors map[glfw.StandardCursor]*glfw.Cursor
+
+func initWaylandDecorationCursors() {
+	waylandDecorationCursors = make(map[glfw.StandardCursor]*glfw.Cursor, 4)
+	for _, shape := range []glfw.StandardCursor{
+		glfw.ResizeEWCursor,
+		glfw.ResizeNSCursor,
+		glfw.ResizeNWSECursor,
+		glfw.ResizeNESWCursor,
+	} {
+		waylandDecorationCursors[shape] = glfw.CreateStandardCursor(shape)
+	}
+}
+
 func (w *window) waylandCursorPosition() (float64, float64, fyne.Position) {
 	xpos, ypos := w.viewport.GetCursorPos()
 	return xpos, ypos, fyne.NewPos(
@@ -107,6 +121,91 @@ func (w *window) setupWaylandDecorations() {
 	w.canvas.setWindowOutline(true)
 }
 
+func waylandResizeEdgeAt(pos fyne.Position, size fyne.Size) glfw.ResizeEdge {
+	border := waylandResizeBorder
+	left := pos.X <= border
+	right := pos.X >= size.Width-border
+	top := pos.Y <= border
+	bottom := pos.Y >= size.Height-border
+
+	switch {
+	case top && left:
+		return glfw.ResizeEdgeTopLeft
+	case top && right:
+		return glfw.ResizeEdgeTopRight
+	case bottom && left:
+		return glfw.ResizeEdgeBottomLeft
+	case bottom && right:
+		return glfw.ResizeEdgeBottomRight
+	case left:
+		return glfw.ResizeEdgeLeft
+	case right:
+		return glfw.ResizeEdgeRight
+	case top:
+		return glfw.ResizeEdgeTop
+	case bottom:
+		return glfw.ResizeEdgeBottom
+	default:
+		return glfw.ResizeEdgeNone
+	}
+}
+
+func waylandResizeCursorShape(edge glfw.ResizeEdge) (glfw.StandardCursor, bool) {
+	switch edge {
+	case glfw.ResizeEdgeLeft, glfw.ResizeEdgeRight:
+		return glfw.ResizeEWCursor, true
+	case glfw.ResizeEdgeTop, glfw.ResizeEdgeBottom:
+		return glfw.ResizeNSCursor, true
+	case glfw.ResizeEdgeTopLeft, glfw.ResizeEdgeBottomRight:
+		return glfw.ResizeNWSECursor, true
+	case glfw.ResizeEdgeTopRight, glfw.ResizeEdgeBottomLeft:
+		return glfw.ResizeNESWCursor, true
+	default:
+		return 0, false
+	}
+}
+
+func (w *window) updateWaylandResizeCursor() {
+	if w.viewport == nil {
+		return
+	}
+
+	var cursor *glfw.Cursor
+	if w.canvas.decoration != nil && !w.fullScreen {
+		edge := waylandResizeEdgeAt(w.mousePos, w.canvas.Size())
+		if shape, ok := waylandResizeCursorShape(edge); ok {
+			cursor = waylandDecorationCursors[shape]
+		}
+	}
+
+	if cursor != nil {
+		// The regular canvas hover path runs first. Re-apply the frame cursor
+		// while inside a resize zone so child widgets cannot override it.
+		w.viewport.SetInputMode(CursorMode, CursorNormal)
+		w.viewport.SetCursor(cursor)
+		w.waylandResizeCursor = cursor
+		return
+	}
+	if w.waylandResizeCursor == nil {
+		return
+	}
+
+	// Restore the cursor selected by the regular canvas hover path when the
+	// pointer leaves the resize border. Reuse customCursor: creating a new
+	// custom cursor here would leak one on every border crossing.
+	w.waylandResizeCursor = nil
+	rawCursor, isCustomCursor := fyneToNativeCursor(w.cursor)
+	if isCustomCursor {
+		rawCursor = w.customCursor
+	}
+	if rawCursor == nil {
+		w.viewport.SetInputMode(CursorMode, CursorHidden)
+		return
+	}
+	w.viewport.SetInputMode(CursorMode, CursorNormal)
+	w.viewport.SetCursor(rawCursor)
+}
+
 // handleWaylandEdgeResize starts an interactive edge/corner resize if the
 // primary button was pressed within waylandResizeBorder of a window edge while
 // custom decorations are active. Returns true if a resize was started (so the
@@ -117,33 +216,8 @@ func (w *window) handleWaylandEdgeResize() bool {
 	}
 
 	_, _, pos := w.waylandCursorPosition()
-	size := w.canvas.Size()
-	border := waylandResizeBorder
-
-	left := pos.X <= border
-	right := pos.X >= size.Width-border
-	top := pos.Y <= border
-	bottom := pos.Y >= size.Height-border
-
-	var edge glfw.ResizeEdge
-	switch {
-	case top && left:
-		edge = glfw.ResizeEdgeTopLeft
-	case top && right:
-		edge = glfw.ResizeEdgeTopRight
-	case bottom && left:
-		edge = glfw.ResizeEdgeBottomLeft
-	case bottom && right:
-		edge = glfw.ResizeEdgeBottomRight
-	case left:
-		edge = glfw.ResizeEdgeLeft
-	case right:
-		edge = glfw.ResizeEdgeRight
-	case top:
-		edge = glfw.ResizeEdgeTop
-	case bottom:
-		edge = glfw.ResizeEdgeBottom
-	default:
+	edge := waylandResizeEdgeAt(pos, w.canvas.Size())
+	if edge == glfw.ResizeEdgeNone {
 		return false
 	}
 

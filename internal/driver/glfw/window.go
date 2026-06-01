@@ -369,6 +369,7 @@ func (w *window) processMouseMoved(xpos float64, ypos float64) {
 		}
 		w.setCustomCursor(rawCursor, isCustomCursor)
 	}
+	w.updateWaylandResizeCursor()
 
 	if w.mouseButton != 0 && w.mouseButton != desktop.MouseButtonSecondary && !w.mouseDragStarted {
 		obj, pos, _ := w.findObjectAtPositionMatching(w.canvas, previousPos, func(object fyne.CanvasObject) bool {

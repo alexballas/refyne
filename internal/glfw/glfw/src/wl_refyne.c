@@ -36,7 +36,7 @@ GLFWAPI void glfwRefyneStartWindowResize(GLFWwindow* handle, int edges)
     _GLFWwindow* window = (_GLFWwindow*) handle;
     if (window && window->wl.xdg.toplevel && _glfw.wl.seat)
         xdg_toplevel_resize(window->wl.xdg.toplevel, _glfw.wl.seat,
-                            (uint32_t) edges, _glfw.wl.serial);
+                            _glfw.wl.serial, (uint32_t) edges);
 }
 
 GLFWAPI void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos)

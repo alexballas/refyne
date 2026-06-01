@@ -61,6 +61,7 @@ func initCursors() {
 		desktop.VResizeCursor:   glfw.CreateStandardCursor(glfw.VResizeCursor),
 		desktop.HiddenCursor:    nil,
 	}
+	initWaylandDecorationCursors()
 }
 
 // Declare conformity to Window interface
@@ -102,6 +103,7 @@ type window struct {
 	mouseClickCount            int
 	mouseCancelFunc            context.CancelFunc
 	waylandWindowMenuPressed   bool
+	waylandResizeCursor        *glfw.Cursor
 
 	onClosed           func()
 	onCloseIntercepted func()
