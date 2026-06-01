@@ -119,6 +119,7 @@ func (w *window) setupWaylandDecorations() {
 
 	w.canvas.setDecoration(d)
 	w.canvas.setWindowOutline(true)
+	w.viewport.SetWindowShadowWayland(true)
 }
 
 func waylandResizeEdgeAt(pos fyne.Position, size fyne.Size) glfw.ResizeEdge {

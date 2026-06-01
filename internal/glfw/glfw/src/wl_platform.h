@@ -413,6 +413,15 @@ typedef struct _GLFWwindowWayland
         _GLFWfallbackEdgeWayland    top, left, right, bottom;
         struct wl_surface*          focus;
     } fallback;
+
+    struct {
+        GLFWbool                    requested;
+        GLFWbool                    visible;
+        struct wl_buffer*           buffer;
+        _GLFWfallbackEdgeWayland    topLeft, top, topRight;
+        _GLFWfallbackEdgeWayland    left, right;
+        _GLFWfallbackEdgeWayland    bottomLeft, bottom, bottomRight;
+    } refyneShadow;
 } _GLFWwindowWayland;
 
 // Wayland-specific global data
@@ -647,6 +656,9 @@ float _glfwGetWindowOpacityWayland(_GLFWwindow* window);
 void _glfwSetWindowOpacityWayland(_GLFWwindow* window, float opacity);
 void _glfwSetWindowMousePassthroughWayland(_GLFWwindow* window, GLFWbool enabled);
 
+void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window);
+void _glfwRefyneDestroyWindowShadow(_GLFWwindow* window);
+
 void _glfwSetRawMouseMotionWayland(_GLFWwindow* window, GLFWbool enabled);
 GLFWbool _glfwRawMouseMotionSupportedWayland(void);
 
@@ -689,4 +701,3 @@ void _glfwUpdateBufferScaleFromOutputsWayland(_GLFWwindow* window);
 
 void _glfwAddSeatListenerWayland(struct wl_seat* seat);
 void _glfwAddDataDeviceListenerWayland(struct wl_data_device* device);
-

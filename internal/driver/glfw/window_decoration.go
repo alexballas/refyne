@@ -35,6 +35,7 @@ type windowDecoration struct {
 func newWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration {
 	d := &windowDecoration{}
 	d.titleLabel = widget.NewLabel(title)
+	d.titleLabel.Alignment = fyne.TextAlignCenter
 	d.titleLabel.Truncation = fyne.TextTruncateEllipsis
 
 	d.icon = canvas.NewImageFromResource(iconRes)
@@ -113,9 +114,17 @@ func (r *windowDecorationRenderer) Layout(size fyne.Size) {
 		r.buttons[i].Move(fyne.NewPos(x, 0))
 	}
 
-	titleX := pad*2 + iconSize
-	r.d.titleLabel.Resize(fyne.NewSize(x-titleX, size.Height))
-	r.d.titleLabel.Move(fyne.NewPos(titleX, 0))
+	// Keep the title centered in the window, rather than merely centering it in
+	// the uneven space between the app icon and the window controls.
+	titleInset := pad*2 + iconSize
+	if controlsWidth := size.Width - x; controlsWidth > titleInset {
+		titleInset = controlsWidth
+	}
+	if maxInset := size.Width / 2; titleInset > maxInset {
+		titleInset = maxInset
+	}
+	r.d.titleLabel.Resize(fyne.NewSize(size.Width-titleInset*2, size.Height))
+	r.d.titleLabel.Move(fyne.NewPos(titleInset, 0))
 }
 
 func (r *windowDecorationRenderer) MinSize() fyne.Size {

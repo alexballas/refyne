@@ -388,6 +388,8 @@ static GLFWbool resizeWindow(_GLFWwindow* window, int width, int height)
         wl_surface_commit(window->wl.fallback.bottom.surface);
     }
 
+    _glfwRefyneUpdateWindowShadow(window);
+
     return GLFW_TRUE;
 }
 
@@ -672,6 +674,8 @@ static void xdgSurfaceHandleConfigure(void* userData,
         if (window->wl.visible)
             _glfwInputWindowDamage(window);
     }
+    else
+        _glfwRefyneUpdateWindowShadow(window);
 
     if (!window->wl.visible)
     {
@@ -1000,6 +1004,7 @@ static GLFWbool createShellObjects(_GLFWwindow* window)
 
 static void destroyShellObjects(_GLFWwindow* window)
 {
+    _glfwRefyneDestroyWindowShadow(window);
     destroyFallbackDecorations(window);
 
     if (window->wl.libdecor.frame)
@@ -3313,4 +3318,3 @@ GLFWAPI struct wl_surface* glfwGetWaylandWindow(GLFWwindow* handle)
 }
 
 #endif // _GLFW_WAYLAND
-

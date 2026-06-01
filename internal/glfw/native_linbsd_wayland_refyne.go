@@ -12,6 +12,7 @@ package glfw
 //extern void glfwRefyneStartWindowMove(GLFWwindow* handle);
 //extern void glfwRefyneStartWindowResize(GLFWwindow* handle, int edges);
 //extern void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos);
+//extern void glfwRefyneSetWindowShadow(GLFWwindow* handle, int enabled);
 //extern int  glfwRefyneDecorationMode(GLFWwindow* handle);
 //extern int  glfwRefyneSetWindowIcon(GLFWwindow* handle, const unsigned char* pixels, int width, int height);
 import "C"
@@ -47,6 +48,19 @@ const (
 	// DecorationModeServerSide means the compositor draws decorations (SSD).
 	DecorationModeServerSide DecorationMode = 2
 )
+
+// SetWindowShadowWayland enables or disables refyne's cached external
+// subsurface shadow for a custom-decorated Wayland window. The shadow texture is
+// rendered once; live resize only adjusts subsurface positions and viewports.
+// Wayland only; call on the main thread.
+func (w *Window) SetWindowShadowWayland(enabled bool) {
+	value := C.int(0)
+	if enabled {
+		value = 1
+	}
+	C.glfwRefyneSetWindowShadow(w.data, value)
+	panicError()
+}
 
 // StartWindowMove asks the compositor to begin an interactive move of the
 // window, reusing GLFW's already-tracked seat and most recent input serial.

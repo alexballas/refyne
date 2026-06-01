@@ -37,6 +37,18 @@ func TestWindowDecoration_SetTitle(t *testing.T) {
 	assert.Equal(t, "After", d.titleLabel.Text)
 }
 
+func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
+	d := newWindowDecoration("Centered", theme.FyneLogo())
+	r := test.TempWidgetRenderer(t, d)
+
+	size := fyne.NewSize(400, titleBarHeight)
+	r.Layout(size)
+
+	assert.Equal(t, fyne.TextAlignCenter, d.titleLabel.Alignment)
+	assert.Equal(t, size.Width/2, d.titleLabel.Position().X+d.titleLabel.Size().Width/2)
+	assert.LessOrEqual(t, d.titleLabel.Position().X+d.titleLabel.Size().Width, d.minimizeButton.Position().X)
+}
+
 func TestWindowDecoration_MinSizeHasTitleBarHeight(t *testing.T) {
 	d := newWindowDecoration("X", theme.FyneLogo())
 	assert.Greater(t, d.MinSize().Height, float32(0))
