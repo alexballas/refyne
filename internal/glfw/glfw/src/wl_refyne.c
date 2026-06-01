@@ -257,7 +257,21 @@ static void resizeRefyneWindowShadow(_GLFWwindow* window)
     wl_surface_commit(window->wl.refyneShadow.right.surface);
     wl_surface_commit(window->wl.refyneShadow.bottom.surface);
 
-    commitRefyneWindowGeometry(window);
+    // Update the window geometry as pending double-buffered state only; do NOT
+    // commit the main surface here. During interactive resize a fresh
+    // xdg_surface.configure arrives every frame, and committing now would latch
+    // the new geometry against the still-attached old-size content buffer
+    // (EGL has not swapped yet). The compositor would then position the surface
+    // for the new geometry while showing old-size content for one frame, then
+    // snap back on the next eglSwapBuffers -> the content trembles in the
+    // resize direction. Every size-changed path that reaches here is followed
+    // by _glfwInputWindowDamage -> a Fyne paint -> eglSwapBuffers, which commits
+    // the main surface and applies this geometry (and the shadow subsurface
+    // positions, which are parent-commit-driven) atomically with the matching
+    // buffer. This mirrors the maximized/fullscreen branch in
+    // _glfwRefyneUpdateWindowShadow, which defers to the content swap for the
+    // same reason.
+    setRefyneWindowGeometry(window);
 }
 
 void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
