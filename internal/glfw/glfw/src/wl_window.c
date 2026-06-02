@@ -314,6 +314,21 @@ static void setContentAreaOpaque(_GLFWwindow* window)
     wl_region_destroy(region);
 }
 
+static void resizeEGLWindow(_GLFWwindow* window)
+{
+    wl_egl_window_resize(window->wl.egl.window,
+                         window->wl.fbWidth,
+                         window->wl.fbHeight,
+                         0, 0);
+    window->wl.egl.resizePending = GLFW_FALSE;
+}
+
+void _glfwApplyPendingEGLResizeWayland(_GLFWwindow* window)
+{
+    if (window->wl.egl.resizePending)
+        resizeEGLWindow(window);
+}
+
 static void resizeFramebuffer(_GLFWwindow* window)
 {
     if (window->wl.fractionalScale)
@@ -329,10 +344,12 @@ static void resizeFramebuffer(_GLFWwindow* window)
 
     if (window->wl.egl.window)
     {
-        wl_egl_window_resize(window->wl.egl.window,
-                             window->wl.fbWidth,
-                             window->wl.fbHeight,
-                             0, 0);
+        // Some Wayland EGL implementations cannot resize an idle EGLSurface
+        // safely.  Apply the latest size when this window next becomes current.
+        if (window == _glfwPlatformGetTls(&_glfw.contextSlot))
+            resizeEGLWindow(window);
+        else
+            window->wl.egl.resizePending = GLFW_TRUE;
     }
 
     if (!window->wl.transparent)

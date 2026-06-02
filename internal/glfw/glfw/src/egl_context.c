@@ -250,6 +250,11 @@ static void makeContextCurrentEGL(_GLFWwindow* window)
                             getEGLErrorString(eglGetError()));
             return;
         }
+
+#if defined(_GLFW_WAYLAND)
+        if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
+            _glfwApplyPendingEGLResizeWayland(window);
+#endif
     }
     else
     {
