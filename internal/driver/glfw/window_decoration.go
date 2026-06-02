@@ -18,7 +18,11 @@ const titleBarHeight = float32(32)
 
 // windowDecorationButtonInset keeps the visible button highlight away from the
 // edges of the full-size title-bar hit area.
-const windowDecorationButtonInset = float32(2)
+const windowDecorationButtonInset = float32(4)
+
+// windowDecorationButtonIconSize is the size of the minimize / maximize /
+// close glyphs inside the title-bar buttons.
+const windowDecorationButtonIconSize = float32(16)
 
 // windowDecoration is a themed client-side title bar: app icon, title text,
 // and minimize / maximize-restore / close buttons. Move/resize/maximize wiring
@@ -158,6 +162,9 @@ func (*windowDecorationButtonTheme) Icon(name fyne.ThemeIconName) fyne.Resource 
 func (*windowDecorationButtonTheme) Size(name fyne.ThemeSizeName) float32 {
 	if name == theme.SizeNameInputRadius {
 		return canvas.RadiusMaximum
+	}
+	if name == theme.SizeNameInlineIcon {
+		return windowDecorationButtonIconSize
 	}
 	return theme.Current().Size(name)
 }
