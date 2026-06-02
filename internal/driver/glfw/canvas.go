@@ -24,6 +24,10 @@ var _ fyne.Canvas = (*glCanvas)(nil)
 // for Wayland client-side decorations.
 const windowCornerRadius = float32(12)
 
+// windowBackgroundOverlap fills the anti-aliased boundary between the rounded
+// title bar and the opaque window body.
+const windowBackgroundOverlap = float32(1)
+
 type glCanvas struct {
 	common.Canvas
 
@@ -313,7 +317,7 @@ func (c *glCanvas) paint(size fyne.Size) {
 	c.Painter().SetPreserveFramebufferAlpha(c.transparentSurface)
 	c.Painter().Clear()
 	if c.background != nil {
-		c.Painter().Paint(c.background, fyne.NewPos(0, c.decorationHeight()), size, nil)
+		c.Painter().Paint(c.background, fyne.NewPos(0, c.windowBackgroundTop()), size, nil)
 	}
 
 	paint := func(node *common.RenderCacheNode, pos fyne.Position) {
@@ -390,7 +394,11 @@ func (c *glCanvas) effectiveCornerRadius() float32 {
 }
 
 func (c *glCanvas) windowBackgroundSize(size fyne.Size) fyne.Size {
-	return fyne.NewSize(size.Width, fyne.Max(0, size.Height-c.decorationHeight()))
+	return fyne.NewSize(size.Width, fyne.Max(0, size.Height-c.windowBackgroundTop()))
+}
+
+func (c *glCanvas) windowBackgroundTop() float32 {
+	return fyne.Max(0, c.decorationHeight()-windowBackgroundOverlap)
 }
 
 // setWindowOutline enables or clears the inexpensive inner border used to keep

@@ -696,12 +696,13 @@ func TestGlCanvas_SetWindowBackground(t *testing.T) {
 		c.setWindowBackground(true)
 		assert.NotNil(t, c.background)
 		assert.Equal(t, theme.Color(theme.ColorNameBackground), c.background.FillColor)
-		assert.Equal(t, fyne.NewSize(size.Width, size.Height-titleBarHeight), c.background.Size())
+		assert.Equal(t, titleBarHeight-windowBackgroundOverlap, c.windowBackgroundTop())
+		assert.Equal(t, fyne.NewSize(size.Width, size.Height-titleBarHeight+windowBackgroundOverlap), c.background.Size())
 		assert.True(t, c.CheckDirtyAndClear())
 
 		resized := fyne.NewSize(320, 240)
 		c.Resize(resized)
-		assert.Equal(t, fyne.NewSize(resized.Width, resized.Height-titleBarHeight), c.background.Size())
+		assert.Equal(t, fyne.NewSize(resized.Width, resized.Height-titleBarHeight+windowBackgroundOverlap), c.background.Size())
 
 		c.setDecoration(nil)
 		assert.Nil(t, c.background)

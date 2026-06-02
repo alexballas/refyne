@@ -7,6 +7,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
@@ -14,6 +15,10 @@ import (
 
 // titleBarHeight is the height of the custom client-side title bar.
 const titleBarHeight = float32(32)
+
+// windowDecorationButtonInset keeps the visible button highlight away from the
+// edges of the full-size title-bar hit area.
+const windowDecorationButtonInset = float32(2)
 
 // windowDecoration is a themed client-side title bar: app icon, title text,
 // and minimize / maximize-restore / close buttons. Move/resize/maximize wiring
@@ -24,9 +29,9 @@ type windowDecoration struct {
 	icon       *canvas.Image
 	titleLabel *widget.Label
 
-	minimizeButton *widget.Button
-	maximizeButton *widget.Button
-	closeButton    *widget.Button
+	minimizeButton *windowDecorationButton
+	maximizeButton *windowDecorationButton
+	closeButton    *windowDecorationButton
 
 	onMinimize       func()
 	onMaximizeToggle func()
@@ -45,34 +50,98 @@ func newWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration 
 	d.icon.FillMode = canvas.ImageFillContain
 	d.icon.SetMinSize(fyne.NewSquareSize(titleBarHeight - theme.Padding()*2))
 
-	d.minimizeButton = widget.NewButtonWithIcon("", theme.WindowMinimizeIcon(), func() {
+	d.minimizeButton = newWindowDecorationButton(theme.WindowMinimizeIcon(), func() {
 		if d.onMinimize != nil {
 			d.onMinimize()
 		}
 	})
-	d.maximizeButton = widget.NewButtonWithIcon("", theme.WindowMaximizeIcon(), func() {
+	d.maximizeButton = newWindowDecorationButton(theme.WindowMaximizeIcon(), func() {
 		if d.onMaximizeToggle != nil {
 			d.onMaximizeToggle()
 		}
 	})
-	d.closeButton = widget.NewButtonWithIcon("", theme.WindowCloseIcon(), func() {
+	d.closeButton = newWindowDecorationButton(theme.WindowCloseIcon(), func() {
 		if d.onClose != nil {
 			d.onClose()
 		}
 	})
-	for _, b := range []*widget.Button{d.minimizeButton, d.maximizeButton, d.closeButton} {
-		b.Importance = widget.LowImportance
-		cache.OverrideTheme(b, &windowDecorationButtonTheme{})
-	}
 
 	d.ExtendBaseWidget(d)
 	return d
 }
 
-// windowDecorationButtonTheme keeps the full button hit area while making its
-// hover background circular, so the close button does not cover a rounded
-// window corner.
+// windowDecorationButton keeps the full title-bar control hit area while
+// centering a slightly smaller standard button inside it.
+type windowDecorationButton struct {
+	widget.BaseWidget
+	button *widget.Button
+}
+
+func newWindowDecorationButton(icon fyne.Resource, tapped func()) *windowDecorationButton {
+	button := widget.NewButtonWithIcon("", icon, tapped)
+	button.Importance = widget.LowImportance
+	cache.OverrideTheme(button, &windowDecorationButtonTheme{})
+
+	b := &windowDecorationButton{button: button}
+	b.ExtendBaseWidget(b)
+	return b
+}
+
+func (b *windowDecorationButton) CreateRenderer() fyne.WidgetRenderer {
+	return &windowDecorationButtonRenderer{button: b.button}
+}
+
+func (b *windowDecorationButton) MouseIn(event *desktop.MouseEvent) {
+	b.button.MouseIn(event)
+}
+
+func (b *windowDecorationButton) MouseMoved(event *desktop.MouseEvent) {
+	b.button.MouseMoved(event)
+}
+
+func (b *windowDecorationButton) MouseOut() {
+	b.button.MouseOut()
+}
+
+func (b *windowDecorationButton) SetIcon(icon fyne.Resource) {
+	b.button.SetIcon(icon)
+}
+
+func (b *windowDecorationButton) Tapped(event *fyne.PointEvent) {
+	b.button.Tapped(event)
+}
+
+type windowDecorationButtonRenderer struct {
+	button *widget.Button
+}
+
+func (r *windowDecorationButtonRenderer) Layout(size fyne.Size) {
+	highlightSize := fyne.Max(0, fyne.Min(size.Width, size.Height)-windowDecorationButtonInset*2)
+	r.button.Resize(fyne.NewSquareSize(highlightSize))
+	r.button.Move(fyne.NewPos((size.Width-highlightSize)/2, (size.Height-highlightSize)/2))
+}
+
+func (*windowDecorationButtonRenderer) MinSize() fyne.Size {
+	return fyne.NewSquareSize(titleBarHeight)
+}
+
+func (r *windowDecorationButtonRenderer) Refresh() {
+	r.button.Refresh()
+}
+
+func (r *windowDecorationButtonRenderer) Objects() []fyne.CanvasObject {
+	return []fyne.CanvasObject{r.button}
+}
+
+func (*windowDecorationButtonRenderer) Destroy() {}
+
+// windowDecorationButtonTheme makes the inset hover background circular.
 type windowDecorationButtonTheme struct{}
+
+var (
+	_ fyne.Tappable     = (*windowDecorationButton)(nil)
+	_ desktop.Hoverable = (*windowDecorationButton)(nil)
+)
 
 func (*windowDecorationButtonTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
 	return theme.Current().Color(name, variant)

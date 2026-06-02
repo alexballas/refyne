@@ -55,9 +55,14 @@ func TestWindowDecoration_BackgroundRoundedTopCorners(t *testing.T) {
 func TestWindowDecoration_ButtonsHaveCircularHighlight(t *testing.T) {
 	d := newWindowDecoration("My App", theme.FyneLogo())
 
-	assert.Equal(t, canvas.RadiusMaximum, d.minimizeButton.Theme().Size(theme.SizeNameInputRadius))
-	assert.Equal(t, canvas.RadiusMaximum, d.maximizeButton.Theme().Size(theme.SizeNameInputRadius))
-	assert.Equal(t, canvas.RadiusMaximum, d.closeButton.Theme().Size(theme.SizeNameInputRadius))
+	assert.Equal(t, canvas.RadiusMaximum, d.minimizeButton.button.Theme().Size(theme.SizeNameInputRadius))
+	assert.Equal(t, canvas.RadiusMaximum, d.maximizeButton.button.Theme().Size(theme.SizeNameInputRadius))
+	assert.Equal(t, canvas.RadiusMaximum, d.closeButton.button.Theme().Size(theme.SizeNameInputRadius))
+
+	r := d.closeButton.CreateRenderer().(*windowDecorationButtonRenderer)
+	r.Layout(fyne.NewSquareSize(titleBarHeight))
+	assert.Equal(t, fyne.NewSquareSize(titleBarHeight-windowDecorationButtonInset*2), d.closeButton.button.Size())
+	assert.Equal(t, fyne.NewPos(windowDecorationButtonInset, windowDecorationButtonInset), d.closeButton.button.Position())
 }
 
 func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
@@ -96,10 +101,10 @@ func TestWindow_MaximizedUpdatesDecorationIcon(t *testing.T) {
 	w := &window{canvas: &glCanvas{decoration: d}}
 
 	w.maximized(nil, true)
-	assert.Equal(t, theme.ViewRestoreIcon(), d.maximizeButton.Icon)
+	assert.Equal(t, theme.ViewRestoreIcon(), d.maximizeButton.button.Icon)
 
 	w.maximized(nil, false)
-	assert.Equal(t, theme.WindowMaximizeIcon(), d.maximizeButton.Icon)
+	assert.Equal(t, theme.WindowMaximizeIcon(), d.maximizeButton.button.Icon)
 }
 
 func TestPointInWindowDecoration(t *testing.T) {
