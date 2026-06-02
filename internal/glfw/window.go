@@ -638,9 +638,9 @@ func (w *Window) SetOpacity(opacity float32) {
 	panicError()
 }
 
-// RequestWindowAttention funciton requests user attention to the specified
-// window. On platforms where this is not supported, attention is requested to
-// the application as a whole.
+// RequestAttention requests user attention to the specified window. On
+// platforms where this is not supported, attention is requested to the
+// application as a whole.
 //
 // Once the user has given attention, usually by focusing the window or
 // application, the system will end the request automatically.

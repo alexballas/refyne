@@ -713,7 +713,7 @@ func TestGlCanvas_SetWindowBackground(t *testing.T) {
 func TestGlCanvas_SetWindowCornersSquare(t *testing.T) {
 	w := createWindow("Test")
 	c := w.Canvas().glCanvas
-	decoration := newWindowDecoration("Test", theme.FyneLogo())
+	decoration := newWindowDecoration("Test", theme.FileApplicationIcon())
 
 	runOnMain(func() {
 		c.setDecoration(decoration)
@@ -733,7 +733,7 @@ func TestGlCanvas_SetWindowCornersSquare(t *testing.T) {
 
 		// Re-applying state must update a newly installed decoration too.
 		c.squareCorners = true
-		replacement := newWindowDecoration("Replacement", theme.FyneLogo())
+		replacement := newWindowDecoration("Replacement", theme.FileApplicationIcon())
 		c.setDecoration(replacement)
 		c.setWindowCornersSquare(true)
 		assert.True(t, replacement.squareCorners)

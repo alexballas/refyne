@@ -103,7 +103,11 @@ type window struct {
 	mouseClickCount            int
 	mouseCancelFunc            context.CancelFunc
 	waylandWindowMenuPressed   bool
-	waylandResizeCursor        *glfw.Cursor
+	// waylandResizeCursor is read and written only by the Wayland custom
+	// decorations (decorations_wayland.go). The window struct is shared across
+	// build tags, so it appears unused in non-Wayland builds.
+	//lint:ignore U1000 used only in Wayland builds; window struct is shared across build tags
+	waylandResizeCursor *glfw.Cursor
 
 	onClosed           func()
 	onCloseIntercepted func()
