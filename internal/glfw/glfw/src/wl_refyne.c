@@ -19,25 +19,29 @@
 
 #include "internal.h"
 
+#include <math.h>
+
 #if defined(_GLFW_WAYLAND)
 
 // Approximate libadwaita's active CSD shadow layers in one cached alpha atlas:
-// a broad 15% shadow plus a tighter 10% shadow. The atlas keeps a longer tail
+// a broad 12% shadow plus a tighter 8% shadow. The atlas keeps a longer tail
 // than the CSS blur radius so the fade remains smooth at its outer edge.
 #define GLFW_REFYNE_SHADOW_SIZE 24
+// Keep in sync with internal/driver/glfw.windowCornerRadius.
+#define GLFW_REFYNE_SHADOW_CORNER_RADIUS 12
 #define GLFW_REFYNE_SHADOW_BROAD_SPREAD 5
-#define GLFW_REFYNE_SHADOW_BROAD_ALPHA 0.15f
+#define GLFW_REFYNE_SHADOW_BROAD_ALPHA 0.12f
 #define GLFW_REFYNE_SHADOW_TIGHT_SPREAD 2
 #define GLFW_REFYNE_SHADOW_TIGHT_SIZE 7
-#define GLFW_REFYNE_SHADOW_TIGHT_ALPHA 0.10f
+#define GLFW_REFYNE_SHADOW_TIGHT_ALPHA 0.08f
 
-static float calculateRefyneShadowLayer(int distanceSquared,
+static float calculateRefyneShadowLayer(float distanceSquared,
                                         int spread,
                                         int size,
                                         float alpha)
 {
-    const int spreadSquared = spread * spread;
-    const int sizeSquared = size * size;
+    const float spreadSquared = (float) (spread * spread);
+    const float sizeSquared = (float) (size * size);
 
     if (distanceSquared <= spreadSquared)
         return alpha;
@@ -45,9 +49,26 @@ static float calculateRefyneShadowLayer(int distanceSquared,
         return 0.f;
 
     const float strength =
-        1.f - (float) (distanceSquared - spreadSquared) /
-              (float) (sizeSquared - spreadSquared);
+        1.f - (distanceSquared - spreadSquared) /
+              (sizeSquared - spreadSquared);
     return alpha * strength * strength;
+}
+
+static void setRefyneShadowPixel(unsigned char* pixel, float distanceSquared)
+{
+    const float broad = calculateRefyneShadowLayer(
+        distanceSquared,
+        GLFW_REFYNE_SHADOW_BROAD_SPREAD,
+        GLFW_REFYNE_SHADOW_SIZE,
+        GLFW_REFYNE_SHADOW_BROAD_ALPHA);
+    const float tight = calculateRefyneShadowLayer(
+        distanceSquared,
+        GLFW_REFYNE_SHADOW_TIGHT_SPREAD,
+        GLFW_REFYNE_SHADOW_TIGHT_SIZE,
+        GLFW_REFYNE_SHADOW_TIGHT_ALPHA);
+    const float alpha = broad + tight - broad * tight;
+
+    pixel[3] = (unsigned char) (255.f * alpha + 0.5f);
 }
 
 static void destroyRefyneShadowSlice(_GLFWfallbackEdgeWayland* slice)
@@ -137,36 +158,52 @@ static GLFWbool createRefyneShadowBuffer(_GLFWwindow* window)
         return GLFW_TRUE;
 
     const int margin = GLFW_REFYNE_SHADOW_SIZE;
-    const int side = margin * 2 + 1;
-    unsigned char* pixels = _glfw_calloc((size_t) side * side, 4);
+    const int radius = GLFW_REFYNE_SHADOW_CORNER_RADIUS;
+    const int roundedCenter = margin + radius;
+    const int roundedSide = roundedCenter * 2 + 1;
+    const int squareSide = margin * 2 + 1;
+    const int atlasWidth = roundedSide;
+    const int atlasHeight = roundedSide + squareSide;
+    unsigned char* pixels =
+        _glfw_calloc((size_t) atlasWidth * atlasHeight, 4);
     if (!pixels)
         return GLFW_FALSE;
 
-    for (int y = 0;  y < side;  y++)
+    // Top-corner tiles model the same radius as the canvas title bar. They
+    // extend under the transparent framebuffer corners so the tight shadow
+    // layer follows the curved body instead of revealing a square outline.
+    for (int y = 0;  y < roundedSide;  y++)
     {
-        for (int x = 0;  x < side;  x++)
+        for (int x = 0;  x < roundedSide;  x++)
         {
-            const int dx = x - margin;
-            const int dy = y - margin;
-            const int distanceSquared = dx * dx + dy * dy;
-            unsigned char* pixel = pixels + ((size_t) y * side + x) * 4;
-            const float broad = calculateRefyneShadowLayer(
-                distanceSquared,
-                GLFW_REFYNE_SHADOW_BROAD_SPREAD,
-                GLFW_REFYNE_SHADOW_SIZE,
-                GLFW_REFYNE_SHADOW_BROAD_ALPHA);
-            const float tight = calculateRefyneShadowLayer(
-                distanceSquared,
-                GLFW_REFYNE_SHADOW_TIGHT_SPREAD,
-                GLFW_REFYNE_SHADOW_TIGHT_SIZE,
-                GLFW_REFYNE_SHADOW_TIGHT_ALPHA);
-            const float alpha = broad + tight - broad * tight;
+            const int dx = x - roundedCenter;
+            const int dy = y - roundedCenter;
+            float distance =
+                sqrtf((float) (dx * dx + dy * dy)) - (float) radius;
+            if (distance < 0.f)
+                distance = 0.f;
 
-            pixel[3] = (unsigned char) (255.f * alpha + 0.5f);
+            unsigned char* pixel =
+                pixels + ((size_t) y * atlasWidth + x) * 4;
+            setRefyneShadowPixel(pixel, distance * distance);
         }
     }
 
-    const GLFWimage image = { side, side, pixels };
+    // The window body still has square bottom corners. Store their smaller
+    // atlas below the rounded one so all eight slices share one wl_shm buffer.
+    for (int y = 0;  y < squareSide;  y++)
+    {
+        for (int x = 0;  x < squareSide;  x++)
+        {
+            const int dx = x - margin;
+            const int dy = y - margin;
+            unsigned char* pixel =
+                pixels + ((size_t) (roundedSide + y) * atlasWidth + x) * 4;
+            setRefyneShadowPixel(pixel, (float) (dx * dx + dy * dy));
+        }
+    }
+
+    const GLFWimage image = { atlasWidth, atlasHeight, pixels };
     window->wl.refyneShadow.buffer = createShmBuffer(&image);
     _glfw_free(pixels);
     return window->wl.refyneShadow.buffer != NULL;
@@ -219,6 +256,9 @@ static GLFWbool createRefyneShadowSlice(_GLFWwindow* window,
 static GLFWbool createRefyneWindowShadow(_GLFWwindow* window)
 {
     const int m = GLFW_REFYNE_SHADOW_SIZE;
+    const int r = GLFW_REFYNE_SHADOW_CORNER_RADIUS;
+    const int c = m + r;
+    const int squareY = c * 2 + 1;
     const int w = window->wl.width;
     const int h = window->wl.height;
 
@@ -232,21 +272,21 @@ static GLFWbool createRefyneWindowShadow(_GLFWwindow* window)
         return GLFW_FALSE;
 
     if (!createRefyneShadowSlice(window, &window->wl.refyneShadow.topLeft,
-                                 0, 0, m, m, -m, -m, m, m) ||
+                                 0, 0, c, c, -m, -m, c, c) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.top,
-                                 m, 0, 1, m, 0, -m, w, m) ||
+                                 c, 0, 1, m, r, -m, w - r * 2, m) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.topRight,
-                                 m + 1, 0, m, m, w, -m, m, m) ||
+                                 c + 1, 0, c, c, w - r, -m, c, c) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.left,
-                                 0, m, m, 1, -m, 0, m, h) ||
+                                 0, squareY + m, m, 1, -m, r, m, h - r) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.right,
-                                 m + 1, m, m, 1, w, 0, m, h) ||
+                                 m + 1, squareY + m, m, 1, w, r, m, h - r) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.bottomLeft,
-                                 0, m + 1, m, m, -m, h, m, m) ||
+                                 0, squareY + m + 1, m, m, -m, h, m, m) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.bottom,
-                                 m, m + 1, 1, m, 0, h, w, m) ||
+                                 m, squareY + m + 1, 1, m, 0, h, w, m) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.bottomRight,
-                                 m + 1, m + 1, m, m, w, h, m, m))
+                                 m + 1, squareY + m + 1, m, m, w, h, m, m))
     {
         destroyRefyneShadowSurfaces(window);
         return GLFW_FALSE;
@@ -260,13 +300,14 @@ static GLFWbool createRefyneWindowShadow(_GLFWwindow* window)
 static void resizeRefyneWindowShadow(_GLFWwindow* window)
 {
     const int m = GLFW_REFYNE_SHADOW_SIZE;
+    const int r = GLFW_REFYNE_SHADOW_CORNER_RADIUS;
     const int w = window->wl.width;
     const int h = window->wl.height;
 
     wl_subsurface_set_position(window->wl.refyneShadow.topRight.subsurface,
-                               w, -m);
+                               w - r, -m);
     wl_subsurface_set_position(window->wl.refyneShadow.right.subsurface,
-                               w, 0);
+                               w, r);
     wl_subsurface_set_position(window->wl.refyneShadow.bottomLeft.subsurface,
                                -m, h);
     wl_subsurface_set_position(window->wl.refyneShadow.bottom.subsurface,
@@ -274,9 +315,12 @@ static void resizeRefyneWindowShadow(_GLFWwindow* window)
     wl_subsurface_set_position(window->wl.refyneShadow.bottomRight.subsurface,
                                w, h);
 
-    wp_viewport_set_destination(window->wl.refyneShadow.top.viewport, w, m);
-    wp_viewport_set_destination(window->wl.refyneShadow.left.viewport, m, h);
-    wp_viewport_set_destination(window->wl.refyneShadow.right.viewport, m, h);
+    wp_viewport_set_destination(window->wl.refyneShadow.top.viewport,
+                                w - r * 2, m);
+    wp_viewport_set_destination(window->wl.refyneShadow.left.viewport,
+                                m, h - r);
+    wp_viewport_set_destination(window->wl.refyneShadow.right.viewport,
+                                m, h - r);
     wp_viewport_set_destination(window->wl.refyneShadow.bottom.viewport, w, m);
 
     wl_surface_commit(window->wl.refyneShadow.top.surface);
