@@ -35,8 +35,7 @@ type windowDecoration struct {
 
 func newWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration {
 	d := &windowDecoration{}
-	d.titleLabel = widget.NewLabel(title)
-	d.titleLabel.Alignment = fyne.TextAlignCenter
+	d.titleLabel = widget.NewLabelWithStyle(title, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	d.titleLabel.Truncation = fyne.TextTruncateEllipsis
 
 	d.icon = canvas.NewImageFromResource(iconRes)

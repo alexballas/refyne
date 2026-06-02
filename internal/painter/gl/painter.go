@@ -19,8 +19,9 @@ type Painter interface {
 	Capture(fyne.Canvas) image.Image
 	// Clear tells our painter to prepare a fresh paint
 	Clear()
-	// SetTransparentBackground makes Clear use an alpha-zero background while
-	// preserving the theme RGB values for anti-aliased edge blending.
+	// SetTransparentBackground makes Clear use a transparent black background.
+	// Wayland presents ARGB buffers with premultiplied alpha, so RGB must also be
+	// zero wherever alpha is zero.
 	SetTransparentBackground(bool)
 	// SetPreserveFramebufferAlpha keeps the framebuffer alpha channel opaque
 	// where content is drawn. Required for windows presented on an
@@ -146,7 +147,7 @@ func (p *painter) blendFunc(srcFactor, dstFactor uint32) {
 func (p *painter) Clear() {
 	r, g, b, a := theme.Color(theme.ColorNameBackground).RGBA()
 	if p.transparentBackground {
-		a = 0
+		r, g, b, a = 0, 0, 0, 0
 	}
 	p.ctx.ClearColor(float32(r)/max16bit, float32(g)/max16bit, float32(b)/max16bit, float32(a)/max16bit)
 	p.ctx.Clear(bitColorBuffer | bitDepthBuffer)

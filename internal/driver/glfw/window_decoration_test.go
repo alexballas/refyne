@@ -59,6 +59,7 @@ func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
 	r.Layout(size)
 
 	assert.Equal(t, fyne.TextAlignCenter, d.titleLabel.Alignment)
+	assert.True(t, d.titleLabel.TextStyle.Bold)
 	assert.Equal(t, size.Width/2, d.titleLabel.Position().X+d.titleLabel.Size().Width/2)
 	assert.LessOrEqual(t, d.titleLabel.Position().X+d.titleLabel.Size().Width, d.minimizeButton.Position().X)
 }
