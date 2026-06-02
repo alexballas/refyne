@@ -22,6 +22,7 @@ static inline void glfwInitVulkanLoaderBridge(void* loader) {
 }
 */
 import "C"
+
 import (
 	"errors"
 	"fmt"
@@ -77,8 +78,8 @@ func GetPhysicalDevicePresentationSupport(instance, device interface{}, queueFam
 	}
 
 	supported = glfwbool(C.glfwGetPhysicalDevicePresentationSupport(
-		(C.VkInstance)(unsafe.Pointer(instanceValue.Pointer())),
-		(C.VkPhysicalDevice)(unsafe.Pointer(deviceValue.Pointer())),
+		C.VkInstance(unsafe.Pointer(instanceValue.Pointer())),
+		C.VkPhysicalDevice(unsafe.Pointer(deviceValue.Pointer())),
 		C.uint32_t(queueFamily),
 	))
 	if err := acceptError(APIUnavailable); err != nil {
@@ -123,8 +124,9 @@ func (window *Window) CreateWindowSurface(instance interface{}, allocCallbacks u
 	}
 	var vulkanSurface C.VkSurfaceKHR
 	ret := C.glfwCreateWindowSurface(
-		(C.VkInstance)(unsafe.Pointer(reflect.ValueOf(instance).Pointer())), window.data,
-		(*C.VkAllocationCallbacks)(allocCallbacks), (*C.VkSurfaceKHR)(unsafe.Pointer(&vulkanSurface)))
+		C.VkInstance(unsafe.Pointer(reflect.ValueOf(instance).Pointer())), window.data,
+		(*C.VkAllocationCallbacks)(allocCallbacks), (*C.VkSurfaceKHR)(unsafe.Pointer(&vulkanSurface)),
+	)
 	if ret != C.VK_SUCCESS {
 		return 0, fmt.Errorf("vulkan: error creating window surface: %d", ret)
 	}
