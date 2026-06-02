@@ -278,6 +278,8 @@ func (w *window) fitContent() {
 			w.requestedHeight = w.shouldHeight
 		}
 		view.SetSizeLimits(w.requestedWidth, w.requestedHeight, w.requestedWidth, w.requestedHeight)
+		view.SetSize(w.requestedWidth, w.requestedHeight)
+		w.processResized(w.requestedWidth, w.requestedHeight)
 	} else {
 		view.SetSizeLimits(minWidth, minHeight, glfw.DontCare, glfw.DontCare)
 	}

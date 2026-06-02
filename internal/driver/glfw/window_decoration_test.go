@@ -12,20 +12,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newTestWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration {
+	var d *windowDecoration
+	runOnMain(func() {
+		d = newWindowDecoration(title, iconRes)
+	})
+	return d
+}
+
 func TestWindowDecoration_ButtonsInvokeCallbacks(t *testing.T) {
 	var closed, minimized, maxToggled int
-	d := newWindowDecoration("My App", theme.FyneLogo())
+	d := newTestWindowDecoration("My App", theme.FyneLogo())
 	d.onClose = func() { closed++ }
 	d.onMinimize = func() { minimized++ }
 	d.onMaximizeToggle = func() { maxToggled++ }
 
-	w := test.NewWindow(d)
-	defer w.Close()
-	w.Resize(fyne.NewSize(400, 200))
-
-	test.Tap(d.closeButton)
-	test.Tap(d.minimizeButton)
-	test.Tap(d.maximizeButton)
+	d.closeButton.Tapped(&fyne.PointEvent{})
+	d.minimizeButton.Tapped(&fyne.PointEvent{})
+	d.maximizeButton.Tapped(&fyne.PointEvent{})
 
 	assert.Equal(t, 1, closed)
 	assert.Equal(t, 1, minimized)
@@ -33,13 +37,13 @@ func TestWindowDecoration_ButtonsInvokeCallbacks(t *testing.T) {
 }
 
 func TestWindowDecoration_SetTitle(t *testing.T) {
-	d := newWindowDecoration("Before", theme.FyneLogo())
+	d := newTestWindowDecoration("Before", theme.FyneLogo())
 	d.SetTitle("After")
 	assert.Equal(t, "After", d.titleLabel.Text)
 }
 
 func TestWindowDecoration_BackgroundRoundedTopCorners(t *testing.T) {
-	d := newWindowDecoration("My App", theme.FyneLogo())
+	d := newTestWindowDecoration("My App", theme.FyneLogo())
 	r := d.CreateRenderer().(*windowDecorationRenderer)
 	assert.Equal(t, windowCornerRadius, r.bg.TopLeftCornerRadius)
 	assert.Equal(t, windowCornerRadius, r.bg.TopRightCornerRadius)
@@ -53,7 +57,7 @@ func TestWindowDecoration_BackgroundRoundedTopCorners(t *testing.T) {
 }
 
 func TestWindowDecoration_ButtonsHaveCircularHighlight(t *testing.T) {
-	d := newWindowDecoration("My App", theme.FyneLogo())
+	d := newTestWindowDecoration("My App", theme.FyneLogo())
 
 	assert.Equal(t, canvas.RadiusMaximum, d.minimizeButton.button.Theme().Size(theme.SizeNameInputRadius))
 	assert.Equal(t, canvas.RadiusMaximum, d.maximizeButton.button.Theme().Size(theme.SizeNameInputRadius))
@@ -67,7 +71,7 @@ func TestWindowDecoration_ButtonsHaveCircularHighlight(t *testing.T) {
 }
 
 func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
-	d := newWindowDecoration("Centered", theme.FyneLogo())
+	d := newTestWindowDecoration("Centered", theme.FyneLogo())
 	r := test.TempWidgetRenderer(t, d)
 
 	size := fyne.NewSize(400, titleBarHeight)
@@ -80,13 +84,13 @@ func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
 }
 
 func TestWindowDecoration_MinSizeHasTitleBarHeight(t *testing.T) {
-	d := newWindowDecoration("X", theme.FyneLogo())
+	d := newTestWindowDecoration("X", theme.FyneLogo())
 	assert.Greater(t, d.MinSize().Height, float32(0))
 }
 
 func TestWindowDecoration_DragAndDoubleTap(t *testing.T) {
 	var dragged, doubled int
-	d := newWindowDecoration("X", theme.FyneLogo())
+	d := newTestWindowDecoration("X", theme.FyneLogo())
 	d.onDragStart = func() { dragged++ }
 	d.onDoubleTap = func() { doubled++ }
 

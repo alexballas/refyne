@@ -145,10 +145,14 @@ func (p *painter) blendFunc(srcFactor, dstFactor uint32) {
 }
 
 func (p *painter) Clear() {
-	r, g, b, a := theme.Color(theme.ColorNameBackground).RGBA()
 	if p.transparentBackground {
-		r, g, b, a = 0, 0, 0, 0
+		p.ctx.ClearColor(0, 0, 0, 0)
+		p.ctx.Clear(bitColorBuffer | bitDepthBuffer)
+		p.logError()
+		return
 	}
+
+	r, g, b, a := theme.Color(theme.ColorNameBackground).RGBA()
 	p.ctx.ClearColor(float32(r)/max16bit, float32(g)/max16bit, float32(b)/max16bit, float32(a)/max16bit)
 	p.ctx.Clear(bitColorBuffer | bitDepthBuffer)
 	p.logError()

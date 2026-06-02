@@ -237,6 +237,12 @@ func (w *window) SetContent(content fyne.CanvasObject) {
 	w.canvas.SetContent(content)
 
 	async.EnsureMain(func() {
+		if w.fixedSize {
+			w.fitContent()
+			if !w.centered {
+				w.processResized(w.width, w.height)
+			}
+		}
 		w.RunWithContext(w.RescaleContext)
 	})
 }
