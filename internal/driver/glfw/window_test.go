@@ -1436,7 +1436,12 @@ func TestWindow_SetIcon(t *testing.T) {
 	assert.Equal(t, fyne.CurrentApp().Icon(), w.Icon())
 
 	newIcon := theme.ComputerIcon()
-	w.SetIcon(newIcon)
+	// SetIcon paints the icon via runOnMainWhenCreated, which under
+	// migrated_fynedo runs inline on the caller. Drive it on the main goroutine
+	// so the SVG-cache write is serialised with the draw loop's cache.Clean.
+	runOnMain(func() {
+		w.SetIcon(newIcon)
+	})
 	assert.Equal(t, newIcon, w.Icon())
 }
 
