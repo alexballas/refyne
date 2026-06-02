@@ -17,7 +17,6 @@ import (
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/internal/async"
-	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/painter"
 	"github.com/alexballas/refyne/v2/internal/painter/gl"
@@ -148,7 +147,7 @@ func (w *window) SetFullScreen(full bool) {
 }
 
 func (w *window) CenterOnScreen() {
-	if build.IsWayland {
+	if runningWayland() {
 		return
 	}
 
@@ -199,7 +198,7 @@ func (w *window) doCenterOnScreen() {
 }
 
 func (w *window) RequestFocus() {
-	if build.IsWayland || w.view() == nil {
+	if runningWayland() || w.view() == nil {
 		return
 	}
 
@@ -208,7 +207,7 @@ func (w *window) RequestFocus() {
 
 func (w *window) SetIcon(icon fyne.Resource) {
 	w.icon = icon
-	if build.IsWayland {
+	if runningWayland() {
 		// Update the custom title bar (if drawn) and push the new icon to the
 		// compositor via xdg-toplevel-icon-v1.
 		if d, ok := w.canvas.decoration.(*windowDecoration); ok && d != nil {
@@ -310,7 +309,7 @@ func getScaledMonitorSize(monitor *glfw.Monitor) fyne.Size {
 }
 
 func (w *window) getMonitorForWindow() *glfw.Monitor {
-	if !build.IsWayland {
+	if !runningWayland() {
 		x, y := w.xpos, w.ypos
 		if w.fullScreen {
 			x, y = w.viewport.GetPos()
@@ -344,7 +343,7 @@ func (w *window) getMonitorForWindow() *glfw.Monitor {
 }
 
 func (w *window) detectScale() float32 {
-	if build.IsWayland { // Wayland controls scale through content scaling
+	if runningWayland() { // Wayland controls scale through content scaling
 		return 1
 	}
 
@@ -371,7 +370,7 @@ func (w *window) moved(_ *glfw.Window, x, y int) {
 // synchronously in-callback (resize_sync.go). See those files for why.
 
 func (w *window) scaled(_ *glfw.Window, x float32, y float32) {
-	if !build.IsWayland { // other platforms handle this using older APIs
+	if !runningWayland() { // other platforms handle this using older APIs
 		return
 	}
 
@@ -435,7 +434,7 @@ func (w *window) mouseMoved(_ *glfw.Window, xpos, ypos float64) {
 }
 
 func (w *window) mouseClicked(_ *glfw.Window, btn glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
-	if build.IsWayland {
+	if runningWayland() {
 		if btn == glfw.MouseButton1 && action == glfw.Press && w.handleWaylandEdgeResize() {
 			// An interactive edge/corner resize was started; the compositor now
 			// drives it, so don't dispatch the click into the canvas.
@@ -795,7 +794,7 @@ func (w *window) RescaleContext() {
 }
 
 func (w *window) create() {
-	if !build.IsWayland {
+	if !runningWayland() {
 		// make the window hidden, we will set it up and then show it later
 		glfw.WindowHint(glfw.Visible, glfw.False)
 	}
@@ -843,7 +842,7 @@ func (w *window) create() {
 		// presentGate); disable the EGL swap-interval throttle so the swap that
 		// lands as a window is hidden returns immediately instead of blocking
 		// on a frame callback that never arrives (issue #6080).
-		if build.IsWayland {
+		if runningWayland() {
 			glfw.SwapInterval(0)
 		}
 	})

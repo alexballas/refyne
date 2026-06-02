@@ -1,4 +1,4 @@
-//go:build !wasm && wayland && (linux || freebsd || openbsd || netbsd)
+//go:build !wasm && !test_web_driver && ((linux && (wayland || !x11)) || ((freebsd || netbsd || openbsd) && wayland))
 
 package glfw
 
@@ -41,6 +41,13 @@ func waylandAppID() string {
 // framebuffer up front because Mutter CSD is selected only after creation; SSD
 // windows continue to render an opaque clear.
 func applyWaylandWindowHints(decorate bool) {
+	// In the default both-backends build this file is compiled even on X11, so
+	// guard the Wayland-only hints (notably the transparent ARGB framebuffer
+	// request) behind the live platform; on X11 the window stays opaque.
+	if !runningWayland() {
+		return
+	}
+
 	glfw.WindowHintString(glfw.WaylandAppID, waylandAppID())
 	transparent := glfw.False
 	if decorate {
@@ -59,6 +66,10 @@ const waylandResizeBorder = float32(5)
 var waylandDecorationCursors map[glfw.StandardCursor]*glfw.Cursor
 
 func initWaylandDecorationCursors() {
+	if !runningWayland() {
+		return
+	}
+
 	waylandDecorationCursors = make(map[glfw.StandardCursor]*glfw.Cursor, 4)
 	for _, shape := range []glfw.StandardCursor{
 		glfw.ResizeEWCursor,
@@ -199,7 +210,7 @@ func waylandResizeCursorShape(edge glfw.ResizeEdge) (glfw.StandardCursor, bool) 
 }
 
 func (w *window) updateWaylandResizeCursor() {
-	if w.viewport == nil {
+	if !runningWayland() || w.viewport == nil {
 		return
 	}
 

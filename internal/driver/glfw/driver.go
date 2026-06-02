@@ -23,6 +23,20 @@ import (
 
 var curWindow *window
 
+// waylandRuntime records whether GLFW selected the Wayland backend at runtime.
+// It is set once in initGLFW (desktop) after glfw.Init() and read via
+// runningWayland(). Unlike the compile-time build.IsWayland constant it is also
+// correct in the default Linux build, where both the X11 and Wayland backends
+// are compiled in and the platform is only known at runtime. It stays false on
+// non-desktop builds (wasm/test_web_driver) and on X11.
+var waylandRuntime bool
+
+// runningWayland reports whether the active GLFW platform is Wayland. Use this
+// for any window behaviour that differs between X11 and Wayland (positioning,
+// focus, scaling, custom decorations) so the default both-backends build does
+// the right thing on whichever platform it ends up running.
+func runningWayland() bool { return waylandRuntime }
+
 // Declare conformity with Driver
 var _ fyne.Driver = (*gLDriver)(nil)
 

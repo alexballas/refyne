@@ -14,7 +14,6 @@ import (
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/async"
-	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/driver"
 	"github.com/alexballas/refyne/v2/internal/driver/common"
@@ -154,13 +153,13 @@ func (w *window) Show() {
 		view := w.view()
 		view.SetTitle(w.title)
 
-		if !build.IsWayland && w.centered {
+		if !runningWayland() && w.centered {
 			w.doCenterOnScreen() // lastly center if that was requested
 		}
 		view.Show()
 
 		// save coordinates
-		if !build.IsWayland {
+		if !runningWayland() {
 			w.xpos, w.ypos = view.GetPos()
 		}
 
@@ -168,7 +167,7 @@ func (w *window) Show() {
 			w.doSetFullScreen(true)
 		}
 
-		if build.IsWayland {
+		if runningWayland() {
 			// Now the surface is shown the compositor can report its decoration
 			// mode; decide SSD vs custom decorations and push the app icon.
 			w.setupWaylandDecorations()
@@ -992,7 +991,7 @@ func (w *window) doShowAgain() {
 	}
 
 	view := w.view()
-	if !build.IsWayland {
+	if !runningWayland() {
 		view.SetPos(w.xpos, w.ypos)
 	}
 	view.Show()
@@ -1002,7 +1001,7 @@ func (w *window) doShowAgain() {
 		w.doSetFullScreen(true)
 	}
 
-	if build.IsWayland {
+	if runningWayland() {
 		w.setupWaylandDecorations()
 		w.pushWaylandIcon()
 	}

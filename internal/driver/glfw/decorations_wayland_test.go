@@ -1,4 +1,4 @@
-//go:build !wasm && wayland && (linux || freebsd || openbsd || netbsd)
+//go:build !wasm && !test_web_driver && ((linux && (wayland || !x11)) || ((freebsd || netbsd || openbsd) && wayland))
 
 package glfw
 

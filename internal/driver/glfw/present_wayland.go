@@ -1,4 +1,4 @@
-//go:build !wasm && wayland && (linux || freebsd || openbsd || netbsd)
+//go:build !wasm && !test_web_driver && ((linux && (wayland || !x11)) || ((freebsd || netbsd || openbsd) && wayland))
 
 package glfw
 
@@ -65,9 +65,12 @@ func (t *frameTracker) markReady() { t.state.ready = 1 }
 
 func (t *frameTracker) free() { C.frame_state_free(t.state) }
 
-// windowSurface returns the window's *wl_surface as an opaque pointer.
+// windowSurface returns the window's *wl_surface as an opaque pointer. In the
+// default both-backends build this file is also compiled on X11, where there is
+// no wl_surface and GetWaylandWindow would error; the runtime guard returns nil
+// there so the present gate degrades to the always-ready no-op behaviour.
 func windowSurface(w *window) unsafe.Pointer {
-	if w.viewport == nil {
+	if !runningWayland() || w.viewport == nil {
 		return nil
 	}
 	return unsafe.Pointer(w.viewport.GetWaylandWindow())

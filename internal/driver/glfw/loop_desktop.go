@@ -18,6 +18,11 @@ func (d *gLDriver) initGLFW() {
 		return
 	}
 
+	// Record the backend GLFW actually selected. In the default build both X11
+	// and Wayland are compiled in, so this is the only reliable signal of which
+	// one is live. Must run before initCursors (it sets up Wayland-only cursors).
+	waylandRuntime = glfw.GetPlatform() == glfw.PlatformWayland
+
 	initCursors()
 }
 
