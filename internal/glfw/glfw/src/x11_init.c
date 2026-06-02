@@ -943,6 +943,8 @@ static GLFWbool initExtensions(void)
     _glfw.x11.XdndSelection = XInternAtom(_glfw.x11.display, "XdndSelection", False);
     _glfw.x11.XdndTypeList = XInternAtom(_glfw.x11.display, "XdndTypeList", False);
     _glfw.x11.text_uri_list = XInternAtom(_glfw.x11.display, "text/uri-list", False);
+    _glfw.x11.portal_file_transfer =
+        XInternAtom(_glfw.x11.display, FILE_TRANSFER_PORTAL_MIME_TYPE, False);
 
     // ICCCM, EWMH and Motif window property atoms
     // These can be set safely even without WM support
@@ -1533,6 +1535,8 @@ int _glfwInitX11(void)
     if (!initExtensions())
         return GLFW_FALSE;
 
+    _glfwInitFileTransferPortal();
+
     _glfw.x11.helperWindowHandle = createHelperWindow();
     _glfw.x11.hiddenCursorHandle = createHiddenCursor();
 
@@ -1553,6 +1557,8 @@ int _glfwInitX11(void)
 
 void _glfwTerminateX11(void)
 {
+    _glfwTerminateFileTransferPortal();
+
     if (_glfw.x11.helperWindowHandle)
     {
         if (XGetSelectionOwner(_glfw.x11.display, _glfw.x11.CLIPBOARD) ==
@@ -1653,4 +1659,3 @@ void _glfwTerminateX11(void)
 }
 
 #endif // _GLFW_X11
-

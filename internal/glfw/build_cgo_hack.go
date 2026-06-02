@@ -14,6 +14,7 @@ package glfw
 import (
 	// Prevent go tooling from stripping out the c source files.
 	_ "github.com/alexballas/refyne/v2/internal/glfw/glfw/deps"
+	_ "github.com/alexballas/refyne/v2/internal/glfw/glfw/include"
 	_ "github.com/alexballas/refyne/v2/internal/glfw/glfw/include/GLFW"
 	_ "github.com/alexballas/refyne/v2/internal/glfw/glfw/src"
 )

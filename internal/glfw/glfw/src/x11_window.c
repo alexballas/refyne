@@ -1581,6 +1581,7 @@ static void processEvent(XEvent *event)
                 _glfw.x11.xdnd.source  = event->xclient.data.l[0];
                 _glfw.x11.xdnd.version = event->xclient.data.l[1] >> 24;
                 _glfw.x11.xdnd.format  = None;
+                _glfw.x11.xdnd.usePortal = GLFW_FALSE;
 
                 if (_glfw.x11.xdnd.version > _GLFW_XDND_VERSION)
                     return;
@@ -1600,11 +1601,15 @@ static void processEvent(XEvent *event)
 
                 for (unsigned int i = 0;  i < count;  i++)
                 {
-                    if (formats[i] == _glfw.x11.text_uri_list)
+                    if (formats[i] == _glfw.x11.portal_file_transfer &&
+                        _glfw.fileTransferPortal.handle)
                     {
-                        _glfw.x11.xdnd.format = _glfw.x11.text_uri_list;
+                        _glfw.x11.xdnd.format = _glfw.x11.portal_file_transfer;
+                        _glfw.x11.xdnd.usePortal = GLFW_TRUE;
                         break;
                     }
+                    else if (formats[i] == _glfw.x11.text_uri_list)
+                        _glfw.x11.xdnd.format = _glfw.x11.text_uri_list;
                 }
 
                 if (list && formats)
@@ -1704,14 +1709,22 @@ static void processEvent(XEvent *event)
 
                 if (result)
                 {
-                    int count;
-                    char** paths = _glfwParseUriList(data, &count);
+                    if (_glfw.x11.xdnd.usePortal)
+                        _glfwInputFileTransferPortalDrop(window, data);
+                    else
+                    {
+                        int count;
+                        char** paths = _glfwParseUriList(data, &count);
 
-                    _glfwInputDrop(window, count, (const char**) paths);
+                        if (paths)
+                        {
+                            _glfwInputDrop(window, count, (const char**) paths);
 
-                    for (int i = 0;  i < count;  i++)
-                        _glfw_free(paths[i]);
-                    _glfw_free(paths);
+                            for (int i = 0;  i < count;  i++)
+                                _glfw_free(paths[i]);
+                            _glfw_free(paths);
+                        }
+                    }
                 }
 
                 if (data)
@@ -1731,6 +1744,8 @@ static void processEvent(XEvent *event)
                                False, NoEventMask, &reply);
                     XFlush(_glfw.x11.display);
                 }
+
+                _glfw.x11.xdnd.usePortal = GLFW_FALSE;
             }
 
             return;
@@ -3354,4 +3369,3 @@ GLFWAPI const char* glfwGetX11SelectionString(void)
 }
 
 #endif // _GLFW_X11
-

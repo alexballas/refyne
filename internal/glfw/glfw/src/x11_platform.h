@@ -627,6 +627,7 @@ typedef struct _GLFWlibraryX11
     Atom            XdndSelection;
     Atom            XdndTypeList;
     Atom            text_uri_list;
+    Atom            portal_file_transfer;
 
     // Selection (clipboard) atoms
     Atom            TARGETS;
@@ -800,6 +801,7 @@ typedef struct _GLFWlibraryX11
         int         version;
         Window      source;
         Atom        format;
+        GLFWbool    usePortal;
     } xdnd;
 
     struct {
@@ -1001,4 +1003,3 @@ GLFWbool _glfwChooseVisualGLX(const _GLFWwndconfig* wndconfig,
                               const _GLFWctxconfig* ctxconfig,
                               const _GLFWfbconfig* fbconfig,
                               Visual** visual, int* depth);
-

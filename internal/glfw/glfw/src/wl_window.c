@@ -2003,6 +2003,8 @@ static void dataOfferHandleOffer(void* userData,
                 _glfw.wl.offers[i].text_plain_utf8 = GLFW_TRUE;
             else if (strcmp(mimeType, "text/uri-list") == 0)
                 _glfw.wl.offers[i].text_uri_list = GLFW_TRUE;
+            else if (strcmp(mimeType, FILE_TRANSFER_PORTAL_MIME_TYPE) == 0)
+                _glfw.wl.offers[i].portal_file_transfer = GLFW_TRUE;
 
             break;
         }
@@ -2047,43 +2049,51 @@ static void dataDeviceHandleEnter(void* userData,
         wl_data_offer_destroy(_glfw.wl.dragOffer);
         _glfw.wl.dragOffer = NULL;
         _glfw.wl.dragFocus = NULL;
+        _glfw.wl.dragUsePortal = GLFW_FALSE;
     }
 
-    for (unsigned int i = 0; i < _glfw.wl.offerCount; i++)
+    unsigned int i;
+
+    for (i = 0; i < _glfw.wl.offerCount; i++)
     {
         if (_glfw.wl.offers[i].offer == offer)
+            break;
+    }
+
+    if (i == _glfw.wl.offerCount)
+        return;
+
+    if (surface && wl_proxy_get_tag((struct wl_proxy*) surface) == &_glfw.wl.tag)
+    {
+        _GLFWwindow* window = wl_surface_get_user_data(surface);
+        if (window->wl.surface == surface)
         {
-            _GLFWwindow* window = NULL;
-
-            if (surface)
-            {
-                if (wl_proxy_get_tag((struct wl_proxy*) surface) == &_glfw.wl.tag)
-                    window = wl_surface_get_user_data(surface);
-            }
-
-            if (surface == window->wl.surface && _glfw.wl.offers[i].text_uri_list)
+            const GLFWbool portal =
+                _glfw.wl.offers[i].portal_file_transfer &&
+                _glfw.fileTransferPortal.handle;
+            if (_glfw.wl.offers[i].text_uri_list || portal)
             {
                 _glfw.wl.dragOffer = offer;
                 _glfw.wl.dragFocus = window;
                 _glfw.wl.dragSerial = serial;
-            }
+                _glfw.wl.dragUsePortal = portal;
 
-            _glfw.wl.offers[i] = _glfw.wl.offers[_glfw.wl.offerCount - 1];
-            _glfw.wl.offerCount--;
-            break;
+                if (portal)
+                    wl_data_offer_accept(offer, serial, FILE_TRANSFER_PORTAL_MIME_TYPE);
+                else
+                    wl_data_offer_accept(offer, serial, "text/uri-list");
+            }
         }
     }
 
-    if (wl_proxy_get_tag((struct wl_proxy*) surface) != &_glfw.wl.tag)
-        return;
-
-    if (_glfw.wl.dragOffer)
-        wl_data_offer_accept(offer, serial, "text/uri-list");
-    else
+    if (!_glfw.wl.dragOffer)
     {
         wl_data_offer_accept(offer, serial, NULL);
         wl_data_offer_destroy(offer);
     }
+
+    _glfw.wl.offers[i] = _glfw.wl.offers[_glfw.wl.offerCount - 1];
+    _glfw.wl.offerCount--;
 }
 
 static void dataDeviceHandleLeave(void* userData,
@@ -2094,6 +2104,7 @@ static void dataDeviceHandleLeave(void* userData,
         wl_data_offer_destroy(_glfw.wl.dragOffer);
         _glfw.wl.dragOffer = NULL;
         _glfw.wl.dragFocus = NULL;
+        _glfw.wl.dragUsePortal = GLFW_FALSE;
     }
 }
 
@@ -2111,21 +2122,35 @@ static void dataDeviceHandleDrop(void* userData,
     if (!_glfw.wl.dragOffer)
         return;
 
+    if (_glfw.wl.dragUsePortal)
+    {
+        char* key = readDataOfferAsString(_glfw.wl.dragOffer,
+                                          FILE_TRANSFER_PORTAL_MIME_TYPE);
+        if (key)
+        {
+            _glfwInputFileTransferPortalDrop(_glfw.wl.dragFocus, key);
+            _glfw_free(key);
+        }
+        return;
+    }
+
     char* string = readDataOfferAsString(_glfw.wl.dragOffer, "text/uri-list");
     if (string)
     {
         int count;
         char** paths = _glfwParseUriList(string, &count);
         if (paths)
+        {
             _glfwInputDrop(_glfw.wl.dragFocus, count, (const char**) paths);
 
-        for (int i = 0; i < count; i++)
-            _glfw_free(paths[i]);
+            for (int i = 0; i < count; i++)
+                _glfw_free(paths[i]);
 
-        _glfw_free(paths);
+            _glfw_free(paths);
+        }
+
+        _glfw_free(string);
     }
-
-    _glfw_free(string);
 }
 
 static void dataDeviceHandleSelection(void* userData,

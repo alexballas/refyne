@@ -323,6 +323,7 @@ typedef VkResult (APIENTRY * PFN_vkEnumerateInstanceExtensionProperties)(const c
 #define vkGetInstanceProcAddr _glfw.vk.GetInstanceProcAddr
 
 #include "platform.h"
+#include "file_transfer_portal.h"
 
 #define GLFW_NATIVE_INCLUDE_NONE
 #include "../include/GLFW/glfw3native.h"
@@ -790,6 +791,10 @@ struct _GLFWlibrary
         GLFW_PLATFORM_LIBRARY_TIMER_STATE
     } timer;
 
+#if defined(_GLFW_X11) || defined(_GLFW_WAYLAND)
+    _GLFWfileTransferPortal fileTransferPortal;
+#endif
+
     struct {
         EGLenum         platform;
         EGLDisplay      display;
@@ -1006,4 +1011,3 @@ int _glfw_max(int a, int b);
 void* _glfw_calloc(size_t count, size_t size);
 void* _glfw_realloc(void* pointer, size_t size);
 void _glfw_free(void* pointer);
-

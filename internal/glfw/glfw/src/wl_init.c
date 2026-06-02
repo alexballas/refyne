@@ -830,6 +830,8 @@ int _glfwInitWayland(void)
         }
     }
 
+    _glfwInitFileTransferPortal();
+
     _glfw.wl.registry = wl_display_get_registry(_glfw.wl.display);
     wl_registry_add_listener(_glfw.wl.registry, &registryListener, NULL);
 
@@ -919,6 +921,8 @@ void _glfwTerminateWayland(void)
         _glfwPlatformFreeModule(_glfw.wl.libdecor.handle);
         _glfw.wl.libdecor.handle = NULL;
     }
+
+    _glfwTerminateFileTransferPortal();
 
     if (_glfw.wl.egl.handle)
     {
@@ -1014,4 +1018,3 @@ void _glfwTerminateWayland(void)
 }
 
 #endif // _GLFW_WAYLAND
-
