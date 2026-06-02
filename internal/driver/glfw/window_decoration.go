@@ -3,8 +3,11 @@
 package glfw
 
 import (
+	"image/color"
+
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
 )
@@ -59,10 +62,35 @@ func newWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration 
 	})
 	for _, b := range []*widget.Button{d.minimizeButton, d.maximizeButton, d.closeButton} {
 		b.Importance = widget.LowImportance
+		cache.OverrideTheme(b, &windowDecorationButtonTheme{})
 	}
 
 	d.ExtendBaseWidget(d)
 	return d
+}
+
+// windowDecorationButtonTheme keeps the full button hit area while making its
+// hover background circular, so the close button does not cover a rounded
+// window corner.
+type windowDecorationButtonTheme struct{}
+
+func (*windowDecorationButtonTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	return theme.Current().Color(name, variant)
+}
+
+func (*windowDecorationButtonTheme) Font(style fyne.TextStyle) fyne.Resource {
+	return theme.Current().Font(style)
+}
+
+func (*windowDecorationButtonTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
+	return theme.Current().Icon(name)
+}
+
+func (*windowDecorationButtonTheme) Size(name fyne.ThemeSizeName) float32 {
+	if name == theme.SizeNameInputRadius {
+		return canvas.RadiusMaximum
+	}
+	return theme.Current().Size(name)
 }
 
 func (d *windowDecoration) SetTitle(title string) {

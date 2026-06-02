@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/test"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,14 @@ func TestWindowDecoration_BackgroundRoundedTopCorners(t *testing.T) {
 	r.Refresh()
 	assert.Equal(t, float32(0), r.bg.TopLeftCornerRadius)
 	assert.Equal(t, float32(0), r.bg.TopRightCornerRadius)
+}
+
+func TestWindowDecoration_ButtonsHaveCircularHighlight(t *testing.T) {
+	d := newWindowDecoration("My App", theme.FyneLogo())
+
+	assert.Equal(t, canvas.RadiusMaximum, d.minimizeButton.Theme().Size(theme.SizeNameInputRadius))
+	assert.Equal(t, canvas.RadiusMaximum, d.maximizeButton.Theme().Size(theme.SizeNameInputRadius))
+	assert.Equal(t, canvas.RadiusMaximum, d.closeButton.Theme().Size(theme.SizeNameInputRadius))
 }
 
 func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
