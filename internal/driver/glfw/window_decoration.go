@@ -47,8 +47,10 @@ type windowDecoration struct {
 
 func newWindowDecoration(title string, iconRes fyne.Resource) *windowDecoration {
 	d := &windowDecoration{}
+	// The title is shown in full or not at all: it is hidden once it no longer
+	// fits (see the renderer's Layout) rather than being truncated to an
+	// ellipsis, so leave Truncation off.
 	d.titleLabel = widget.NewLabelWithStyle(title, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	d.titleLabel.Truncation = fyne.TextTruncateEllipsis
 
 	d.icon = canvas.NewImageFromResource(iconRes)
 	d.icon.FillMode = canvas.ImageFillContain
@@ -225,10 +227,7 @@ func (r *windowDecorationRenderer) Layout(size fyne.Size) {
 	r.bg.Resize(size)
 	r.bg.Move(fyne.NewPos(0, 0))
 
-	iconSize := size.Height - pad*2
-	r.d.icon.Resize(fyne.NewSquareSize(iconSize))
-	r.d.icon.Move(fyne.NewPos(pad, pad))
-
+	// The window controls are anchored to the right edge and are always shown.
 	btnSize := size.Height
 	x := size.Width
 	for i := len(r.buttons) - 1; i >= 0; i-- {
@@ -236,18 +235,48 @@ func (r *windowDecorationRenderer) Layout(size fyne.Size) {
 		r.buttons[i].Resize(fyne.NewSquareSize(btnSize))
 		r.buttons[i].Move(fyne.NewPos(x, 0))
 	}
+	controlsLeft := x
+	controlsWidth := size.Width - x
 
-	// Keep the title centered in the window, rather than merely centering it in
-	// the uneven space between the app icon and the window controls.
-	titleInset := pad*2 + iconSize
-	if controlsWidth := size.Width - x; controlsWidth > titleInset {
-		titleInset = controlsWidth
+	iconSize := size.Height - pad*2
+	iconRight := pad + iconSize
+
+	// The title is the first thing to go. Keep it centered in the window with a
+	// padding gap before the controls so it never butts up against them, and
+	// hide it as soon as its full text no longer fits the available width. It is
+	// shown whole or not at all, never truncated to an ellipsis. The icon may
+	// still be shown at this point.
+	titleInset := controlsWidth + pad
+	if iconInset := iconRight + pad; titleInset < iconInset {
+		titleInset = iconInset
 	}
-	if maxInset := size.Width / 2; titleInset > maxInset {
-		titleInset = maxInset
+	titleWidth := size.Width - titleInset*2
+	if setDecorationObjectVisible(r.d.titleLabel, titleWidth >= r.d.titleLabel.MinSize().Width) {
+		r.d.titleLabel.Resize(fyne.NewSize(titleWidth, size.Height))
+		r.d.titleLabel.Move(fyne.NewPos(titleInset, 0))
 	}
-	r.d.titleLabel.Resize(fyne.NewSize(size.Width-titleInset*2, size.Height))
-	r.d.titleLabel.Move(fyne.NewPos(titleInset, 0))
+
+	// The icon hides independently, and only once the controls have narrowed far
+	// enough to reach it (after the title has already gone), so a narrow window
+	// keeps the icon while just the title is dropped.
+	if setDecorationObjectVisible(r.d.icon, controlsLeft >= iconRight+pad) {
+		r.d.icon.Resize(fyne.NewSquareSize(iconSize))
+		r.d.icon.Move(fyne.NewPos(pad, pad))
+	}
+}
+
+// setDecorationObjectVisible toggles obj's visibility, guarding against
+// redundant Show/Hide calls so repeated layouts do not queue extra repaints.
+// It returns visible so callers can lay the object out only when it is shown.
+func setDecorationObjectVisible(obj fyne.CanvasObject, visible bool) bool {
+	if visible != obj.Visible() {
+		if visible {
+			obj.Show()
+		} else {
+			obj.Hide()
+		}
+	}
+	return visible
 }
 
 func (r *windowDecorationRenderer) MinSize() fyne.Size {

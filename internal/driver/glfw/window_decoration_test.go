@@ -89,6 +89,52 @@ func TestWindowDecoration_TitleCenteredInWindow(t *testing.T) {
 	})
 }
 
+func TestWindowDecoration_HidesTitleBeforeIcon(t *testing.T) {
+	runOnMain(func() {
+		d := newWindowDecoration("My App", theme.FileApplicationIcon())
+		r := d.CreateRenderer()
+
+		// The title is never truncated, so it reports the width of its full text.
+		assert.Equal(t, fyne.TextTruncateOff, d.titleLabel.Truncation)
+		titleMin := d.titleLabel.MinSize().Width
+		// Window width at which the centered title exactly fits its full text.
+		fitWidth := (titleBarHeight*3+theme.Padding())*2 + titleMin
+
+		// Wider than a full fit: icon and title shown, the title at its full
+		// width (no ellipsis) and clear of the left-most control button.
+		r.Layout(fyne.NewSize(fitWidth+titleBarHeight, titleBarHeight))
+		assert.True(t, d.icon.Visible())
+		assert.True(t, d.titleLabel.Visible())
+		assert.GreaterOrEqual(t, d.titleLabel.Size().Width, titleMin)
+		assert.LessOrEqual(t, d.icon.Position().X+d.icon.Size().Width, d.minimizeButton.Position().X)
+		assert.Less(t, d.titleLabel.Position().X+d.titleLabel.Size().Width, d.minimizeButton.Position().X)
+
+		// Too narrow for the full title: it hides rather than truncating to
+		// "...", while the icon still fits to the left of the controls and stays
+		// visible (no overlap).
+		r.Layout(fyne.NewSize(fitWidth-titleBarHeight, titleBarHeight))
+		assert.True(t, d.icon.Visible())
+		assert.False(t, d.titleLabel.Visible())
+		assert.LessOrEqual(t, d.icon.Position().X+d.icon.Size().Width, d.minimizeButton.Position().X)
+
+		// Very narrow: the controls would now reach the icon too, so it hides as
+		// well, leaving just the controls laid out against the right edge.
+		r.Layout(fyne.NewSize(titleBarHeight*3, titleBarHeight))
+		assert.False(t, d.icon.Visible())
+		assert.False(t, d.titleLabel.Visible())
+		assert.Equal(t, titleBarHeight*3-titleBarHeight, d.closeButton.Position().X)
+
+		// Widen again: the icon comes back first, then the full title once it
+		// fits.
+		r.Layout(fyne.NewSize(fitWidth-titleBarHeight, titleBarHeight))
+		assert.True(t, d.icon.Visible())
+		assert.False(t, d.titleLabel.Visible())
+		r.Layout(fyne.NewSize(fitWidth+titleBarHeight, titleBarHeight))
+		assert.True(t, d.icon.Visible())
+		assert.True(t, d.titleLabel.Visible())
+	})
+}
+
 func TestWindowDecoration_MinSizeHasTitleBarHeight(t *testing.T) {
 	runOnMain(func() {
 		d := newWindowDecoration("X", theme.FileApplicationIcon())
