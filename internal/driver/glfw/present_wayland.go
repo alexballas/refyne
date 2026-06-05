@@ -40,6 +40,7 @@ static void frame_arm(struct wl_surface *surface, frame_state *s) {
 }
 static int  frame_ready(frame_state *s) { return s->ready; }
 static void frame_state_free(frame_state *s) {
+    if (!s) return;
     if (s->cb) wl_callback_destroy(s->cb);
     free(s);
 }
@@ -52,18 +53,30 @@ type frameTracker struct{ state *C.frame_state }
 
 func newPresentGate() presentGate { return &frameTracker{state: C.frame_state_new()} }
 
-func (t *frameTracker) ready() bool { return C.frame_ready(t.state) != 0 }
+func (t *frameTracker) ready() bool {
+	if t.state == nil {
+		return true
+	}
+	return C.frame_ready(t.state) != 0
+}
 
 func (t *frameTracker) arm(surface unsafe.Pointer) {
-	if surface == nil {
+	if t.state == nil || surface == nil {
 		return
 	}
 	C.frame_arm((*C.struct_wl_surface)(surface), t.state)
 }
 
-func (t *frameTracker) markReady() { t.state.ready = 1 }
+func (t *frameTracker) markReady() {
+	if t.state != nil {
+		t.state.ready = 1
+	}
+}
 
-func (t *frameTracker) free() { C.frame_state_free(t.state) }
+func (t *frameTracker) free() {
+	C.frame_state_free(t.state)
+	t.state = nil
+}
 
 // windowSurface returns the window's *wl_surface as an opaque pointer. In the
 // default both-backends build this file is also compiled on X11, where there is

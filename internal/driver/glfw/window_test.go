@@ -1783,9 +1783,10 @@ func TestWindow_CloseInterception(t *testing.T) {
 	// Note: The #Close() is run asynchronously when the window is notified about the viewport close.
 	// Therefore, we have to wait some time before checking its state via the onClosed callback.
 
-	d := NewGLDriver()
 	t.Run("when closing window with #Close()", func(t *testing.T) {
 		w := createWindow("test")
+		t.Cleanup(func() { destroyTestWindow(w) })
+
 		onIntercepted := false
 		onClosed := false
 		w.SetCloseIntercept(func() { onIntercepted = true })
@@ -1795,11 +1796,12 @@ func TestWindow_CloseInterception(t *testing.T) {
 		assert.False(t, onIntercepted, "the interceptor should not have been called")
 		assert.True(t, onClosed, "the on closed handler should have been called")
 		assert.True(t, w.viewport.ShouldClose()) // For #2694
-		w.destroy(d)
 	})
 
 	t.Run("when window is closed from the outside (notified by GLFW callback)", func(t *testing.T) {
 		w := createWindow("test")
+		t.Cleanup(func() { destroyTestWindow(w) })
+
 		onIntercepted := false
 		w.SetCloseIntercept(func() { onIntercepted = true })
 		closed := make(chan bool, 1)
@@ -1813,11 +1815,12 @@ func TestWindow_CloseInterception(t *testing.T) {
 		case <-time.After(20 * time.Millisecond):
 			// hopefully enough time to let an unexpected asynchronous Close() finish.
 		}
-		w.destroy(d)
 	})
 
 	t.Run("when window is closed from the outside but no interceptor is set", func(t *testing.T) {
 		w := createWindow("test")
+		t.Cleanup(func() { destroyTestWindow(w) })
+
 		closed := make(chan bool, 1)
 		w.SetOnClosed(func() { closed <- true })
 		w.closed(w.viewport)
@@ -1827,7 +1830,6 @@ func TestWindow_CloseInterception(t *testing.T) {
 		case <-time.After(20 * time.Millisecond):
 			t.Error("window was not closed")
 		}
-		w.destroy(d)
 	})
 }
 
@@ -1932,6 +1934,17 @@ func createWindow(title string) *safeWindow {
 		w.create()
 	})
 	return &safeWindow{window: w}
+}
+
+func destroyTestWindow(w *safeWindow) {
+	runOnMain(func() {
+		for i, win := range d.windows {
+			if win == w.window {
+				d.destroyWindow(w.window, i)
+				return
+			}
+		}
+	})
 }
 
 //

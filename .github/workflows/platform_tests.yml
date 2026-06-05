@@ -36,7 +36,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
 
       - name: Set environment variable LANG
-        run: export LANG=en_EN.UTF-8
+        run: echo "LANG=en_US.UTF-8" >> "$GITHUB_ENV"
         if: ${{ runner.os == 'Linux' }}
 
       - name: Tests
