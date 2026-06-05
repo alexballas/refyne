@@ -450,6 +450,8 @@ typedef struct _GLFWlibraryWayland
     struct zwp_idle_inhibit_manager_v1*     idleInhibitManager;
     struct xdg_activation_v1*               activationManager;
     struct wp_fractional_scale_manager_v1*  fractionalScaleManager;
+    struct wp_cursor_shape_manager_v1*      cursorShapeManager;
+    struct wp_cursor_shape_device_v1*       cursorShapeDevice;
 
     _GLFWofferWayland*          offers;
     unsigned int                offerCount;
@@ -621,6 +623,11 @@ typedef struct _GLFWcursorWayland
     int                         width, height;
     int                         xhot, yhot;
     int                         currentImage;
+    // wp_cursor_shape_device_v1 shape for standard cursors, or 0 when this
+    // cursor has no shape equivalent (e.g. custom image cursors). When set and
+    // the compositor supports cursor-shape-v1, the shape is requested instead
+    // of attaching a themed buffer so the cursor matches the desktop theme.
+    uint32_t                    shape;
 } _GLFWcursorWayland;
 
 GLFWbool _glfwConnectWayland(int platformID, _GLFWplatform* platform);

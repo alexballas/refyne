@@ -1100,6 +1100,69 @@ static GLFWbool createNativeSurface(_GLFWwindow* window,
     return GLFW_TRUE;
 }
 
+// Lazily obtain a wp_cursor_shape_device_v1 for the seat pointer. The manager
+// global and the pointer can arrive in either order, so the device is created
+// on first use once both exist. Returns NULL when the compositor does not
+// implement cursor-shape-v1, in which case callers fall back to themed buffers.
+static struct wp_cursor_shape_device_v1* getCursorShapeDevice(void)
+{
+    if (!_glfw.wl.cursorShapeManager || !_glfw.wl.pointer)
+        return NULL;
+
+    if (!_glfw.wl.cursorShapeDevice)
+    {
+        _glfw.wl.cursorShapeDevice =
+            wp_cursor_shape_manager_v1_get_pointer(_glfw.wl.cursorShapeManager,
+                                                   _glfw.wl.pointer);
+    }
+
+    return _glfw.wl.cursorShapeDevice;
+}
+
+// Ask the compositor to draw a themed cursor of the given shape. This lets the
+// cursor match the rest of the desktop (e.g. the KDE cursor theme) instead of
+// whatever theme libwayland-cursor happens to load. Returns GLFW_FALSE when
+// cursor-shape-v1 is unavailable so the caller can fall back.
+static GLFWbool setCursorShape(uint32_t shape)
+{
+    struct wp_cursor_shape_device_v1* device;
+
+    if (!shape)
+        return GLFW_FALSE;
+
+    device = getCursorShapeDevice();
+    if (!device)
+        return GLFW_FALSE;
+
+    // Stop any pending themed-cursor animation frame from overwriting the
+    // shape we are about to request (only armed by setCursorImage()).
+    struct itimerspec timer = {0};
+    timerfd_settime(_glfw.wl.cursorTimerfd, 0, &timer, NULL);
+
+    wp_cursor_shape_device_v1_set_shape(device,
+                                        _glfw.wl.pointerEnterSerial,
+                                        shape);
+    return GLFW_TRUE;
+}
+
+// Map the XDG cursor names used for the custom window-decoration resize handles
+// to cursor-shape-v1 shapes. Returns 0 for names without a shape equivalent.
+static uint32_t cursorShapeFromName(const char* name)
+{
+    if (!name)
+        return 0;
+    if (strcmp(name, "n-resize") == 0)  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_N_RESIZE;
+    if (strcmp(name, "s-resize") == 0)  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_S_RESIZE;
+    if (strcmp(name, "w-resize") == 0)  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_W_RESIZE;
+    if (strcmp(name, "e-resize") == 0)  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_E_RESIZE;
+    if (strcmp(name, "nw-resize") == 0) return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NW_RESIZE;
+    if (strcmp(name, "ne-resize") == 0) return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NE_RESIZE;
+    if (strcmp(name, "sw-resize") == 0) return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SW_RESIZE;
+    if (strcmp(name, "se-resize") == 0) return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SE_RESIZE;
+    if (strcmp(name, "left_ptr") == 0)  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+    return 0;
+}
+
 static void setCursorImage(_GLFWwindow* window,
                            _GLFWcursorWayland* cursorWayland)
 {
@@ -1390,6 +1453,13 @@ static void setCursorNameWayland(_GLFWwindow* window, const char* cursorName)
 {
     if (_glfw.wl.cursorPreviousName == cursorName)
         return;
+
+    // Prefer a compositor-themed shape so the resize cursors match the desktop.
+    if (setCursorShape(cursorShapeFromName(cursorName)))
+    {
+        _glfw.wl.cursorPreviousName = cursorName;
+        return;
+    }
 
     struct wl_surface* surface = _glfw.wl.cursorSurface;
     struct wl_cursor_theme* theme = _glfw.wl.cursorTheme;
@@ -1980,6 +2050,13 @@ static void seatHandleCapabilities(void* userData,
     }
     else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && _glfw.wl.pointer)
     {
+        // The cursor-shape device is tied to this pointer; drop it so a new one
+        // is created for the next pointer that appears.
+        if (_glfw.wl.cursorShapeDevice)
+        {
+            wp_cursor_shape_device_v1_destroy(_glfw.wl.cursorShapeDevice);
+            _glfw.wl.cursorShapeDevice = NULL;
+        }
         wl_pointer_destroy(_glfw.wl.pointer);
         _glfw.wl.pointer = NULL;
     }
@@ -2879,6 +2956,43 @@ GLFWbool _glfwCreateStandardCursorWayland(_GLFWcursor* cursor, int shape)
 {
     const char* name = NULL;
 
+    // Record the matching cursor-shape-v1 shape so _glfwSetCursorWayland can ask
+    // the compositor to draw a themed cursor. The wl_cursor_theme buffer loaded
+    // below stays as the fallback for compositors without cursor-shape-v1.
+    switch (shape)
+    {
+        case GLFW_ARROW_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+            break;
+        case GLFW_IBEAM_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_TEXT;
+            break;
+        case GLFW_CROSSHAIR_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CROSSHAIR;
+            break;
+        case GLFW_POINTING_HAND_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER;
+            break;
+        case GLFW_RESIZE_EW_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
+            break;
+        case GLFW_RESIZE_NS_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE;
+            break;
+        case GLFW_RESIZE_NWSE_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NWSE_RESIZE;
+            break;
+        case GLFW_RESIZE_NESW_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NESW_RESIZE;
+            break;
+        case GLFW_RESIZE_ALL_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_SCROLL;
+            break;
+        case GLFW_NOT_ALLOWED_CURSOR:
+            cursor->wl.shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NOT_ALLOWED;
+            break;
+    }
+
     // Try the XDG names first
     switch (shape)
     {
@@ -3151,6 +3265,14 @@ void _glfwSetCursorWayland(_GLFWwindow* window, _GLFWcursor* cursor)
     if (window->cursorMode == GLFW_CURSOR_NORMAL ||
         window->cursorMode == GLFW_CURSOR_CAPTURED)
     {
+        // Prefer a compositor-drawn themed cursor when cursor-shape-v1 is
+        // available so it matches the desktop theme. A NULL cursor means the
+        // default arrow; custom image cursors have shape 0 and fall through to
+        // the themed-buffer path below.
+        if (setCursorShape(cursor ? cursor->wl.shape :
+                                    WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT))
+            return;
+
         if (cursor)
             setCursorImage(window, &cursor->wl);
         else
@@ -3178,6 +3300,7 @@ void _glfwSetCursorWayland(_GLFWwindow* window, _GLFWcursor* cursor)
                 NULL,
                 0, 0,
                 0, 0,
+                0,
                 0
             };
 
