@@ -12,6 +12,75 @@ import (
 	"github.com/alexballas/refyne/v2/canvas"
 )
 
+// blendRecorder records the last blend call. It embeds the context interface so
+// it satisfies every method; blendFunc only ever calls the two blend methods.
+type blendRecorder struct {
+	context
+	separate bool
+	args     [4]uint32
+}
+
+func (r *blendRecorder) BlendFunc(srcFactor, destFactor uint32) {
+	r.separate = false
+	r.args = [4]uint32{srcFactor, destFactor, 0, 0}
+}
+
+func (r *blendRecorder) BlendFuncSeparate(srcRGB, destRGB, srcAlpha, destAlpha uint32) {
+	r.separate = true
+	r.args = [4]uint32{srcRGB, destRGB, srcAlpha, destAlpha}
+}
+
+type clearRecorder struct {
+	context
+	color [4]float32
+	mask  uint32
+}
+
+func (r *clearRecorder) Clear(mask uint32) {
+	r.mask = mask
+}
+
+func (r *clearRecorder) ClearColor(red, green, blue, alpha float32) {
+	r.color = [4]float32{red, green, blue, alpha}
+}
+
+func (r *clearRecorder) GetError() uint32 {
+	return 0
+}
+
+func TestPainter_blendFuncPreservesAlpha(t *testing.T) {
+	rec := &blendRecorder{}
+	p := &painter{ctx: rec}
+
+	// Default: plain colour+alpha blending, identical to before.
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
+	assert.False(t, rec.separate)
+	assert.Equal(t, [4]uint32{srcAlpha, oneMinusSrcAlpha, 0, 0}, rec.args)
+
+	// Alpha-capable surface: colour factors unchanged, alpha saturates to opaque.
+	p.preserveAlpha = true
+	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
+	assert.True(t, rec.separate)
+	assert.Equal(t, [4]uint32{srcAlpha, oneMinusSrcAlpha, one, oneMinusSrcAlpha}, rec.args)
+
+	// A transparent (rounded-corner) clear must also preserve alpha.
+	p.preserveAlpha = false
+	p.transparentBackground = true
+	p.blendFunc(one, oneMinusSrcAlpha)
+	assert.True(t, rec.separate)
+	assert.Equal(t, [4]uint32{one, oneMinusSrcAlpha, one, oneMinusSrcAlpha}, rec.args)
+}
+
+func TestPainter_ClearTransparentBackgroundUsesPremultipliedAlpha(t *testing.T) {
+	rec := &clearRecorder{}
+	p := &painter{ctx: rec, transparentBackground: true}
+
+	p.Clear()
+
+	assert.Equal(t, [4]float32{}, rec.color)
+	assert.Equal(t, uint32(bitColorBuffer|bitDepthBuffer), rec.mask)
+}
+
 func TestGetFragmentColor(t *testing.T) {
 	var c color.Color
 

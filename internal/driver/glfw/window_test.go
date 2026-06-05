@@ -22,7 +22,7 @@ import (
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1436,7 +1436,12 @@ func TestWindow_SetIcon(t *testing.T) {
 	assert.Equal(t, fyne.CurrentApp().Icon(), w.Icon())
 
 	newIcon := theme.ComputerIcon()
-	w.SetIcon(newIcon)
+	// SetIcon paints the icon via runOnMainWhenCreated, which under
+	// migrated_fynedo runs inline on the caller. Drive it on the main goroutine
+	// so the SVG-cache write is serialised with the draw loop's cache.Clean.
+	runOnMain(func() {
+		w.SetIcon(newIcon)
+	})
 	assert.Equal(t, newIcon, w.Icon())
 }
 
@@ -1731,33 +1736,47 @@ func TestWindow_ClipboardCopy_DisabledEntry(t *testing.T) {
 	w.SetContent(e)
 	repaintWindow(w)
 
-	w.Canvas().Focus(e)
-	e.DoubleTapped(nil)
+	runOnMain(func() {
+		w.window.Canvas().Focus(e)
+		e.DoubleTapped(nil)
+	})
 	assert.Equal(t, "Testing", e.SelectedText())
 
 	ctrlMod := glfw.ModControl
 	if isMacOSRuntime() {
 		ctrlMod = glfw.ModSuper
 	}
-	w.keyPressed(nil, glfw.KeyC, 0, glfw.Repeat, ctrlMod)
 
-	assert.Equal(t, "Testing", NewClipboard().Content())
+	var clipboardContent string
+	runOnMain(func() {
+		w.window.keyPressed(nil, glfw.KeyC, 0, glfw.Repeat, ctrlMod)
+		clipboardContent = NewClipboard().Content()
+	})
+	assert.Equal(t, "Testing", clipboardContent)
 
-	e.SetText("Testing2")
-	e.DoubleTapped(nil)
+	runOnMain(func() {
+		e.SetText("Testing2")
+		e.DoubleTapped(nil)
+	})
 	assert.Equal(t, "Testing2", e.SelectedText())
 
 	// any other shortcut should be forbidden (Cut)
-	w.keyPressed(nil, glfw.KeyX, 0, glfw.Repeat, ctrlMod)
+	runOnMain(func() {
+		w.window.keyPressed(nil, glfw.KeyX, 0, glfw.Repeat, ctrlMod)
+		clipboardContent = NewClipboard().Content()
+	})
 
 	assert.Equal(t, "Testing2", e.Text)
-	assert.Equal(t, "Testing", NewClipboard().Content())
+	assert.Equal(t, "Testing", clipboardContent)
 
 	// any other shortcut should be forbidden (Paste)
-	w.keyPressed(nil, glfw.KeyV, 0, glfw.Repeat, ctrlMod)
+	runOnMain(func() {
+		w.window.keyPressed(nil, glfw.KeyV, 0, glfw.Repeat, ctrlMod)
+		clipboardContent = NewClipboard().Content()
+	})
 
 	assert.Equal(t, "Testing2", e.Text)
-	assert.Equal(t, "Testing", NewClipboard().Content())
+	assert.Equal(t, "Testing", clipboardContent)
 }
 
 func TestWindow_CloseInterception(t *testing.T) {

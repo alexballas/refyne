@@ -17,7 +17,6 @@ import (
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/internal/async"
-	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/painter"
 	"github.com/alexballas/refyne/v2/internal/painter/gl"
@@ -25,7 +24,7 @@ import (
 	"github.com/alexballas/refyne/v2/internal/svg"
 	"github.com/alexballas/refyne/v2/storage"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 )
 
 const (
@@ -61,6 +60,7 @@ func initCursors() {
 		desktop.VResizeCursor:   glfw.CreateStandardCursor(glfw.VResizeCursor),
 		desktop.HiddenCursor:    nil,
 	}
+	initWaylandDecorationCursors()
 }
 
 // Declare conformity to Window interface
@@ -68,6 +68,7 @@ var _ fyne.Window = (*window)(nil)
 
 type window struct {
 	viewport  *glfw.Window
+	frame     presentGate
 	created   bool
 	decorate  bool
 	closing   bool
@@ -100,6 +101,12 @@ type window struct {
 	mousePressed               fyne.CanvasObject
 	mouseClickCount            int
 	mouseCancelFunc            context.CancelFunc
+	waylandWindowMenuPressed   bool
+	// waylandResizeCursor is read and written only by the Wayland custom
+	// decorations (decorations_wayland.go). The window struct is shared across
+	// build tags, so it appears unused in non-Wayland builds.
+	//lint:ignore U1000 used only in Wayland builds; window struct is shared across build tags
+	waylandResizeCursor *glfw.Cursor
 
 	onClosed           func()
 	onCloseIntercepted func()
@@ -113,6 +120,13 @@ type window struct {
 	shouldWidth, shouldHeight       int
 	shouldExpand                    bool
 
+	// pendingResize coalesces interactive-resize configure events delivered to
+	// the resized callback; the latest size is applied once per frame in
+	// applyPendingResize. Used only on the Linux/BSD (xdg) coalescing path; the
+	// Windows/macOS path resizes synchronously and leaves these unused.
+	pendingResize                           bool
+	pendingResizeWidth, pendingResizeHeight int
+
 	pending []func()
 
 	lastWalkedTime time.Time
@@ -123,13 +137,17 @@ func (w *window) SetFullScreen(full bool) {
 
 	if w.view() != nil {
 		async.EnsureMain(func() {
+			// Fullscreen windows are square like native ones. No-op without
+			// Wayland CSD.
+			maximized := w.viewport.GetAttrib(glfw.Maximized) == glfw.True
+			w.canvas.setWindowCornersSquare(full || maximized)
 			w.doSetFullScreen(full)
 		})
 	}
 }
 
 func (w *window) CenterOnScreen() {
-	if build.IsWayland {
+	if runningWayland() {
 		return
 	}
 
@@ -180,7 +198,7 @@ func (w *window) doCenterOnScreen() {
 }
 
 func (w *window) RequestFocus() {
-	if build.IsWayland || w.view() == nil {
+	if runningWayland() || w.view() == nil {
 		return
 	}
 
@@ -189,7 +207,14 @@ func (w *window) RequestFocus() {
 
 func (w *window) SetIcon(icon fyne.Resource) {
 	w.icon = icon
-	if build.IsWayland {
+	if runningWayland() {
+		// Update the custom title bar (if drawn) and push the new icon to the
+		// compositor via xdg-toplevel-icon-v1.
+		if d, ok := w.canvas.decoration.(*windowDecoration); ok && d != nil {
+			d.icon.Resource = icon
+			d.icon.Refresh()
+		}
+		w.pushWaylandIcon()
 		return
 	}
 
@@ -256,6 +281,8 @@ func (w *window) fitContent() {
 			w.requestedHeight = w.shouldHeight
 		}
 		view.SetSizeLimits(w.requestedWidth, w.requestedHeight, w.requestedWidth, w.requestedHeight)
+		view.SetSize(w.requestedWidth, w.requestedHeight)
+		w.processResized(w.requestedWidth, w.requestedHeight)
 	} else {
 		view.SetSizeLimits(minWidth, minHeight, glfw.DontCare, glfw.DontCare)
 	}
@@ -282,7 +309,7 @@ func getScaledMonitorSize(monitor *glfw.Monitor) fyne.Size {
 }
 
 func (w *window) getMonitorForWindow() *glfw.Monitor {
-	if !build.IsWayland {
+	if !runningWayland() {
 		x, y := w.xpos, w.ypos
 		if w.fullScreen {
 			x, y = w.viewport.GetPos()
@@ -316,7 +343,7 @@ func (w *window) getMonitorForWindow() *glfw.Monitor {
 }
 
 func (w *window) detectScale() float32 {
-	if build.IsWayland { // Wayland controls scale through content scaling
+	if runningWayland() { // Wayland controls scale through content scaling
 		return 1
 	}
 
@@ -338,12 +365,12 @@ func (w *window) moved(_ *glfw.Window, x, y int) {
 	w.processMoved(x, y)
 }
 
-func (w *window) resized(_ *glfw.Window, width, height int) {
-	w.processResized(width, height)
-}
+// resized and applyPendingResize are platform-specific: Linux/BSD coalesces
+// interactive resizes (resize_coalesce.go), Windows/macOS applies them
+// synchronously in-callback (resize_sync.go). See those files for why.
 
 func (w *window) scaled(_ *glfw.Window, x float32, y float32) {
-	if !build.IsWayland { // other platforms handle this using older APIs
+	if !runningWayland() { // other platforms handle this using older APIs
 		return
 	}
 
@@ -407,6 +434,30 @@ func (w *window) mouseMoved(_ *glfw.Window, xpos, ypos float64) {
 }
 
 func (w *window) mouseClicked(_ *glfw.Window, btn glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
+	if runningWayland() {
+		if btn == glfw.MouseButton1 && action == glfw.Press && w.handleWaylandEdgeResize() {
+			// An interactive edge/corner resize was started; the compositor now
+			// drives it, so don't dispatch the click into the canvas.
+			return
+		}
+		if btn == glfw.MouseButtonRight {
+			switch action {
+			case glfw.Press:
+				w.waylandWindowMenuPressed = w.handleWaylandWindowMenu()
+				if w.waylandWindowMenuPressed {
+					// The compositor owns the title-bar window menu; don't
+					// dispatch the click into the canvas.
+					return
+				}
+			case glfw.Release:
+				if w.waylandWindowMenuPressed {
+					w.waylandWindowMenuPressed = false
+					return
+				}
+			}
+		}
+	}
+
 	button, modifiers := convertMouseButton(btn, mods)
 	mouseAction := convertAction(action)
 
@@ -703,6 +754,14 @@ func (w *window) focused(_ *glfw.Window, focused bool) {
 	w.processFocused(focused)
 }
 
+func (w *window) maximized(_ *glfw.Window, maximized bool) {
+	if d, ok := w.canvas.decoration.(*windowDecoration); ok && d != nil {
+		d.SetMaximized(maximized)
+	}
+	// Maximized windows are square like native ones. No-op without Wayland CSD.
+	w.canvas.setWindowCornersSquare(maximized || w.fullScreen)
+}
+
 func (w *window) DetachCurrentContext() {
 	glfw.DetachCurrentContext()
 }
@@ -735,7 +794,7 @@ func (w *window) RescaleContext() {
 }
 
 func (w *window) create() {
-	if !build.IsWayland {
+	if !runningWayland() {
 		// make the window hidden, we will set it up and then show it later
 		glfw.WindowHint(glfw.Visible, glfw.False)
 	}
@@ -751,6 +810,7 @@ func (w *window) create() {
 	}
 	glfw.WindowHint(glfw.AutoIconify, glfw.False)
 	initWindowHints()
+	applyWaylandWindowHints(w.decorate)
 
 	pixWidth, pixHeight := w.screenSize(w.canvas.size)
 	pixWidth = int(fyne.Max(float32(pixWidth), float32(w.width)))
@@ -777,6 +837,14 @@ func (w *window) create() {
 	w.RunWithContext(func() {
 		w.canvas.SetPainter(gl.NewPainter(w.canvas, w))
 		w.canvas.Painter().Init()
+
+		// On Wayland, presentability is driven by frame callbacks (see the
+		// presentGate); disable the EGL swap-interval throttle so the swap that
+		// lands as a window is hidden returns immediately instead of blocking
+		// on a frame callback that never arrives (issue #6080).
+		if runningWayland() {
+			glfw.SwapInterval(0)
+		}
 	})
 
 	w.setDarkMode()
@@ -793,6 +861,7 @@ func (w *window) create() {
 	win.SetKeyCallback(w.keyPressed)
 	win.SetCharCallback(w.charInput)
 	win.SetFocusCallback(w.focused)
+	win.SetMaximizeCallback(w.maximized)
 
 	w.canvas.detectedScale = w.detectScale()
 	w.canvas.scale = w.calculatedScale()

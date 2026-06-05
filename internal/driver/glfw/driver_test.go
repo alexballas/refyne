@@ -3,9 +3,11 @@
 package glfw
 
 import (
+	"image/color"
 	"testing"
 
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/widget"
@@ -130,4 +132,29 @@ func Test_gLDriver_AbsolutePositionForObject(t *testing.T) {
 			})
 		})
 	}
+}
+
+func Test_gLDriver_AbsolutePositionForObjectSubtractsDecorationInset(t *testing.T) {
+	w := createWindow("Test")
+	w.SetPadded(false)
+
+	content := canvas.NewRectangle(color.Black)
+	content.SetMinSize(fyne.NewSize(10, 10))
+	w.SetContent(content)
+	size := fyne.NewSize(300, 200)
+	w.Resize(size)
+	ensureCanvasSize(t, w, size)
+
+	decoration := canvas.NewRectangle(color.Transparent)
+	decoration.SetMinSize(fyne.NewSize(1, 32))
+	c := w.Canvas().glCanvas
+	runOnMain(func() {
+		c.setDecoration(decoration)
+	})
+	repaintWindow(w)
+
+	runOnMain(func() {
+		assert.Equal(t, fyne.NewPos(0, 32), content.Position())
+		assert.Equal(t, fyne.NewPos(0, 0), d.AbsolutePositionForObject(content))
+	})
 }

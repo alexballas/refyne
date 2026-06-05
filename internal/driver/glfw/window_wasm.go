@@ -44,6 +44,7 @@ var _ fyne.Window = (*window)(nil)
 
 type window struct {
 	viewport  *glfw.Window
+	frame     presentGate
 	created   bool
 	decorate  bool
 	closing   bool
@@ -162,6 +163,10 @@ func (w *window) resized(_ *glfw.Window, width, height int) {
 		w.processResized(width, height)
 	})
 }
+
+// applyPendingResize is a no-op on wasm: resize events are applied immediately
+// in resized above. The coalescing of interactive resizes is desktop-only.
+func (w *window) applyPendingResize() {}
 
 func (w *window) frameSized(_ *glfw.Window, width, height int) {
 	runOnMain(func() {

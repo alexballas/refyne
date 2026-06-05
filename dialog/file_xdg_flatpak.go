@@ -7,7 +7,6 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver"
-	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/lang"
 	"github.com/alexballas/refyne/v2/storage"
 
@@ -123,14 +122,16 @@ func fileSaveOSOverride(d *FileDialog) bool {
 
 func windowHandleForPortal(window fyne.Window) string {
 	windowHandle := ""
-	if !build.IsWayland {
-		window.(driver.NativeWindow).RunNative(func(context any) {
-			handle := context.(driver.X11WindowContext).WindowHandle
-			windowHandle = portal.FormatX11WindowHandle(handle)
-		})
-	}
+	// The default build compiles both backends and only knows the live platform
+	// at runtime, so switch on the actual context type rather than a build tag.
+	window.(driver.NativeWindow).RunNative(func(context any) {
+		if x11, ok := context.(driver.X11WindowContext); ok {
+			windowHandle = portal.FormatX11WindowHandle(x11.WindowHandle)
+		}
+		// TODO: We need to get the Wayland handle from the xdg_foreign protocol
+		// and convert to string on the form "wayland:{id}".
+	})
 
-	// TODO: We need to get the Wayland handle from the xdg_foreign protocol and convert to string on the form "wayland:{id}".
 	return windowHandle
 }
 

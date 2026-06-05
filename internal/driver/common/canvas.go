@@ -30,9 +30,10 @@ type Canvas struct {
 
 	impl SizeableCanvas
 
-	contentFocusMgr *app.FocusManager
-	menuFocusMgr    *app.FocusManager
-	overlays        overlayStack
+	contentFocusMgr    *app.FocusManager
+	menuFocusMgr       *app.FocusManager
+	decorationFocusMgr *app.FocusManager
+	overlays           overlayStack
 
 	shortcut fyne.ShortcutHandler
 
@@ -49,7 +50,7 @@ type Canvas struct {
 	refreshQueue deduplicatedObjectQueue
 	dirty        bool
 
-	mWindowHeadTree, contentTree, menuTree *renderCacheTree
+	mWindowHeadTree, contentTree, menuTree, decorationTree *renderCacheTree
 }
 
 // AddShortcut adds a shortcut to the canvas.
@@ -157,7 +158,7 @@ func (c *Canvas) Focus(obj fyne.Focusable) {
 		return
 	}
 
-	focusMgrs := append([]*app.FocusManager{c.contentFocusMgr, c.menuFocusMgr}, c.overlays.ListFocusManagers()...)
+	focusMgrs := append([]*app.FocusManager{c.contentFocusMgr, c.menuFocusMgr, c.decorationFocusMgr}, c.overlays.ListFocusManagers()...)
 
 	for _, mgr := range focusMgrs {
 		if mgr == nil {
@@ -250,19 +251,25 @@ func (c *Canvas) Initialize(impl SizeableCanvas, onOverlayChanged func()) {
 //
 // This function uses lock.
 func (c *Canvas) ObjectTrees() []fyne.CanvasObject {
-	var content, menu fyne.CanvasObject
+	var content, menu, decoration fyne.CanvasObject
 	if c.contentTree != nil && c.contentTree.root != nil {
 		content = c.contentTree.root.obj
 	}
 	if c.menuTree != nil && c.menuTree.root != nil {
 		menu = c.menuTree.root.obj
 	}
-	trees := make([]fyne.CanvasObject, 0, len(c.Overlays().List())+2)
+	if c.decorationTree != nil && c.decorationTree.root != nil {
+		decoration = c.decorationTree.root.obj
+	}
+	trees := make([]fyne.CanvasObject, 0, len(c.Overlays().List())+3)
 	trees = append(trees, content)
 	if menu != nil {
 		trees = append(trees, menu)
 	}
 	trees = append(trees, c.Overlays().List()...)
+	if decoration != nil {
+		trees = append(trees, decoration)
+	}
 	return trees
 }
 
@@ -328,6 +335,19 @@ func (c *Canvas) SetMenuTreeAndFocusMgr(menu fyne.CanvasObject) {
 	}
 }
 
+// SetDecorationTreeAndFocusMgr sets the client-side decoration (title bar) tree
+// and focus manager. Mirrors SetMenuTreeAndFocusMgr; used for Wayland CSD.
+//
+// This function does not use the canvas lock.
+func (c *Canvas) SetDecorationTreeAndFocusMgr(decoration fyne.CanvasObject) {
+	c.decorationTree = &renderCacheTree{root: &RenderCacheNode{obj: decoration}}
+	if decoration != nil {
+		c.decorationFocusMgr = app.NewFocusManager(decoration)
+	} else {
+		c.decorationFocusMgr = nil
+	}
+}
+
 // SetMobileWindowHeadTree sets window head tree.
 //
 // This function does not use the canvas lock.
@@ -372,6 +392,9 @@ func (c *Canvas) WalkTrees(
 		if tree != nil {
 			c.walkTree(tree, beforeChildren, afterChildren)
 		}
+	}
+	if c.decorationTree != nil && c.decorationTree.root.obj != nil {
+		c.walkTree(c.decorationTree, beforeChildren, afterChildren)
 	}
 }
 

@@ -4,15 +4,24 @@ package glfw
 
 import (
 	fyne "github.com/alexballas/refyne/v2"
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 )
 
 func (d *gLDriver) initGLFW() {
+	// TEMPORARY: disable libdecor for Wayland window decorations (GLFW 3.4).
+	// Must be called before glfw.Init(); ignored on non-Wayland platforms.
+	glfw.InitHint(glfw.WaylandLibdecor, glfw.WaylandDisableLibdecor)
+
 	err := glfw.Init()
 	if err != nil {
 		fyne.LogError("failed to initialise GLFW", err)
 		return
 	}
+
+	// Record the backend GLFW actually selected. In the default build both X11
+	// and Wayland are compiled in, so this is the only reliable signal of which
+	// one is live. Must run before initCursors (it sets up Wayland-only cursors).
+	waylandRuntime = glfw.GetPlatform() == glfw.PlatformWayland
 
 	initCursors()
 }

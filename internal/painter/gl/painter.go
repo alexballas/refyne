@@ -19,6 +19,16 @@ type Painter interface {
 	Capture(fyne.Canvas) image.Image
 	// Clear tells our painter to prepare a fresh paint
 	Clear()
+	// SetTransparentBackground makes Clear use a transparent black background.
+	// Wayland presents ARGB buffers with premultiplied alpha, so RGB must also be
+	// zero wherever alpha is zero.
+	SetTransparentBackground(bool)
+	// SetPreserveFramebufferAlpha keeps the framebuffer alpha channel opaque
+	// where content is drawn. Required for windows presented on an
+	// alpha-capable (ARGB) surface — e.g. Wayland client-side decorations —
+	// so that straight-alpha blending of semi-transparent content does not
+	// erode the surface alpha and leave those areas see-through.
+	SetPreserveFramebufferAlpha(bool)
 	// Free is used to indicate that a certain canvas object is no longer needed
 	Free(fyne.CanvasObject)
 	// Paint a single fyne.CanvasObject but not its children.
@@ -54,6 +64,8 @@ type painter struct {
 	bezierCurveProgram    ProgramState
 	texScale              float32
 	pixScale              float32 // pre-calculate scale*texScale for each draw
+	transparentBackground bool
+	preserveAlpha         bool
 }
 
 type ProgramState struct {
@@ -109,7 +121,37 @@ func (p *painter) UpdateVertexArray(pState ProgramState, name string, size, stri
 // Declare conformity to Painter interface
 var _ Painter = (*painter)(nil)
 
+func (p *painter) SetTransparentBackground(transparent bool) {
+	p.transparentBackground = transparent
+}
+
+func (p *painter) SetPreserveFramebufferAlpha(preserve bool) {
+	p.preserveAlpha = preserve
+}
+
+// blendFunc applies the requested colour blend factors. When rendering to an
+// alpha-capable surface (transparent background, or an ARGB Wayland surface),
+// the alpha channel is blended separately with (ONE, ONE_MINUS_SRC_ALPHA) so it
+// accumulates toward opaque: drawing opaque content yields alpha 1 and
+// semi-transparent content over an opaque body keeps alpha 1, while areas with
+// nothing drawn (the rounded corners) stay fully transparent. The colour
+// channels are unaffected, so visuals are identical to the plain BlendFunc.
+func (p *painter) blendFunc(srcFactor, dstFactor uint32) {
+	if p.preserveAlpha || p.transparentBackground {
+		p.ctx.BlendFuncSeparate(srcFactor, dstFactor, one, oneMinusSrcAlpha)
+		return
+	}
+	p.ctx.BlendFunc(srcFactor, dstFactor)
+}
+
 func (p *painter) Clear() {
+	if p.transparentBackground {
+		p.ctx.ClearColor(0, 0, 0, 0)
+		p.ctx.Clear(bitColorBuffer | bitDepthBuffer)
+		p.logError()
+		return
+	}
+
 	r, g, b, a := theme.Color(theme.ColorNameBackground).RGBA()
 	p.ctx.ClearColor(float32(r)/max16bit, float32(g)/max16bit, float32(b)/max16bit, float32(a)/max16bit)
 	p.ctx.Clear(bitColorBuffer | bitDepthBuffer)

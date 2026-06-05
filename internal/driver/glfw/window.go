@@ -14,7 +14,6 @@ import (
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/async"
-	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/driver"
 	"github.com/alexballas/refyne/v2/internal/driver/common"
@@ -154,18 +153,25 @@ func (w *window) Show() {
 		view := w.view()
 		view.SetTitle(w.title)
 
-		if !build.IsWayland && w.centered {
+		if !runningWayland() && w.centered {
 			w.doCenterOnScreen() // lastly center if that was requested
 		}
 		view.Show()
 
 		// save coordinates
-		if !build.IsWayland {
+		if !runningWayland() {
 			w.xpos, w.ypos = view.GetPos()
 		}
 
 		if w.fullScreen { // this does not work if called before viewport.Show()
 			w.doSetFullScreen(true)
+		}
+
+		if runningWayland() {
+			// Now the surface is shown the compositor can report its decoration
+			// mode; decide SSD vs custom decorations and push the app icon.
+			w.setupWaylandDecorations()
+			w.pushWaylandIcon()
 		}
 
 		// show top canvas element
@@ -230,6 +236,12 @@ func (w *window) SetContent(content fyne.CanvasObject) {
 	w.canvas.SetContent(content)
 
 	async.EnsureMain(func() {
+		if w.fixedSize {
+			w.fitContent()
+			if !w.centered {
+				w.processResized(w.width, w.height)
+			}
+		}
 		w.RunWithContext(w.RescaleContext)
 	})
 }
@@ -250,6 +262,7 @@ func (w *window) processClosed() {
 // destroy this window and, if it's the last window quit the app
 func (w *window) destroy(d *gLDriver) {
 	cache.CleanCanvas(w.canvas)
+	w.frame.free()
 
 	if w.master {
 		d.Quit()
@@ -320,7 +333,11 @@ func (w *window) processRefresh() {
 }
 
 func (w *window) findObjectAtPositionMatching(canvas *glCanvas, mouse fyne.Position, matches func(object fyne.CanvasObject) bool) (fyne.CanvasObject, fyne.Position, int) {
-	return driver.FindObjectAtPositionMatching(mouse, matches, canvas.Overlays().Top(), canvas.menu, canvas.Content())
+	if pointInWindowDecoration(canvas, mouse) {
+		return driver.FindObjectAtPositionMatching(mouse, matches, nil, canvas.decoration)
+	}
+
+	return driver.FindObjectAtPositionMatching(mouse, matches, canvas.Overlays().Top(), canvas.menu, canvas.decoration, canvas.Content())
 }
 
 func (w *window) processMouseMoved(xpos float64, ypos float64) {
@@ -357,6 +374,7 @@ func (w *window) processMouseMoved(xpos float64, ypos float64) {
 		}
 		w.setCustomCursor(rawCursor, isCustomCursor)
 	}
+	w.updateWaylandResizeCursor()
 
 	if w.mouseButton != 0 && w.mouseButton != desktop.MouseButtonSecondary && !w.mouseDragStarted {
 		obj, pos, _ := w.findObjectAtPositionMatching(w.canvas, previousPos, func(object fyne.CanvasObject) bool {
@@ -742,6 +760,13 @@ func (w *window) processFocused(focus bool) {
 		}
 		curWindow = w
 		w.canvas.FocusGained()
+
+		// Backstop for issue #6080: if a compositor discarded a pending frame
+		// callback while the window was hidden instead of firing it on return,
+		// force the surface presentable again and request a repaint so updates
+		// resume even in that pathological case. No-op off Wayland.
+		w.frame.markReady()
+		w.canvas.SetDirty()
 	} else {
 		w.canvas.FocusLost()
 		w.mousePos = fyne.Position{}
@@ -952,7 +977,7 @@ func (d *gLDriver) createWindow(title string, decorate bool) fyne.Window {
 
 	d.init()
 
-	ret = &window{title: title, decorate: decorate, driver: d}
+	ret = &window{title: title, decorate: decorate, driver: d, frame: newPresentGate()}
 	ret.canvas = newCanvas()
 	ret.canvas.context = ret
 	ret.SetIcon(ret.icon)
@@ -966,7 +991,7 @@ func (w *window) doShowAgain() {
 	}
 
 	view := w.view()
-	if !build.IsWayland {
+	if !runningWayland() {
 		view.SetPos(w.xpos, w.ypos)
 	}
 	view.Show()
@@ -974,6 +999,11 @@ func (w *window) doShowAgain() {
 
 	if w.fullScreen {
 		w.doSetFullScreen(true)
+	}
+
+	if runningWayland() {
+		w.setupWaylandDecorations()
+		w.pushWaylandIcon()
 	}
 
 	w.RunWithContext(func() {

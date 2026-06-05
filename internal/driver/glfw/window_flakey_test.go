@@ -8,7 +8,7 @@ import (
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/widget"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 	"github.com/stretchr/testify/assert"
 )
 

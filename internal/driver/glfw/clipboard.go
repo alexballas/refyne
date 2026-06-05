@@ -4,11 +4,12 @@ package glfw
 
 import (
 	"runtime"
+	"sync"
 	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 )
 
 // Declare conformity with Clipboard interface
@@ -20,6 +21,12 @@ func NewClipboard() fyne.Clipboard {
 
 // clipboard represents the system clipboard
 type clipboard struct{}
+
+var clipboardCache = struct {
+	sync.Mutex
+	content string
+	set     bool
+}{}
 
 // Content returns the clipboard content
 func (c clipboard) Content() string {
@@ -39,7 +46,17 @@ func (c clipboard) Content() string {
 }
 
 func (c clipboard) content() string {
-	return glfw.GetClipboardString()
+	content := glfw.GetClipboardString()
+	if content != "" {
+		return content
+	}
+
+	clipboardCache.Lock()
+	defer clipboardCache.Unlock()
+	if clipboardCache.set {
+		return clipboardCache.content
+	}
+	return ""
 }
 
 // SetContent sets the clipboard content
@@ -60,5 +77,10 @@ func (c clipboard) SetContent(content string) {
 }
 
 func (c clipboard) setContent(content string) {
+	clipboardCache.Lock()
+	clipboardCache.content = content
+	clipboardCache.set = true
+	clipboardCache.Unlock()
+
 	glfw.SetClipboardString(content)
 }
