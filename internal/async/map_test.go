@@ -1,6 +1,7 @@
 package async_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/alexballas/refyne/v2/internal/async"
@@ -64,6 +65,19 @@ func TestMap_ClearAndDelete(t *testing.T) {
 	assert.Equal(t, 1, m.Len())
 }
 
+func TestMap_RangeAllowsDelete(t *testing.T) {
+	m := async.Map[int, string]{}
+	m.Store(10, "ten")
+	m.Store(11, "eleven")
+
+	m.Range(func(key int, _ string) bool {
+		m.Delete(key)
+		return true
+	})
+
+	assert.Equal(t, 0, m.Len())
+}
+
 func TestMap_CombinedLoad(t *testing.T) {
 	m := async.Map[int, *string]{}
 
@@ -97,4 +111,29 @@ func TestMap_CombinedLoad(t *testing.T) {
 	actual, ok = m.LoadAndDelete(1)
 	assert.Equal(t, &str, actual)
 	assert.True(t, ok)
+}
+
+func TestMap_ConcurrentAccess(t *testing.T) {
+	m := async.Map[int, int]{}
+	var wg sync.WaitGroup
+
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+
+			for j := 0; j < 100; j++ {
+				key := id*100 + j
+				m.Store(key, j)
+				m.Load(key)
+				m.Range(func(key, value int) bool {
+					return true
+				})
+				m.LoadOrStore(key, j)
+				m.LoadAndDelete(key)
+			}
+		}(i)
+	}
+
+	wg.Wait()
 }
