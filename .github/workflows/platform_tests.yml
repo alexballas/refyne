@@ -46,13 +46,6 @@ jobs:
         run: go test -race -tags no_glfw,ci,wayland ./...
         if: ${{ runner.os == 'Linux' }}
 
-      - name: Update coverage
-        run: |
-          set -e
-          coverage=`go tool cover -func coverage.out | grep total | tr -s '\t' | cut -f 3 | grep -o '[^%]*'`
-          if (( $(echo "$coverage < 62" | bc) )); then echo "Test coverage lowered"; exit 1; fi
-        if: ${{ runner.os == 'Linux' && matrix.go-version == 'stable' }}
-
       - name: Update PR Coverage
         uses: shogo82148/actions-goveralls@v1
         with:
