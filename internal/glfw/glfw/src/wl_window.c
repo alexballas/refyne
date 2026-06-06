@@ -196,6 +196,16 @@ static struct wl_buffer* createShmBuffer(const GLFWimage* image)
     return buffer;
 }
 
+static void callbackHandleDone(void* userData, struct wl_callback* callback, uint32_t data)
+{
+    wl_callback_destroy(callback);
+}
+
+static const struct wl_callback_listener noopCallbackListener =
+{
+    callbackHandleDone
+};
+
 static void createFallbackEdge(_GLFWwindow* window,
                                _GLFWfallbackEdgeWayland* edge,
                                struct wl_surface* parent,
@@ -1417,6 +1427,7 @@ static char* readDataOfferAsString(struct wl_data_offer* offer, const char* mime
             if (!longer)
             {
                 _glfwInputError(GLFW_OUT_OF_MEMORY, NULL);
+                _glfw_free(string);
                 close(fds[0]);
                 return NULL;
             }
@@ -1436,6 +1447,7 @@ static char* readDataOfferAsString(struct wl_data_offer* offer, const char* mime
             _glfwInputError(GLFW_PLATFORM_ERROR,
                             "Wayland: Failed to read from data offer pipe: %s",
                             strerror(errno));
+            _glfw_free(string);
             close(fds[0]);
             return NULL;
         }
@@ -2377,6 +2389,12 @@ void _glfwDestroyWindowWayland(_GLFWwindow* window)
     if (window == _glfw.wl.keyboardFocus)
         _glfw.wl.keyboardFocus = NULL;
 
+    if (window->wl.fractionalScale)
+        wp_fractional_scale_v1_destroy(window->wl.fractionalScale);
+
+    if (window->wl.scalingViewport)
+        wp_viewport_destroy(window->wl.scalingViewport);
+
     if (window->wl.activationToken)
         xdg_activation_token_v1_destroy(window->wl.activationToken);
 
@@ -2852,7 +2870,9 @@ void _glfwWaitEventsTimeoutWayland(double timeout)
 
 void _glfwPostEmptyEventWayland(void)
 {
-    wl_display_sync(_glfw.wl.display);
+    struct wl_callback* callback = wl_display_sync(_glfw.wl.display);
+    wl_callback_add_listener(callback, &noopCallbackListener, NULL);
+
     flushDisplay();
 }
 
@@ -3156,7 +3176,14 @@ static void lockPointer(_GLFWwindow* window)
     if (!_glfw.wl.relativePointerManager)
     {
         _glfwInputError(GLFW_FEATURE_UNAVAILABLE,
-                        "Wayland: The compositor does not support pointer locking");
+                        "Wayland: The compositor does not support relative pointer motion");
+        return;
+    }
+
+    if (!_glfw.wl.pointerConstraints)
+    {
+        _glfwInputError(GLFW_FEATURE_UNAVAILABLE,
+                        "Wayland: The compositor does not support locking the pointer");
         return;
     }
 
@@ -3207,6 +3234,13 @@ static const struct zwp_confined_pointer_v1_listener confinedPointerListener =
 
 static void confinePointer(_GLFWwindow* window)
 {
+    if (!_glfw.wl.pointerConstraints)
+    {
+        _glfwInputError(GLFW_FEATURE_UNAVAILABLE,
+                        "Wayland: The compositor does not support confining the pointer");
+        return;
+    }
+
     window->wl.confinedPointer =
         zwp_pointer_constraints_v1_confine_pointer(
             _glfw.wl.pointerConstraints,

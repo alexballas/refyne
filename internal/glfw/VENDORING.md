@@ -13,6 +13,23 @@ Local patches (re-apply after any re-sync):
 - glfw/src/file_transfer_portal.[ch] + glfw/src/wl_*.c + glfw/src/x11_*.c + c_glfw.go — optional runtime-loaded DBus support for FileTransfer portal drops, based on glfw/glfw#2763 and extended to X11
 - build_cgo_hack.go — retain the root glfw/include package so go mod vendor exports generated Wayland protocol headers
 
+Backported upstream fixes (post-3.4 glfw/glfw master; drop when re-syncing to a
+base that already contains them — check GLFW_C_REVISION.txt against each SHA):
+- 42dc1ff — Wayland: free fractionalScale/scalingViewport in _glfwDestroyWindowWayland (leak)
+- 3573c5a — Wayland: create keyRepeatTimerfd in the wl_seat registry handler instead of
+  _glfwInitWayland, so glfwInit no longer segfaults on a compositor with no seat (#2517)
+- ac10768 — Wayland: free the partial buffer when reading a data offer fails midway (leak)
+- 1ce855b — Wayland: bail out of lockPointer/confinePointer when pointer-constraints-unstable-v1
+  is absent. NOTE: includes a deliberate deviation — we add the `return;` that upstream omits,
+  since without it the guarded path still calls *_lock/confine_pointer(NULL) and segfaults.
+- bb80481 — Wayland: destroy the wl_callback proxy from glfwPostEmptyEvent via a no-op listener (#2836, leak)
+- 162896e + b579ea6 — Wayland: defer freeing all dynamically loaded modules (libdecor, wayland-egl,
+  xkbcommon, wayland-cursor, libEGL, libwayland-client) to the end of _glfwTerminateWayland,
+  after wl_display_disconnect and proxy teardown (#2744). Pairs with the egl_context.c guard
+  `&& _glfw.platform.platformID != GLFW_PLATFORM_WAYLAND` in _glfwTerminateEGL.
+- Skipped 50b0a13 (depends on the unapplied EGL-swap fix fdd14e65) and the drag-enter NULL guard
+  51b6434 (already covered by refyne's portal rewrite of dataDeviceHandleEnter).
+
 Re-sync procedure: recopy upstream over this dir, delete go.mod/go.sum,
 then re-apply the patches above (they are isolated to the listed files
 except the wl_init.c registry binding).
