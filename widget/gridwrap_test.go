@@ -360,3 +360,40 @@ func createGridWrapWithMin(items int, min fyne.Size) *GridWrap {
 	list.Resize(fyne.NewSize(200, 200))
 	return list
 }
+
+func TestGridWrap_OnReturn(t *testing.T) {
+	g := createGridWrap(100)
+	g.currentHighlight = 5
+
+	got := -1
+	g.OnReturn = func(id GridWrapItemID) { got = id }
+
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	assert.Equal(t, 5, got)
+
+	got = -1
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})
+	assert.Equal(t, 5, got)
+}
+
+func TestGridWrap_SetHighlight(t *testing.T) {
+	g := createGridWrap(100)
+
+	highlighted := -1
+	g.OnHighlighted = func(id GridWrapItemID) { highlighted = id }
+
+	g.SetHighlight(7)
+	assert.Equal(t, 7, g.currentHighlight)
+	assert.Equal(t, 7, highlighted)
+
+	// Selecting via the keyboard now acts on the moved highlight.
+	selected := -1
+	g.OnSelected = func(id GridWrapItemID) { selected = id }
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	assert.Equal(t, 7, selected)
+
+	// Out-of-range ids are ignored.
+	g.SetHighlight(-1)
+	g.SetHighlight(1000)
+	assert.Equal(t, 7, g.currentHighlight)
+}

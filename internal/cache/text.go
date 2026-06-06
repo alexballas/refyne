@@ -57,6 +57,11 @@ func SetFontMetrics(text string, fontSize float32, style fyne.TextStyle, source 
 	fontSizeCache.Store(ent, metric)
 }
 
+// ClearFontMetrics clears cached font metrics for tests and benchmarks.
+func ClearFontMetrics() {
+	fontSizeCache.Clear()
+}
+
 // destroyExpiredFontMetrics destroys expired fontSizeCache entries
 func destroyExpiredFontMetrics(now time.Time) {
 	fontSizeCache.Range(func(k fontSizeEntry, v *fontMetric) bool {

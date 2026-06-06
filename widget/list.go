@@ -65,6 +65,13 @@ type List struct {
 	// Since: 2.8
 	OnHighlighted func(id ListItemID) `json:"-"`
 
+	// OnReturn is a callback invoked when the Return/Enter key is pressed while
+	// this List is focused. The currently highlighted item ID is passed so the
+	// parent can act on it (e.g. to confirm a selection).
+	//
+	// Since: 2.8
+	OnReturn func(id ListItemID) `json:"-"`
+
 	currentHighlight ListItemID
 	focused          bool
 	scroller         *widget.Scroll
@@ -136,6 +143,31 @@ func (l *List) FocusGained() {
 func (l *List) FocusLost() {
 	l.focused = false
 	l.RefreshItem(l.currentHighlight)
+}
+
+// SetHighlight moves the keyboard navigation cursor to the item identified by
+// id without changing the selection. It keeps keyboard focus in sync with a
+// selection made via the pointer, so subsequent arrow-key navigation continues
+// from the expected position.
+//
+// Since: 2.8
+func (l *List) SetHighlight(id ListItemID) {
+	length := 0
+	if f := l.Length; f != nil {
+		length = f()
+	}
+	if id < 0 || id >= length || l.currentHighlight == id {
+		return
+	}
+
+	old := l.currentHighlight
+	l.currentHighlight = id
+	l.RefreshItem(old)
+	l.scrollTo(id)
+	l.RefreshItem(id)
+	if f := l.OnHighlighted; f != nil {
+		f(id)
+	}
 }
 
 // MinSize returns the size that this widget should not shrink below.
@@ -314,6 +346,10 @@ func (l *List) TypedKey(event *fyne.KeyEvent) {
 	switch event.Name {
 	case fyne.KeySpace:
 		l.Select(l.currentHighlight)
+	case fyne.KeyReturn, fyne.KeyEnter:
+		if f := l.OnReturn; f != nil {
+			f(l.currentHighlight)
+		}
 	case fyne.KeyDown:
 		if f := l.Length; f != nil && l.currentHighlight >= f()-1 {
 			return

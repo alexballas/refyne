@@ -114,6 +114,11 @@ type HyperlinkSegment struct {
 	//
 	// Since: 2.4
 	OnTapped func() `json:"-"`
+
+	// Since: 2.8
+	TextStyle fyne.TextStyle
+	// Since: 2.8
+	SizeName fyne.ThemeSizeName // The theme name of the text size to use, if blank will be the standard text size
 }
 
 // Inline returns true as hyperlinks are inside other elements.
@@ -130,6 +135,8 @@ func (h *HyperlinkSegment) Textual() string {
 func (h *HyperlinkSegment) Visual() fyne.CanvasObject {
 	link := NewHyperlink(h.Text, h.URL)
 	link.Alignment = h.Alignment
+	link.SizeName = h.SizeName
+	link.TextStyle = h.TextStyle
 	link.OnTapped = h.OnTapped
 	return &fyne.Container{Layout: &unpadTextWidgetLayout{parent: link}, Objects: []fyne.CanvasObject{link}}
 }
@@ -140,6 +147,8 @@ func (h *HyperlinkSegment) Update(o fyne.CanvasObject) {
 	link.Text = h.Text
 	link.URL = h.URL
 	link.Alignment = h.Alignment
+	link.SizeName = h.SizeName
+	link.TextStyle = h.TextStyle
 	link.OnTapped = h.OnTapped
 	link.Refresh()
 }

@@ -36,6 +36,8 @@ var (
 	loaded       bool
 )
 
+var shaper = &shaping.HarfbuzzShaper{}
+
 func loadMap() {
 	loaded = true
 
@@ -267,7 +269,6 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 		Face:      faces.ResolveFace(' '),
 		Size:      textSize,
 	}
-	shaper := &shaping.HarfbuzzShaper{}
 	segmenter := &shaping.Segmenter{}
 	out := shaper.Shape(in)
 
@@ -289,7 +290,7 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 			if r == '\t' {
 				if pending {
 					in.RunEnd = i
-					x = shapeCallback(shaper, in, x, scale, cb)
+					x = shapeCallback(in, x, scale, cb)
 				}
 				x = tabStop(spacew, x, style.TabWidth)
 
@@ -301,7 +302,7 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 			}
 		}
 
-		x = shapeCallback(shaper, in, x, scale, cb)
+		x = shapeCallback(in, x, scale, cb)
 	}
 
 	*advance = x
@@ -309,7 +310,7 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 		fixed266ToFloat32(out.LineBounds.Ascent)
 }
 
-func shapeCallback(shaper shaping.Shaper, in shaping.Input, x, scale float32, cb func(shaping.Output, float32)) float32 {
+func shapeCallback(in shaping.Input, x, scale float32, cb func(shaping.Output, float32)) float32 {
 	out := shaper.Shape(in)
 	glyphs := out.Glyphs
 	start := 0

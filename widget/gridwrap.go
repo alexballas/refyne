@@ -60,6 +60,13 @@ type GridWrap struct {
 	// Since: 2.8
 	OnHighlighted func(id GridWrapItemID) `json:"-"`
 
+	// OnReturn is a callback invoked when the Return/Enter key is pressed while
+	// this GridWrap is focused. The currently highlighted item ID is passed so
+	// the parent can act on it (e.g. to confirm a selection).
+	//
+	// Since: 2.8
+	OnReturn func(id GridWrapItemID) `json:"-"`
+
 	// StretchItems, when true, stretches items horizontally to fill the
 	// available width evenly across columns. This avoids gaps on the right
 	// side when the viewport width doesn't divide evenly by item width.
@@ -138,6 +145,31 @@ func (l *GridWrap) FocusGained() {
 func (l *GridWrap) FocusLost() {
 	l.focused = false
 	l.RefreshItem(l.currentHighlight)
+}
+
+// SetHighlight moves the keyboard navigation cursor to the item identified by
+// id without changing the selection. It keeps keyboard focus in sync with a
+// selection made via the pointer, so subsequent arrow-key navigation continues
+// from the expected position.
+//
+// Since: 2.8
+func (l *GridWrap) SetHighlight(id GridWrapItemID) {
+	length := 0
+	if f := l.Length; f != nil {
+		length = f()
+	}
+	if id < 0 || id >= length || l.currentHighlight == id {
+		return
+	}
+
+	old := l.currentHighlight
+	l.currentHighlight = id
+	l.RefreshItem(old)
+	l.scrollTo(id)
+	l.RefreshItem(id)
+	if f := l.OnHighlighted; f != nil {
+		f(id)
+	}
 }
 
 // MinSize returns the size that this widget should not shrink below.
@@ -273,6 +305,10 @@ func (l *GridWrap) TypedKey(event *fyne.KeyEvent) {
 	switch event.Name {
 	case fyne.KeySpace:
 		l.Select(l.currentHighlight)
+	case fyne.KeyReturn, fyne.KeyEnter:
+		if f := l.OnReturn; f != nil {
+			f(l.currentHighlight)
+		}
 	case fyne.KeyDown:
 		count := 0
 		if f := l.Length; f != nil {

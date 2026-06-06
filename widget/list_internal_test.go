@@ -715,3 +715,40 @@ func BenchmarkContentMinSize(b *testing.B) {
 
 	minSize = min
 }
+
+func TestList_OnReturn(t *testing.T) {
+	l := createList(100)
+	l.currentHighlight = 5
+
+	got := -1
+	l.OnReturn = func(id ListItemID) { got = id }
+
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	assert.Equal(t, 5, got)
+
+	got = -1
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})
+	assert.Equal(t, 5, got)
+}
+
+func TestList_SetHighlight(t *testing.T) {
+	l := createList(100)
+
+	highlighted := -1
+	l.OnHighlighted = func(id ListItemID) { highlighted = id }
+
+	l.SetHighlight(7)
+	assert.Equal(t, 7, l.currentHighlight)
+	assert.Equal(t, 7, highlighted)
+
+	// Selecting via the keyboard now acts on the moved highlight.
+	selected := -1
+	l.OnSelected = func(id ListItemID) { selected = id }
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	assert.Equal(t, 7, selected)
+
+	// Out-of-range ids are ignored.
+	l.SetHighlight(-1)
+	l.SetHighlight(1000)
+	assert.Equal(t, 7, l.currentHighlight)
+}
