@@ -397,3 +397,37 @@ func TestGridWrap_SetHighlight(t *testing.T) {
 	g.SetHighlight(1000)
 	assert.Equal(t, 7, g.currentHighlight)
 }
+
+func TestGridWrap_OnKeyboardNavigated(t *testing.T) {
+	g := createGridWrap(100)
+
+	navID := -1
+	navMods := fyne.KeyModifier(99)
+	navCalls := 0
+	g.OnKeyboardNavigated = func(id GridWrapItemID, modifiers fyne.KeyModifier) {
+		navID = id
+		navMods = modifiers
+		navCalls++
+	}
+
+	// Arrow movement fires the callback with the destination id. The test driver
+	// reports no modifiers.
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	assert.Equal(t, 1, g.currentHighlight)
+	assert.Equal(t, 1, navID)
+	assert.Equal(t, fyne.KeyModifier(0), navMods)
+	assert.Equal(t, 1, navCalls)
+
+	// Space (selection) and Return (confirm) are not navigation and must not fire
+	// the callback.
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	assert.Equal(t, 1, navCalls)
+
+	// A no-op arrow at the boundary does not move the highlight, so it does not
+	// fire the callback either.
+	g.currentHighlight = 0
+	navCalls = 0
+	g.TypedKey(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	assert.Equal(t, 0, navCalls)
+}

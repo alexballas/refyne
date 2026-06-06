@@ -72,6 +72,16 @@ type List struct {
 	// Since: 2.8
 	OnReturn func(id ListItemID) `json:"-"`
 
+	// OnKeyboardNavigated is a callback invoked when an arrow key moves the
+	// keyboard highlight cursor to a new item. Unlike OnHighlighted it fires only
+	// for keyboard movement (never for pointer hover or focus changes) and reports
+	// the keyboard modifiers held during the keypress, so the parent can implement
+	// file-manager style selection: a plain arrow can replace the selection, Shift
+	// can extend a range, and Ctrl can move the cursor without selecting.
+	//
+	// Since: 2.8
+	OnKeyboardNavigated func(id ListItemID, modifiers fyne.KeyModifier) `json:"-"`
+
 	currentHighlight ListItemID
 	focused          bool
 	scroller         *widget.Scroll
@@ -371,6 +381,9 @@ func (l *List) TypedKey(event *fyne.KeyEvent) {
 	if oldFocus != l.currentHighlight {
 		if f := l.OnHighlighted; f != nil {
 			f(l.currentHighlight)
+		}
+		if f := l.OnKeyboardNavigated; f != nil {
+			f(l.currentHighlight, currentKeyboardModifiers())
 		}
 	}
 }

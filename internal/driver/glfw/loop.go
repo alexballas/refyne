@@ -139,11 +139,18 @@ func (d *gLDriver) runGL() {
 		f()
 	}
 
-	eventTick := time.NewTicker(time.Second / 60)
+	// Drive the loop at the display's refresh rate rather than a fixed 60 Hz so
+	// resizing and animation stay smooth on high-refresh monitors. rateTick
+	// re-evaluates this once a second to pick up monitor hotplug / mode changes
+	// (e.g. docking a laptop to a 144 Hz screen).
+	frameInterval := d.frameInterval()
+	eventTick := time.NewTicker(frameInterval)
+	rateTick := time.NewTicker(time.Second)
 	for {
 		select {
 		case <-d.done:
 			eventTick.Stop()
+			rateTick.Stop()
 			d.Terminate()
 			l := fyne.CurrentApp().Lifecycle().(*app.Lifecycle)
 			if f := l.OnStopped(); f != nil {
@@ -164,6 +171,11 @@ func (d *gLDriver) runGL() {
 			f.f()
 			if f.done != nil {
 				f.done <- struct{}{}
+			}
+		case <-rateTick.C:
+			if interval := d.frameInterval(); interval != frameInterval {
+				frameInterval = interval
+				eventTick.Reset(interval)
 			}
 		case <-eventTick.C:
 			d.pollEvents()

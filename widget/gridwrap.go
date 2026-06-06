@@ -60,6 +60,16 @@ type GridWrap struct {
 	// Since: 2.8
 	OnHighlighted func(id GridWrapItemID) `json:"-"`
 
+	// OnKeyboardNavigated is a callback invoked when an arrow key moves the
+	// keyboard highlight cursor to a new item. Unlike OnHighlighted it fires only
+	// for keyboard movement (never for pointer hover or focus changes) and reports
+	// the keyboard modifiers held during the keypress, so the parent can implement
+	// file-manager style selection: a plain arrow can replace the selection, Shift
+	// can extend a range, and Ctrl can move the cursor without selecting.
+	//
+	// Since: 2.8
+	OnKeyboardNavigated func(id GridWrapItemID, modifiers fyne.KeyModifier) `json:"-"`
+
 	// OnReturn is a callback invoked when the Return/Enter key is pressed while
 	// this GridWrap is focused. The currently highlighted item ID is passed so
 	// the parent can act on it (e.g. to confirm a selection).
@@ -356,7 +366,21 @@ func (l *GridWrap) TypedKey(event *fyne.KeyEvent) {
 		if f := l.OnHighlighted; f != nil {
 			f(l.currentHighlight)
 		}
+		if f := l.OnKeyboardNavigated; f != nil {
+			f(l.currentHighlight, currentKeyboardModifiers())
+		}
 	}
+}
+
+// currentKeyboardModifiers reports the keyboard modifiers currently held,
+// querying the desktop driver. It returns 0 on drivers that don't track
+// modifiers (e.g. mobile or the test driver), so callers can treat the absence
+// of modifier information as "no modifier".
+func currentKeyboardModifiers() fyne.KeyModifier {
+	if drv, ok := fyne.CurrentApp().Driver().(desktop.Driver); ok {
+		return drv.CurrentKeyModifiers()
+	}
+	return 0
 }
 
 // TypedRune is called if a text event happens while this GridWrap is focused.

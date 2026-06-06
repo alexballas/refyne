@@ -752,3 +752,37 @@ func TestList_SetHighlight(t *testing.T) {
 	l.SetHighlight(1000)
 	assert.Equal(t, 7, l.currentHighlight)
 }
+
+func TestList_OnKeyboardNavigated(t *testing.T) {
+	l := createList(100)
+
+	navID := -1
+	navMods := fyne.KeyModifier(99)
+	navCalls := 0
+	l.OnKeyboardNavigated = func(id ListItemID, modifiers fyne.KeyModifier) {
+		navID = id
+		navMods = modifiers
+		navCalls++
+	}
+
+	// Arrow movement fires the callback with the destination id. The test driver
+	// reports no modifiers.
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	assert.Equal(t, 1, l.currentHighlight)
+	assert.Equal(t, 1, navID)
+	assert.Equal(t, fyne.KeyModifier(0), navMods)
+	assert.Equal(t, 1, navCalls)
+
+	// Space (selection) and Return (confirm) are not navigation and must not fire
+	// the callback.
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	assert.Equal(t, 1, navCalls)
+
+	// A no-op arrow at the boundary does not move the highlight, so it does not
+	// fire the callback either.
+	l.currentHighlight = 0
+	navCalls = 0
+	l.TypedKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	assert.Equal(t, 0, navCalls)
+}
