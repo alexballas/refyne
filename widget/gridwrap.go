@@ -77,6 +77,14 @@ type GridWrap struct {
 	// Since: 2.8
 	OnReturn func(id GridWrapItemID) `json:"-"`
 
+	// OnTypedRune is a callback invoked when a printable character is typed while
+	// this GridWrap is focused. It lets the parent implement type-ahead search: a
+	// focused grid normally swallows typed runes, so without this hook a parent
+	// cannot react to typing once the grid holds focus (e.g. after a selection).
+	//
+	// Since: 2.8
+	OnTypedRune func(r rune) `json:"-"`
+
 	// StretchItems, when true, stretches items horizontally to fill the
 	// available width evenly across columns. This avoids gaps on the right
 	// side when the viewport width doesn't divide evenly by item width.
@@ -384,8 +392,10 @@ func currentKeyboardModifiers() fyne.KeyModifier {
 }
 
 // TypedRune is called if a text event happens while this GridWrap is focused.
-func (l *GridWrap) TypedRune(_ rune) {
-	// intentionally left blank
+func (l *GridWrap) TypedRune(r rune) {
+	if f := l.OnTypedRune; f != nil {
+		f(r)
+	}
 }
 
 // GetScrollOffset returns the current scroll offset position

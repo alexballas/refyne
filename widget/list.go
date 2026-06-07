@@ -82,6 +82,14 @@ type List struct {
 	// Since: 2.8
 	OnKeyboardNavigated func(id ListItemID, modifiers fyne.KeyModifier) `json:"-"`
 
+	// OnTypedRune is a callback invoked when a printable character is typed while
+	// this List is focused. It lets the parent implement type-ahead search: a
+	// focused list normally swallows typed runes, so without this hook a parent
+	// cannot react to typing once the list holds focus (e.g. after a selection).
+	//
+	// Since: 2.8
+	OnTypedRune func(r rune) `json:"-"`
+
 	currentHighlight ListItemID
 	focused          bool
 	scroller         *widget.Scroll
@@ -389,8 +397,10 @@ func (l *List) TypedKey(event *fyne.KeyEvent) {
 }
 
 // TypedRune is called if a text event happens while this List is focused.
-func (l *List) TypedRune(_ rune) {
-	// intentionally left blank
+func (l *List) TypedRune(r rune) {
+	if f := l.OnTypedRune; f != nil {
+		f(r)
+	}
 }
 
 // Unselect removes the item identified by the given ID from the selection.
