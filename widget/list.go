@@ -90,6 +90,14 @@ type List struct {
 	// Since: 2.8
 	OnTypedRune func(r rune) `json:"-"`
 
+	// OnEscape is a callback invoked when the Escape key is pressed while this
+	// List is focused. A focused list normally swallows Escape, so without this
+	// hook a parent cannot react to it once the list holds focus — for example to
+	// cancel a type-ahead search the user started before clicking into the list.
+	//
+	// Since: 2.8
+	OnEscape func() `json:"-"`
+
 	currentHighlight ListItemID
 	focused          bool
 	scroller         *widget.Scroll
@@ -367,6 +375,10 @@ func (l *List) TypedKey(event *fyne.KeyEvent) {
 	case fyne.KeyReturn, fyne.KeyEnter:
 		if f := l.OnReturn; f != nil {
 			f(l.currentHighlight)
+		}
+	case fyne.KeyEscape:
+		if f := l.OnEscape; f != nil {
+			f()
 		}
 	case fyne.KeyDown:
 		if f := l.Length; f != nil && l.currentHighlight >= f()-1 {

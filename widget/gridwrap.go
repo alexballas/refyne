@@ -85,6 +85,15 @@ type GridWrap struct {
 	// Since: 2.8
 	OnTypedRune func(r rune) `json:"-"`
 
+	// OnEscape is a callback invoked when the Escape key is pressed while this
+	// GridWrap is focused. A focused grid normally swallows Escape, so without
+	// this hook a parent cannot react to it once the grid holds focus — for
+	// example to cancel a type-ahead search the user started before clicking into
+	// the grid.
+	//
+	// Since: 2.8
+	OnEscape func() `json:"-"`
+
 	// StretchItems, when true, stretches items horizontally to fill the
 	// available width evenly across columns. This avoids gaps on the right
 	// side when the viewport width doesn't divide evenly by item width.
@@ -326,6 +335,10 @@ func (l *GridWrap) TypedKey(event *fyne.KeyEvent) {
 	case fyne.KeyReturn, fyne.KeyEnter:
 		if f := l.OnReturn; f != nil {
 			f(l.currentHighlight)
+		}
+	case fyne.KeyEscape:
+		if f := l.OnEscape; f != nil {
+			f()
 		}
 	case fyne.KeyDown:
 		count := 0
