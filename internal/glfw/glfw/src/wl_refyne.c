@@ -24,16 +24,16 @@
 #if defined(_GLFW_WAYLAND)
 
 // Approximate libadwaita's active CSD shadow layers in one cached alpha atlas:
-// a broad 12% shadow plus a tighter 8% shadow. The atlas keeps a longer tail
+// a broad 6% shadow plus a tighter 4% shadow. The atlas keeps a longer tail
 // than the CSS blur radius so the fade remains smooth at its outer edge.
-#define GLFW_REFYNE_SHADOW_SIZE 24
+#define GLFW_REFYNE_SHADOW_SIZE 12
 // Keep in sync with internal/driver/glfw.windowCornerRadius.
 #define GLFW_REFYNE_SHADOW_CORNER_RADIUS 12
 #define GLFW_REFYNE_SHADOW_BROAD_SPREAD 5
-#define GLFW_REFYNE_SHADOW_BROAD_ALPHA 0.12f
+#define GLFW_REFYNE_SHADOW_BROAD_ALPHA 0.06f
 #define GLFW_REFYNE_SHADOW_TIGHT_SPREAD 2
 #define GLFW_REFYNE_SHADOW_TIGHT_SIZE 7
-#define GLFW_REFYNE_SHADOW_TIGHT_ALPHA 0.08f
+#define GLFW_REFYNE_SHADOW_TIGHT_ALPHA 0.04f
 
 static float calculateRefyneShadowLayer(float distanceSquared,
                                         int spread,
