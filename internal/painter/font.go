@@ -38,7 +38,7 @@ var (
 
 // HarfbuzzShaper reuses internal buffers and is not safe for concurrent use,
 // so each goroutine takes its own instance from the pool.
-var shaperPool = sync.Pool{New: func() any { return &shaping.HarfbuzzShaper{} }}
+var shaperPool = async.Pool[*shaping.HarfbuzzShaper]{New: func() *shaping.HarfbuzzShaper { return &shaping.HarfbuzzShaper{} }}
 
 func loadMap() {
 	loaded = true
@@ -271,7 +271,7 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 		Face:      faces.ResolveFace(' '),
 		Size:      textSize,
 	}
-	shaper := shaperPool.Get().(*shaping.HarfbuzzShaper)
+	shaper := shaperPool.Get()
 	defer shaperPool.Put(shaper)
 	segmenter := &shaping.Segmenter{}
 	out := shaper.Shape(in)
