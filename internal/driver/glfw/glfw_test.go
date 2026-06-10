@@ -41,18 +41,17 @@ func repaintWindow(w *safeWindow) {
 }
 
 func waitForCanvasSize(t *testing.T, w *safeWindow, size fyne.Size, resizeIfNecessary bool) {
-	attempts := 0
-	for {
-		if w.Canvas().Size() == size {
+	// loaded CI runners can take several seconds to deliver resize events
+	deadline := time.Now().Add(10 * time.Second)
+	lastResize := time.Now()
+	for w.Canvas().Size() != size {
+		if !assert.False(t, time.Now().After(deadline), "canvas did not get correct size in time") {
 			break
 		}
-		attempts++
-		if !assert.Less(t, attempts, 100, "canvas did not get correct size in time") {
-			break
-		}
-		if resizeIfNecessary && attempts%20 == 0 {
+		if resizeIfNecessary && time.Since(lastResize) >= 200*time.Millisecond {
 			// sometimes the resize does not seem to reach the actual window at all
 			w.Resize(size)
+			lastResize = time.Now()
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

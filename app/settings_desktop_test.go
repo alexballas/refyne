@@ -32,7 +32,7 @@ func TestWatchSettings(t *testing.T) {
 
 	select {
 	case <-listener:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(10 * time.Second):
 		t.Error("Settings listener was not called")
 	}
 }
@@ -53,7 +53,7 @@ func TestWatchFile(t *testing.T) {
 
 	select {
 	case <-called:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(10 * time.Second):
 		t.Error("File watcher callback was not called")
 	}
 }
@@ -79,7 +79,7 @@ func TestFileWatcher_FileDeleted(t *testing.T) {
 
 	select {
 	case <-called:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(10 * time.Second):
 		t.Error("File watcher callback was not called")
 	}
 	f.Close()

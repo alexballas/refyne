@@ -85,7 +85,9 @@ func TestGLDriver_CreateSplashWindow(t *testing.T) {
 
 	assert.Equal(t, 0, w.viewport.GetAttrib(glfw.Decorated))
 	assert.False(t, w.Padded())
-	assert.True(t, w.centered)
+	if !runningWayland() { // CenterOnScreen is a no-op on Wayland as windows cannot position themselves
+		assert.True(t, w.centered)
+	}
 }
 
 func TestWindow_MinSize_Fixed(t *testing.T) {
@@ -1181,6 +1183,7 @@ func TestWindow_Tapped(t *testing.T) {
 	prop.SetMinSize(fyne.NewSize(100, 100))
 	o := &tappableObject{Rectangle: canvas.NewRectangle(color.White)}
 	w.SetContent(container.NewStack(prop, o))
+	ensureCanvasSize(t, w, fyne.NewSize(100, 100).AddWidthHeight(theme.Padding()*2, theme.Padding()*2))
 
 	runOnMain(func() {
 		w.mousePos = fyne.NewPos(50, 60)
@@ -1201,6 +1204,7 @@ func TestWindow_TappedSecondary(t *testing.T) {
 	prop.SetMinSize(fyne.NewSize(100, 100))
 	o := &tappableObject{Rectangle: canvas.NewRectangle(color.White)}
 	w.SetContent(container.NewStack(prop, o))
+	ensureCanvasSize(t, w, fyne.NewSize(100, 100).AddWidthHeight(theme.Padding()*2, theme.Padding()*2))
 
 	runOnMain(func() {
 		w.mousePos = fyne.NewPos(50, 60)
