@@ -19,10 +19,10 @@
 								</widget>
 							</widget>
 						</widget>
-						<widget pos="22,2" size="36x31" type="*widget.Button">
-							<rectangle radius="4" size="36x31"/>
-							<rectangle size="36x31"/>
-							<image fillMode="contain" pos="8,5" rsc="menuDropDownIcon" size="iconInlineSize" themed="foreground"/>
+						<widget pos="20,4" size="36x27" type="*widget.Button">
+							<rectangle radius="4" size="36x27"/>
+							<rectangle size="36x27"/>
+							<image fillMode="contain" pos="8,3" rsc="menuDropDownIcon" size="iconInlineSize" themed="foreground"/>
 						</widget>
 					</widget>
 				</container>

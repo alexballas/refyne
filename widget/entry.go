@@ -1532,7 +1532,9 @@ func (r *entryRenderer) Layout(size fyne.Size) {
 	r.box.Resize(size.Subtract(fyne.NewSquareSize(borderSize * 2)))
 	r.box.Move(fyne.NewSquareOffsetPos(borderSize))
 
-	pad := theme.InputBorderSize()
+	// inset by twice the border so the item sits inside the border stroke,
+	// which is drawn half a pixel short of the trailing edges
+	pad := borderSize * 2
 	actionIconSize := fyne.NewSize(0, size.Height-pad*2)
 	if r.entry.ActionItem != nil {
 		actionIconSize.Width = r.entry.ActionItem.MinSize().Width
@@ -1550,7 +1552,7 @@ func (r *entryRenderer) Layout(size fyne.Size) {
 		if r.entry.ActionItem == nil {
 			r.entry.validationStatus.Move(fyne.NewPos(size.Width-validatorIconSize.Width-innerPad, innerPad))
 		} else {
-			r.entry.validationStatus.Move(fyne.NewPos(size.Width-validatorIconSize.Width-actionIconSize.Width, innerPad))
+			r.entry.validationStatus.Move(fyne.NewPos(size.Width-validatorIconSize.Width-actionIconSize.Width-pad, innerPad))
 		}
 	}
 
