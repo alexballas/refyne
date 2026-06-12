@@ -66,6 +66,148 @@ type painter struct {
 	pixScale              float32 // pre-calculate scale*texScale for each draw
 	transparentBackground bool
 	preserveAlpha         bool
+
+	// uniforms and attributes resolved once in resolveUniforms, so per-draw
+	// updates avoid map[string] lookups.
+	uniforms resolvedUniforms
+
+	// vertexScratch backs the slices returned by the coord helpers
+	// (lineCoords, rectCoords, vecRectCoordsWithPad). The painter is
+	// single-threaded per GL context and updateBuffer copies the data out
+	// synchronously, so one scratch array per painter avoids a per-draw
+	// allocation. No returned slice may be used after the next helper call.
+	// It is a separate pointer-free allocation rather than an inline array:
+	// the slice is handed to C via glBufferData, and cgo rejects pointers
+	// into an allocation that also contains Go pointers (as this struct does).
+	vertexScratch *[24]float32
+}
+
+// scratch returns the empty vertex scratch slice, allocating its backing
+// array on first use.
+func (p *painter) scratch() []float32 {
+	if p.vertexScratch == nil {
+		p.vertexScratch = new([24]float32)
+	}
+	return p.vertexScratch[:0]
+}
+
+// resolvedUniforms holds the uniform and attribute handles of every program,
+// looked up once at Init time (see resolveUniforms).
+type resolvedUniforms struct {
+	simple struct {
+		alpha, cornerRadius, size, inset *UniformState
+		vert, vertTexCoord               Attribute
+	}
+	line struct {
+		color, lineWidth, feather *UniformState
+		vert, normal              Attribute
+	}
+	rect struct {
+		frameSize, rectCoords, strokeWidth, fillColor, strokeColor *UniformState
+		vert, normal                                               Attribute
+	}
+	roundRect struct {
+		frameSize, rectCoords, strokeWidthHalf, rectSizeHalf, radius, edgeSoftness, fillColor, strokeColor *UniformState
+		vert, normal                                                                                       Attribute
+	}
+	polygon struct {
+		frameSize, rectCoords, edgeSoftness, outerRadius, angle, sides, cornerRadius, strokeWidth, fillColor, strokeColor *UniformState
+		vert, normal                                                                                                      Attribute
+	}
+	arc struct {
+		frameSize, rectCoords, innerRadius, outerRadius, startAngle, endAngle, edgeSoftness, cornerRadius, strokeWidth, fillColor, strokeColor *UniformState
+		vert, normal                                                                                                                           Attribute
+	}
+	bezier struct {
+		frameSize, rectCoords, edgeSoftness, startPoint, endPoint, numControlPoints, controlPoint1, controlPoint2, strokeWidthHalf, strokeColor *UniformState
+		vert, normal                                                                                                                            Attribute
+	}
+}
+
+// resolveUniforms caches uniform and attribute handles in typed fields so the
+// draw functions do not hash strings per object per frame. It must run after
+// the program states have been created (i.e. at the end of Init).
+func (p *painter) resolveUniforms() {
+	u := &p.uniforms
+
+	s := &p.program
+	u.simple.alpha = s.uniforms["alpha"]
+	u.simple.cornerRadius = s.uniforms["cornerRadius"]
+	u.simple.size = s.uniforms["size"]
+	u.simple.inset = s.uniforms["inset"]
+	u.simple.vert = s.attributes["vert"]
+	u.simple.vertTexCoord = s.attributes["vertTexCoord"]
+
+	l := &p.lineProgram
+	u.line.color = l.uniforms["color"]
+	u.line.lineWidth = l.uniforms["lineWidth"]
+	u.line.feather = l.uniforms["feather"]
+	u.line.vert = l.attributes["vert"]
+	u.line.normal = l.attributes["normal"]
+
+	r := &p.rectangleProgram
+	u.rect.frameSize = r.uniforms["frame_size"]
+	u.rect.rectCoords = r.uniforms["rect_coords"]
+	u.rect.strokeWidth = r.uniforms["stroke_width"]
+	u.rect.fillColor = r.uniforms["fill_color"]
+	u.rect.strokeColor = r.uniforms["stroke_color"]
+	u.rect.vert = r.attributes["vert"]
+	u.rect.normal = r.attributes["normal"]
+
+	rr := &p.roundRectangleProgram
+	u.roundRect.frameSize = rr.uniforms["frame_size"]
+	u.roundRect.rectCoords = rr.uniforms["rect_coords"]
+	u.roundRect.strokeWidthHalf = rr.uniforms["stroke_width_half"]
+	u.roundRect.rectSizeHalf = rr.uniforms["rect_size_half"]
+	u.roundRect.radius = rr.uniforms["radius"]
+	u.roundRect.edgeSoftness = rr.uniforms["edge_softness"]
+	u.roundRect.fillColor = rr.uniforms["fill_color"]
+	u.roundRect.strokeColor = rr.uniforms["stroke_color"]
+	u.roundRect.vert = rr.attributes["vert"]
+	u.roundRect.normal = rr.attributes["normal"]
+
+	pg := &p.polygonProgram
+	u.polygon.frameSize = pg.uniforms["frame_size"]
+	u.polygon.rectCoords = pg.uniforms["rect_coords"]
+	u.polygon.edgeSoftness = pg.uniforms["edge_softness"]
+	u.polygon.outerRadius = pg.uniforms["outer_radius"]
+	u.polygon.angle = pg.uniforms["angle"]
+	u.polygon.sides = pg.uniforms["sides"]
+	u.polygon.cornerRadius = pg.uniforms["corner_radius"]
+	u.polygon.strokeWidth = pg.uniforms["stroke_width"]
+	u.polygon.fillColor = pg.uniforms["fill_color"]
+	u.polygon.strokeColor = pg.uniforms["stroke_color"]
+	u.polygon.vert = pg.attributes["vert"]
+	u.polygon.normal = pg.attributes["normal"]
+
+	a := &p.arcProgram
+	u.arc.frameSize = a.uniforms["frame_size"]
+	u.arc.rectCoords = a.uniforms["rect_coords"]
+	u.arc.innerRadius = a.uniforms["inner_radius"]
+	u.arc.outerRadius = a.uniforms["outer_radius"]
+	u.arc.startAngle = a.uniforms["start_angle"]
+	u.arc.endAngle = a.uniforms["end_angle"]
+	u.arc.edgeSoftness = a.uniforms["edge_softness"]
+	u.arc.cornerRadius = a.uniforms["corner_radius"]
+	u.arc.strokeWidth = a.uniforms["stroke_width"]
+	u.arc.fillColor = a.uniforms["fill_color"]
+	u.arc.strokeColor = a.uniforms["stroke_color"]
+	u.arc.vert = a.attributes["vert"]
+	u.arc.normal = a.attributes["normal"]
+
+	b := &p.bezierCurveProgram
+	u.bezier.frameSize = b.uniforms["frame_size"]
+	u.bezier.rectCoords = b.uniforms["rect_coords"]
+	u.bezier.edgeSoftness = b.uniforms["edge_softness"]
+	u.bezier.startPoint = b.uniforms["start_point"]
+	u.bezier.endPoint = b.uniforms["end_point"]
+	u.bezier.numControlPoints = b.uniforms["num_control_points"]
+	u.bezier.controlPoint1 = b.uniforms["control_point1"]
+	u.bezier.controlPoint2 = b.uniforms["control_point2"]
+	u.bezier.strokeWidthHalf = b.uniforms["stroke_width_half"]
+	u.bezier.strokeColor = b.uniforms["stroke_color"]
+	u.bezier.vert = b.attributes["vert"]
+	u.bezier.normal = b.attributes["normal"]
 }
 
 type ProgramState struct {
@@ -80,8 +222,7 @@ type UniformState struct {
 	prev [4]float32
 }
 
-func (p *painter) SetUniform1f(pState ProgramState, name string, v float32) {
-	u := pState.uniforms[name]
+func (p *painter) SetUniform1f(u *UniformState, v float32) {
 	if u.prev[0] == v {
 		return
 	}
@@ -89,8 +230,7 @@ func (p *painter) SetUniform1f(pState ProgramState, name string, v float32) {
 	p.ctx.Uniform1f(u.ref, v)
 }
 
-func (p *painter) SetUniform2f(pState ProgramState, name string, v0, v1 float32) {
-	u := pState.uniforms[name]
+func (p *painter) SetUniform2f(u *UniformState, v0, v1 float32) {
 	if u.prev[0] == v0 && u.prev[1] == v1 {
 		return
 	}
@@ -99,8 +239,7 @@ func (p *painter) SetUniform2f(pState ProgramState, name string, v0, v1 float32)
 	p.ctx.Uniform2f(u.ref, v0, v1)
 }
 
-func (p *painter) SetUniform4f(pState ProgramState, name string, v0, v1, v2, v3 float32) {
-	u := pState.uniforms[name]
+func (p *painter) SetUniform4f(u *UniformState, v0, v1, v2, v3 float32) {
 	if u.prev[0] == v0 && u.prev[1] == v1 && u.prev[2] == v2 && u.prev[3] == v3 {
 		return
 	}
@@ -111,9 +250,7 @@ func (p *painter) SetUniform4f(pState ProgramState, name string, v0, v1, v2, v3 
 	p.ctx.Uniform4f(u.ref, v0, v1, v2, v3)
 }
 
-func (p *painter) UpdateVertexArray(pState ProgramState, name string, size, stride, offset int) {
-	a := pState.attributes[name]
-
+func (p *painter) UpdateVertexArray(a Attribute, size, stride, offset int) {
 	p.ctx.VertexAttribPointerWithOffset(a, size, float, false, stride*floatSize, offset*floatSize)
 	p.logError()
 }

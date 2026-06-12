@@ -3,6 +3,7 @@ package common
 import (
 	"image/color"
 	"reflect"
+	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
@@ -50,8 +51,18 @@ type Canvas struct {
 	refreshQueue deduplicatedObjectQueue
 	dirty        bool
 
+	// lastTextureScan throttles the expired-texture scan in FreeDirtyTextures.
+	// It is per-canvas because the scan filters by canvas and must run in this
+	// window's GL context; a shared timestamp could starve later windows.
+	lastTextureScan time.Time
+
 	mWindowHeadTree, contentTree, menuTree, decorationTree *renderCacheTree
 }
+
+// textureScanInterval is how often FreeDirtyTextures scans the global texture
+// caches for expired entries. Textures live at least cache.ValidDuration past
+// last use, so a 1 Hz scan delays the free by at most one extra second.
+const textureScanInterval = time.Second
 
 // AddShortcut adds a shortcut to the canvas.
 func (c *Canvas) AddShortcut(shortcut fyne.Shortcut, handler func(shortcut fyne.Shortcut)) {
@@ -102,11 +113,11 @@ func (c *Canvas) EnsureMinSize() bool {
 	}
 	ensureMinSize := func(node *RenderCacheNode, pos fyne.Position) {
 		obj := node.obj
-		cache.SetCanvasForObject(obj, c.impl, func() {
+		if cache.AttachCanvas(obj, c.impl) { // avoids closure allocation on the per-frame walk
 			if img, ok := obj.(*canvas.Image); ok {
 				img.Refresh() // this may now have a different texScale
 			}
-		})
+		}
 
 		if parentNeedingUpdate == node {
 			c.updateLayout(obj)
@@ -233,7 +244,10 @@ func (c *Canvas) FreeDirtyTextures() uint64 {
 		c.freeObject(object)
 	}
 
-	cache.RangeExpiredTexturesFor(c.impl, c.painter.Free)
+	if now := time.Now(); now.Sub(c.lastTextureScan) >= textureScanInterval {
+		c.lastTextureScan = now
+		cache.RangeExpiredTexturesFor(c.impl, c.painter.Free)
+	}
 	return objectsToFree
 }
 

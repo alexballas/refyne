@@ -1206,8 +1206,10 @@ func truncateLimit(s string, text *canvas.Text, limit int, ellipsis []rune) (int
 		Face:      face.Fonts.ResolveFace(ellipsis[0]),
 		Size:      float32ToFixed266(text.TextSize),
 	}
-	shaper := &shaping.HarfbuzzShaper{}
-	segmenter := &shaping.Segmenter{}
+	shaper := paint.GetShaper()
+	defer paint.PutShaper(shaper)
+	segmenter := paint.GetSegmenter()
+	defer paint.PutSegmenter(segmenter)
 
 	conf := shaping.WrapConfig{}
 	conf = conf.WithTruncator(shaper, in)

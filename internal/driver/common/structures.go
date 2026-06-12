@@ -57,11 +57,28 @@ type RenderCacheNode struct {
 	parent      *RenderCacheNode
 	// cache data
 	minSize fyne.Size
+	// clips caches driver.IsClip for the duration of a single walk; it is
+	// written by the before-children callback and read by the matching
+	// after-children callback, so the type assertions and renderer lookup run
+	// once per node per walk instead of twice. The renderer cannot change
+	// between the two callbacks of the same single-threaded walk.
+	clips bool
 }
 
 // Obj returns the node object.
 func (r *RenderCacheNode) Obj() fyne.CanvasObject {
 	return r.obj
+}
+
+// SetClips caches whether the node's object clips its children for the
+// current walk (see the clips field).
+func (r *RenderCacheNode) SetClips(clips bool) {
+	r.clips = clips
+}
+
+// Clips reports the value last stored with SetClips during the current walk.
+func (r *RenderCacheNode) Clips() bool {
+	return r.clips
 }
 
 type overlayStack struct {

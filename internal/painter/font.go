@@ -40,6 +40,26 @@ var (
 // so each goroutine takes its own instance from the pool.
 var shaperPool = async.Pool[*shaping.HarfbuzzShaper]{New: func() *shaping.HarfbuzzShaper { return &shaping.HarfbuzzShaper{} }}
 
+// Segmenter also carries reusable internal buffers; pool it for the same
+// reason. The slice returned by Split is owned by the Segmenter, so it must
+// only be returned to the pool after the caller is done with that slice.
+var segmenterPool = async.Pool[*shaping.Segmenter]{New: func() *shaping.Segmenter { return &shaping.Segmenter{} }}
+
+// GetShaper borrows a HarfBuzz shaper from the shared pool.
+// Return it with PutShaper when done.
+func GetShaper() *shaping.HarfbuzzShaper { return shaperPool.Get() }
+
+// PutShaper returns a shaper borrowed with GetShaper to the pool.
+func PutShaper(s *shaping.HarfbuzzShaper) { shaperPool.Put(s) }
+
+// GetSegmenter borrows a text segmenter from the shared pool. Return it with
+// PutSegmenter when done — only after any slice obtained from Split is no
+// longer in use, as Split's result is owned by the Segmenter.
+func GetSegmenter() *shaping.Segmenter { return segmenterPool.Get() }
+
+// PutSegmenter returns a segmenter borrowed with GetSegmenter to the pool.
+func PutSegmenter(s *shaping.Segmenter) { segmenterPool.Put(s) }
+
 func loadMap() {
 	loaded = true
 
@@ -273,7 +293,8 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 	}
 	shaper := shaperPool.Get()
 	defer shaperPool.Put(shaper)
-	segmenter := &shaping.Segmenter{}
+	segmenter := segmenterPool.Get()
+	defer segmenterPool.Put(segmenter)
 	out := shaper.Shape(in)
 
 	in.Text = runes

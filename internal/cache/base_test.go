@@ -241,6 +241,7 @@ func (t *timeMock) createTime(min, sec int) time.Time {
 
 func (t *timeMock) setTime(min, sec int) {
 	t.now = time.Date(2021, time.June, 15, 2, min, sec, 0, time.UTC)
+	coarseTimestamp.Store(t.now.UnixNano())
 	timeNow = func() time.Time {
 		return t.now
 	}
@@ -253,5 +254,6 @@ func testClearAll() {
 	textTextures.Clear()
 	objectTextures.Clear()
 	renderers.Clear()
+	coarseTimestamp.Store(0)
 	timeNow = time.Now
 }

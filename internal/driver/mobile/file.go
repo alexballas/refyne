@@ -38,6 +38,12 @@ func (f *fileOpenSeeker) URI() fyne.URI {
 	return f.uri
 }
 
+// Unwrap returns the reader backing this URI handle, giving callers access to
+// the platform handle (an *os.File on Android) when one exists.
+func (f *fileOpenSeeker) Unwrap() io.ReadSeekCloser {
+	return f.ReadSeekCloser
+}
+
 func seekableFileReaderForURI(u fyne.URI) (fyne.URIReadSeekCloser, error) {
 	rsc, err := nativeFileOpenSeeker(&fileOpen{uri: u})
 	if err != nil {

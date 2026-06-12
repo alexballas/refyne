@@ -157,7 +157,7 @@ func walkObjectTree(
 	case *fyne.Container:
 		children = co.Objects
 	case fyne.Widget:
-		if cache.IsRendered(co) || requireVisible {
+		if requireVisible || cache.IsRendered(co) {
 			children = cache.Renderer(co).Objects()
 		}
 	}

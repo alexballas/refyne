@@ -162,6 +162,8 @@ func (p *painter) Init() {
 		"stroke_width_half", "stroke_color",
 	)
 	p.enableAttribArrays(p.bezierCurveProgram, "vert", "normal")
+
+	p.resolveUniforms()
 }
 
 func (p *painter) getUniformLocations(pState ProgramState, names ...string) {

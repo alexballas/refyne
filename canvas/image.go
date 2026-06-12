@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"image"
+	"image/color"
 	_ "image/jpeg" // avoid users having to import when using image widget
 	_ "image/png"  // avoid the same for PNG images
 	"io"
@@ -64,9 +65,10 @@ var _ fyne.CanvasObject = (*Image)(nil)
 type Image struct {
 	baseObject
 
-	aspect float32
-	icon   *svg.Decoder
-	isSVG  bool
+	aspect   float32
+	icon     *svg.Decoder
+	isSVG    bool
+	svgColor color.Color // colorize color applied in updateReader, nil when not colorized there
 
 	// one of the following sources will provide our image data
 	File     string        // Load the image from a file
@@ -301,19 +303,29 @@ func (i *Image) name() string {
 
 func (i *Image) updateReader() (io.ReadCloser, error) {
 	i.isSVG = false
+	i.svgColor = nil
 	if i.Resource != nil {
 		i.isSVG = svg.IsResourceSVG(i.Resource)
-		content := i.Resource.Content()
+		var content []byte
 		if res, ok := i.Resource.(fyne.ThemedResource); i.isSVG && ok {
 			th := cache.WidgetTheme(i)
 			if th != nil {
 				col := th.Color(res.ThemeColorName(), fyne.CurrentApp().Settings().ThemeVariant())
-				var err error
-				content, err = svg.Colorize(content, col)
-				if err != nil {
-					fyne.LogError("", err)
+				i.svgColor = col
+				if cached, ok := cache.GetColorizedSvg(i.Resource.Name(), col); ok {
+					content = cached
+				} else {
+					var err error
+					content, err = svg.Colorize(i.Resource.Content(), col)
+					if err != nil {
+						fyne.LogError("", err)
+					}
+					cache.SetColorizedSvg(i.Resource.Name(), col, content)
 				}
 			}
+		}
+		if content == nil {
+			content = i.Resource.Content()
 		}
 		return io.NopCloser(bytes.NewReader(content)), nil
 	} else if i.File != "" {
@@ -360,11 +372,25 @@ func (i *Image) imageDetailsFromReader(source io.Reader) (reader io.Reader, widt
 	}
 
 	if i.isSVG {
-		var err error
+		// Resource content is immutable for a given name, so the parsed decoder can
+		// be shared. File sources are re-parsed as Refresh is used to pick up edits.
+		cacheable := i.Resource != nil
+		var dec *svg.Decoder
+		if cacheable {
+			dec, _ = cache.GetSvgDecoder(i.name(), i.svgColor)
+		}
+		if dec != nil {
+			i.icon = dec
+		} else {
+			var err error
 
-		i.icon, err = svg.NewDecoder(source)
-		if err != nil {
-			return nil, 0, 0, 0, err
+			i.icon, err = svg.NewDecoder(source)
+			if err != nil {
+				return nil, 0, 0, 0, err
+			}
+			if cacheable {
+				cache.SetSvgDecoder(i.name(), i.svgColor, i.icon)
+			}
 		}
 		config := i.icon.Config()
 		width, height = config.Width, config.Height

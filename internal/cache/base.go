@@ -2,6 +2,7 @@ package cache
 
 import (
 	"os"
+	"sync/atomic"
 	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -13,6 +14,13 @@ var (
 
 	lastClean                     time.Time
 	skippedCleanWithCanvasRefresh = false
+
+	// coarseTimestamp holds unix nanos refreshed once per frame by Clean.
+	// setAlive runs on every cache hit, so it reads this instead of calling
+	// time.Now; with a TTL measured in seconds, sub-frame precision is
+	// irrelevant. Zero means Clean has not run yet (e.g. headless tests) and
+	// setAlive falls back to timeNow.
+	coarseTimestamp atomic.Int64
 
 	// testing purpose only
 	timeNow = time.Now
@@ -28,6 +36,7 @@ func init() {
 // Clean run cache clean task, it should be called on paint events.
 func Clean(canvasRefreshed bool) {
 	now := timeNow()
+	coarseTimestamp.Store(now.UnixNano())
 	// do not run clean task too fast
 	if now.Sub(lastClean) < 10*time.Second {
 		if canvasRefreshed {
@@ -81,6 +90,8 @@ func CleanCanvas(canvas fyne.Canvas) {
 // ResetThemeCaches clears all the svg and text size cache maps
 func ResetThemeCaches() {
 	svgs.Clear()
+	colorizedSvgs.Clear()
+	svgDecoders.Clear()
 	fontSizeCache.Clear()
 }
 
@@ -118,5 +129,9 @@ func (c *expiringCache) isExpired(now time.Time) bool {
 
 // setAlive updates expiration time.
 func (c *expiringCache) setAlive() {
+	if t := coarseTimestamp.Load(); t != 0 {
+		c.expires = time.Unix(0, t).Add(ValidDuration)
+		return
+	}
 	c.expires = timeNow().Add(ValidDuration)
 }
