@@ -207,6 +207,11 @@ func (d *gLDriver) runGL() {
 
 					if shouldExpand && runtime.GOOS != "js" {
 						view.SetSize(w.shouldWidth, w.shouldHeight)
+						// On Wayland a client-initiated resize fires no size
+						// callback and no compositor configure echo, so apply
+						// the new size to the canvas directly (as Resize does)
+						// or w.width/height and the canvas would go stale.
+						w.processResized(w.shouldWidth, w.shouldHeight)
 					}
 				}
 			}
