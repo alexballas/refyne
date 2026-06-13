@@ -84,6 +84,14 @@ func (r *Runner) Stop(a *fyne.Animation) {
 	r.pendingAnimations = newList
 }
 
+// Running reports whether the runner has animations scheduled for ticking.
+func (r *Runner) Running() bool {
+	r.animationMutex.RLock()
+	defer r.animationMutex.RUnlock()
+
+	return len(r.animations) > 0 || len(r.pendingAnimations) > 0
+}
+
 // TickAnimations progresses all running animations by one tick.
 // This will be called from the driver to update objects immediately before next paint.
 func (r *Runner) TickAnimations() {

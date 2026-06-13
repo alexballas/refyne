@@ -22,7 +22,9 @@ type funcData struct {
 // channel for queuing functions on the main thread
 var (
 	funcQueue        = async.NewUnboundedChan[funcData]()
+	queuedFuncs      atomic.Int64
 	running, drained atomic.Bool
+	eventLoopReady   atomic.Bool
 )
 
 // Arrange that main.main runs on main thread.
@@ -49,10 +51,32 @@ func runOnMainWithWait(f func(), wait bool) {
 		done := common.DonePool.Get()
 		defer common.DonePool.Put(done)
 
-		funcQueue.In() <- funcData{f: f, done: done}
+		queueMainFunc(funcData{f: f, done: done})
 		<-done
 	} else {
-		funcQueue.In() <- funcData{f: f}
+		queueMainFunc(funcData{f: f})
+	}
+}
+
+func queueMainFunc(f funcData) {
+	queuedFuncs.Add(1)
+	funcQueue.In() <- f
+	wakeEventLoop()
+}
+
+func runQueuedFunc(f funcData) {
+	defer queuedFuncs.Add(-1)
+
+	f.f()
+	if f.done != nil {
+		f.done <- struct{}{}
+	}
+}
+
+func finishQueuedFunc(f funcData) {
+	queuedFuncs.Add(-1)
+	if f.done != nil {
+		f.done <- struct{}{}
 	}
 }
 
@@ -118,6 +142,7 @@ func (d *gLDriver) runGL() {
 	}
 
 	d.init()
+	eventLoopReady.Store(true)
 	if d.trayStart != nil {
 		d.trayStart()
 	}
@@ -139,87 +164,177 @@ func (d *gLDriver) runGL() {
 		f()
 	}
 
-	// Drive the loop at the display's refresh rate rather than a fixed 60 Hz so
-	// resizing and animation stay smooth on high-refresh monitors. rateTick
-	// re-evaluates this once a second to pick up monitor hotplug / mode changes
-	// (e.g. docking a laptop to a 144 Hz screen).
+	// Drive active work at the display's refresh rate rather than a fixed 60 Hz
+	// so resizing and animation stay smooth on high-refresh monitors. When no
+	// animations, dirty canvases or queued functions exist, block indefinitely in
+	// the native event wait instead of ticking at refresh rate forever.
 	frameInterval := d.frameInterval()
-	eventTick := time.NewTicker(frameInterval)
-	rateTick := time.NewTicker(time.Second)
+	nextRateCheck := time.Now().Add(time.Second)
+	nextFrame := time.Now()
+	for {
+		if d.processQueuedFuncsOrDone() {
+			return
+		}
+
+		now := time.Now()
+		if !now.Before(nextRateCheck) {
+			frameInterval = d.frameInterval()
+			nextRateCheck = now.Add(time.Second)
+		}
+
+		if d.needsFrameTick() {
+			if wait := time.Until(nextFrame); wait > 0 {
+				d.waitEventsTimeout(wait)
+				if d.processQueuedFuncsOrDone() {
+					return
+				}
+				d.processWindowEvents()
+				continue
+			}
+			d.runFrame()
+			// Advance the deadline by a whole interval from the previous
+			// deadline (not from time.Now()) so draw time and timer-wakeup
+			// overshoot are absorbed by the absolute schedule rather than
+			// accumulating into a slower-than-target frame rate. If a slow
+			// frame has put us more than one interval behind, resync to now
+			// so we don't issue a burst of catch-up frames.
+			nextFrame = nextFrame.Add(frameInterval)
+			if now := time.Now(); nextFrame.Before(now) {
+				nextFrame = now
+			}
+			continue
+		}
+
+		d.waitEvents()
+		if d.processQueuedFuncsOrDone() {
+			return
+		}
+		d.processWindowEvents()
+		if d.needsFrameTick() {
+			d.runFrame()
+			nextFrame = time.Now().Add(frameInterval)
+		}
+	}
+}
+
+func (d *gLDriver) processQueuedFuncsOrDone() bool {
 	for {
 		select {
 		case <-d.done:
-			eventTick.Stop()
-			rateTick.Stop()
-			d.Terminate()
-			l := fyne.CurrentApp().Lifecycle().(*app.Lifecycle)
-			if f := l.OnStopped(); f != nil {
-				l.QueueEvent(f)
+			d.shutdownGL()
+			return true
+		case f, ok := <-funcQueue.Out():
+			if !ok {
+				return false
 			}
-
-			// as we are shutting down make sure we drain the pending funcQueue and close it out.
-			for len(funcQueue.Out()) > 0 {
-				f := <-funcQueue.Out()
-				if f.done != nil {
-					f.done <- struct{}{}
-				}
+			runQueuedFunc(f)
+		default:
+			if queuedFuncs.Load() == 0 {
+				return false
 			}
-			drained.Store(true)
-			funcQueue.Close()
-			return
-		case f := <-funcQueue.Out():
-			f.f()
-			if f.done != nil {
-				f.done <- struct{}{}
+			select {
+			case <-d.done:
+				d.shutdownGL()
+				return true
+			case f, ok := <-funcQueue.Out():
+				if !ok {
+					return false
+				}
+				runQueuedFunc(f)
 			}
-		case <-rateTick.C:
-			if interval := d.frameInterval(); interval != frameInterval {
-				frameInterval = interval
-				eventTick.Reset(interval)
-			}
-		case <-eventTick.C:
-			d.pollEvents()
-			for i := 0; i < len(d.windows); i++ {
-				w := d.windows[i].(*window)
-				if !w.mousePosUpdateProcessed {
-					w.processMouseMoved(w.newMousePosX, w.newMousePosY)
-					w.mousePosUpdateProcessed = true
-				}
-
-				if w.viewport == nil {
-					continue
-				}
-
-				if w.viewport.ShouldClose() {
-					d.destroyWindow(w, i)
-					i-- // Trailing windows are moved forward one step.
-					continue
-				}
-
-				expand := w.shouldExpand
-				fullScreen := w.fullScreen
-
-				if expand && !fullScreen {
-					w.fitContent()
-					shouldExpand := w.shouldExpand
-					w.shouldExpand = false
-					view := w.viewport
-
-					if shouldExpand && runtime.GOOS != "js" {
-						view.SetSize(w.shouldWidth, w.shouldHeight)
-						// On Wayland a client-initiated resize fires no size
-						// callback and no compositor configure echo, so apply
-						// the new size to the canvas directly (as Resize does)
-						// or w.width/height and the canvas would go stale.
-						w.processResized(w.shouldWidth, w.shouldHeight)
-					}
-				}
-			}
-
-			d.animation.TickAnimations()
-			d.drawSingleFrame()
 		}
 	}
+}
+
+func (d *gLDriver) shutdownGL() {
+	eventLoopReady.Store(false)
+	d.Terminate()
+	l := fyne.CurrentApp().Lifecycle().(*app.Lifecycle)
+	if f := l.OnStopped(); f != nil {
+		l.QueueEvent(f)
+	}
+
+	// As we are shutting down make sure we drain the pending funcQueue and close it out.
+	for {
+		select {
+		case f, ok := <-funcQueue.Out():
+			if !ok {
+				queuedFuncs.Store(0)
+				return
+			}
+			finishQueuedFunc(f)
+		default:
+			drained.Store(true)
+			funcQueue.Close()
+			for f := range funcQueue.Out() {
+				finishQueuedFunc(f)
+			}
+			queuedFuncs.Store(0)
+			return
+		}
+	}
+}
+
+func (d *gLDriver) runFrame() {
+	d.processWindowEvents()
+	d.animation.TickAnimations()
+	d.drawSingleFrame()
+}
+
+func (d *gLDriver) processWindowEvents() {
+	for i := 0; i < len(d.windows); i++ {
+		w := d.windows[i].(*window)
+		if !w.mousePosUpdateProcessed {
+			w.processMouseMoved(w.newMousePosX, w.newMousePosY)
+			w.mousePosUpdateProcessed = true
+		}
+
+		if w.viewport == nil {
+			continue
+		}
+
+		if w.viewport.ShouldClose() {
+			d.destroyWindow(w, i)
+			i-- // Trailing windows are moved forward one step.
+			continue
+		}
+
+		expand := w.shouldExpand
+		fullScreen := w.fullScreen
+
+		if expand && !fullScreen {
+			w.fitContent()
+			shouldExpand := w.shouldExpand
+			w.shouldExpand = false
+			view := w.viewport
+
+			if shouldExpand && runtime.GOOS != "js" {
+				view.SetSize(w.shouldWidth, w.shouldHeight)
+				// On Wayland a client-initiated resize fires no size
+				// callback and no compositor configure echo, so apply
+				// the new size to the canvas directly (as Resize does)
+				// or w.width/height and the canvas would go stale.
+				w.processResized(w.shouldWidth, w.shouldHeight)
+			}
+		}
+	}
+}
+
+func (d *gLDriver) needsFrameTick() bool {
+	return d.animation.Running() || d.hasReadyDirtyWindow()
+}
+
+func (d *gLDriver) hasReadyDirtyWindow() bool {
+	for _, win := range d.windowList() {
+		w := win.(*window)
+		if w.closing || !w.visible || w.viewport == nil {
+			continue
+		}
+		if w.frame.ready() && w.canvas.Dirty() {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *gLDriver) destroyWindow(w *window, index int) {
@@ -259,6 +374,7 @@ func (d *gLDriver) repaintWindow(w *window) bool {
 		// not issue another (potentially blocking) swap on a suspended surface.
 		w.frame.arm(windowSurface(w))
 		view.SwapBuffers()
+
 	}
 
 	// mark that we have walked the window and don't

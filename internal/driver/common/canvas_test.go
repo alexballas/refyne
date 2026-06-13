@@ -443,6 +443,29 @@ func TestRefreshCount(t *testing.T) { // Issue 2548.
 	assert.Equal(t, refresh, freed)
 }
 
+func TestCanvasDirtyCallback(t *testing.T) {
+	c := &Canvas{}
+	wakes := 0
+	c.SetOnDirty(func() {
+		wakes++
+	})
+
+	assert.False(t, c.Dirty())
+
+	c.SetDirty()
+	assert.True(t, c.Dirty())
+	assert.Equal(t, 1, wakes)
+
+	c.SetDirty()
+	assert.Equal(t, 1, wakes)
+
+	assert.True(t, c.CheckDirtyAndClear())
+	assert.False(t, c.Dirty())
+
+	c.SetDirty()
+	assert.Equal(t, 2, wakes)
+}
+
 func BenchmarkRefresh(b *testing.B) {
 	c := &Canvas{}
 	c.Initialize(nil, func() {})

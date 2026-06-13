@@ -61,10 +61,20 @@ func (d *gLDriver) initGLFW() {
 	initCursors()
 }
 
-func (d *gLDriver) pollEvents() {
-	glfw.PollEvents() // This call blocks while window is being resized, which prevents freeDirtyTextures from being called
+func (d *gLDriver) waitEvents() {
+	glfw.WaitEvents()
+}
+
+func (d *gLDriver) waitEventsTimeout(timeout time.Duration) {
+	glfw.WaitEventsTimeout(timeout.Seconds())
 }
 
 func (d *gLDriver) Terminate() {
 	glfw.Terminate()
+}
+
+func wakeEventLoop() {
+	if eventLoopReady.Load() {
+		glfw.PostEmptyEvent()
+	}
 }

@@ -3,6 +3,7 @@ package common
 import (
 	"image/color"
 	"reflect"
+	"sync/atomic"
 	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -49,7 +50,8 @@ type Canvas struct {
 	// the refreshQueue is an unbounded queue which is able to cache
 	// arbitrary number of fyne.CanvasObject for the rendering.
 	refreshQueue deduplicatedObjectQueue
-	dirty        bool
+	dirty        atomic.Bool
+	onDirty      func()
 
 	// lastTextureScan throttles the expired-texture scan in FreeDirtyTextures.
 	// It is per-canvas because the scan filters by canvas and must run in this
@@ -327,14 +329,28 @@ func (c *Canvas) SetContentTreeAndFocusMgr(content fyne.CanvasObject) {
 // CheckDirtyAndClear returns true if the canvas is dirty and
 // clears the dirty state atomically.
 func (c *Canvas) CheckDirtyAndClear() bool {
-	wasDirty := c.dirty
-	c.dirty = false
-	return wasDirty
+	return c.dirty.Swap(false)
+}
+
+// Dirty returns true if the canvas is currently marked dirty.
+func (c *Canvas) Dirty() bool {
+	return c.dirty.Load()
 }
 
 // SetDirty sets canvas dirty flag atomically.
 func (c *Canvas) SetDirty() {
-	c.dirty = true
+	if c.dirty.Swap(true) {
+		return
+	}
+	if c.onDirty != nil {
+		c.onDirty()
+	}
+}
+
+// SetOnDirty registers a callback that is called when the canvas transitions
+// from clean to dirty.
+func (c *Canvas) SetOnDirty(fn func()) {
+	c.onDirty = fn
 }
 
 // SetMenuTreeAndFocusMgr sets menu tree and focus manager.

@@ -7,6 +7,24 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 )
 
+func TestRunnerRunning(t *testing.T) {
+	r := Runner{}
+	if r.Running() {
+		t.Fatal("new runner reports running")
+	}
+
+	a := fyne.NewAnimation(time.Second, func(float32) {})
+	r.Start(a)
+	if !r.Running() {
+		t.Fatal("runner with started animation reports not running")
+	}
+
+	r.Stop(a)
+	if r.Running() {
+		t.Fatal("runner with stopped animation reports running")
+	}
+}
+
 func BenchmarkRunnerAllocs(b *testing.B) {
 	r := Runner{}
 	var fl float32
