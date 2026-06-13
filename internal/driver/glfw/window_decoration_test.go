@@ -65,7 +65,6 @@ func TestWindowDecoration_ButtonsHaveCircularHighlight(t *testing.T) {
 		assert.Equal(t, canvas.RadiusMaximum, d.minimizeButton.button.Theme().Size(theme.SizeNameInputRadius))
 		assert.Equal(t, canvas.RadiusMaximum, d.maximizeButton.button.Theme().Size(theme.SizeNameInputRadius))
 		assert.Equal(t, canvas.RadiusMaximum, d.closeButton.button.Theme().Size(theme.SizeNameInputRadius))
-		assert.Equal(t, windowDecorationButtonIconSize, d.closeButton.button.Theme().Size(theme.SizeNameInlineIcon))
 
 		r := d.closeButton.CreateRenderer().(*windowDecorationButtonRenderer)
 		r.Layout(fyne.NewSquareSize(titleBarHeight))
@@ -163,10 +162,10 @@ func TestWindow_MaximizedUpdatesDecorationIcon(t *testing.T) {
 		w := &window{canvas: &glCanvas{decoration: d}}
 
 		w.maximized(nil, true)
-		assert.Equal(t, theme.ViewRestoreIcon(), d.maximizeButton.button.Icon)
+		assert.Equal(t, decorationRestore, d.maximizeButton.kind)
 
 		w.maximized(nil, false)
-		assert.Equal(t, theme.WindowMaximizeIcon(), d.maximizeButton.button.Icon)
+		assert.Equal(t, decorationMaximize, d.maximizeButton.kind)
 	})
 }
 
