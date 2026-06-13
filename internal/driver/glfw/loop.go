@@ -2,6 +2,7 @@ package glfw
 
 import (
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,12 +20,45 @@ type funcData struct {
 	done chan struct{} // Zero allocation signalling channel
 }
 
-// channel for queuing functions on the main thread
+// glfwFuncQueue is a synchronous queue of functions to run on the main thread.
+// Unlike an unbounded channel it has no shuttle goroutine, so a pushed func is
+// visible to the draining main thread the instant push returns. That removes
+// the window where the main thread could observe an empty queue while work is
+// still in flight (and then sleep through it), so we can wake the event loop on
+// just the empty→non-empty transition rather than on every enqueue.
+type glfwFuncQueue struct {
+	mu      sync.Mutex
+	pending []funcData
+}
+
+// push appends f and wakes the event loop if the queue was previously empty.
+func (q *glfwFuncQueue) push(f funcData) {
+	q.mu.Lock()
+	wasEmpty := len(q.pending) == 0
+	q.pending = append(q.pending, f)
+	q.mu.Unlock()
+
+	if wasEmpty {
+		wakeEventLoop()
+	}
+}
+
+// drain hands the caller every pending func and resets the queue. It returns
+// nil without allocating when the queue is empty.
+func (q *glfwFuncQueue) drain() []funcData {
+	q.mu.Lock()
+	funcs := q.pending
+	q.pending = nil
+	q.mu.Unlock()
+	return funcs
+}
+
+// queue of functions to run on the main thread
 var (
-	funcQueue        = async.NewUnboundedChan[funcData]()
-	queuedFuncs      atomic.Int64
-	running, drained atomic.Bool
-	eventLoopReady   atomic.Bool
+	funcQueue      = &glfwFuncQueue{}
+	running        atomic.Bool
+	drained        atomic.Bool
+	eventLoopReady atomic.Bool
 )
 
 // Arrange that main.main runs on main thread.
@@ -59,14 +93,10 @@ func runOnMainWithWait(f func(), wait bool) {
 }
 
 func queueMainFunc(f funcData) {
-	queuedFuncs.Add(1)
-	funcQueue.In() <- f
-	wakeEventLoop()
+	funcQueue.push(f)
 }
 
 func runQueuedFunc(f funcData) {
-	defer queuedFuncs.Add(-1)
-
 	f.f()
 	if f.done != nil {
 		f.done <- struct{}{}
@@ -74,7 +104,6 @@ func runQueuedFunc(f funcData) {
 }
 
 func finishQueuedFunc(f funcData) {
-	queuedFuncs.Add(-1)
 	if f.done != nil {
 		f.done <- struct{}{}
 	}
@@ -223,25 +252,15 @@ func (d *gLDriver) processQueuedFuncsOrDone() bool {
 		case <-d.done:
 			d.shutdownGL()
 			return true
-		case f, ok := <-funcQueue.Out():
-			if !ok {
-				return false
-			}
-			runQueuedFunc(f)
 		default:
-			if queuedFuncs.Load() == 0 {
-				return false
-			}
-			select {
-			case <-d.done:
-				d.shutdownGL()
-				return true
-			case f, ok := <-funcQueue.Out():
-				if !ok {
-					return false
-				}
-				runQueuedFunc(f)
-			}
+		}
+
+		funcs := funcQueue.drain()
+		if len(funcs) == 0 {
+			return false
+		}
+		for i := range funcs {
+			runQueuedFunc(funcs[i])
 		}
 	}
 }
@@ -254,23 +273,19 @@ func (d *gLDriver) shutdownGL() {
 		l.QueueEvent(f)
 	}
 
-	// As we are shutting down make sure we drain the pending funcQueue and close it out.
+	// Stop accepting new queued funcs (runOnMainWithWait now runs them inline)
+	// and finish any that are already pending so their callers stop waiting.
+	// Looping covers funcs pushed by goroutines that passed the drained check
+	// just before the flag flipped; once drained is set no new ones can arrive,
+	// so the in-flight set is finite.
+	drained.Store(true)
 	for {
-		select {
-		case f, ok := <-funcQueue.Out():
-			if !ok {
-				queuedFuncs.Store(0)
-				return
-			}
-			finishQueuedFunc(f)
-		default:
-			drained.Store(true)
-			funcQueue.Close()
-			for f := range funcQueue.Out() {
-				finishQueuedFunc(f)
-			}
-			queuedFuncs.Store(0)
+		funcs := funcQueue.drain()
+		if len(funcs) == 0 {
 			return
+		}
+		for i := range funcs {
+			finishQueuedFunc(funcs[i])
 		}
 	}
 }
