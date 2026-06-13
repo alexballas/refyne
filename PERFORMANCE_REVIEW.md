@@ -7,7 +7,9 @@
 
 **Status update (2026-06-11):** findings **1.1 and 1.2 are implemented** (`internal/cache/svg.go`, `internal/cache/base.go`, `theme/icons.go`, `canvas/image.go`). Measured: themed icon `Content()` ~31× faster, 93 → 3 allocs/op.
 
-**Status update (2026-06-12):** the **§4 quick-win batch (items 1–7) is implemented**, covering findings 1.3, 1.4, 2.2, 2.3 (segmenter pooling part), and 3.1. Measured: `MeasureString` ~13–23% faster with fewer allocations; the per-node canvas-attach fast path is 0 allocs/op (~44 ns). Remaining proposals: 2.1, 2.3 (space-run cache), 2.4, §3 (except 3.1), §5.
+**Status update (2026-06-12):** the **§4 quick-win batch (items 1–7) is implemented**, covering findings 1.3, 1.4, 2.2, 2.3 (segmenter pooling part), and 3.1. Measured: `MeasureString` ~13–23% faster with fewer allocations; the per-node canvas-attach fast path is 0 allocs/op (~44 ns).
+
+**Status update (2026-06-13):** finding **2.1 is implemented** (`widget/list.go`, `widget/list_internal_test.go`). `RefreshItem` now updates only the visible target row, keyboard/highlight refreshes batch old/new rows, `SetItemHeight` keeps the full relayout path, and full `Refresh` reuses a cached measuring template unless the theme scope changes. Remaining proposals: 2.3 (space-run cache), 2.4, §3 (except 3.1), §5.
 
 The engine's frame model: any `Refresh`/`Move`/`Resize` sets a canvas dirty flag; a ticker at display refresh rate triggers `drawSingleFrame`, which re-walks and re-draws **the entire window** (`internal/driver/glfw/loop.go:67`, `internal/driver/glfw/canvas.go:305`). That makes two things dominant: **per-node cost in the walk** (paid thousands of times per frame) and **work triggered per `Refresh()` call** (paid on every interaction). Most findings below fall into one of those two buckets.
 
@@ -162,19 +164,21 @@ func (c *Canvas) FreeDirtyTextures() uint64 {
 
 ## 2. Significant improvements
 
-### 2.1 List: `RefreshItem` does a full-widget refresh, and every refresh constructs a throwaway template item
+### 2.1 List: `RefreshItem` does a full-widget refresh, and every refresh constructs a throwaway template item — ✅ IMPLEMENTED
 
-**Code:** `widget/list.go:208-218` (`RefreshItem` → `l.BaseWidget.Refresh()`), `widget/list.go:562-576` (`listRenderer.Refresh` → `createItemAndApplyThemeScope` + `updateList(false)`), keyboard nav at `widget/list.go:383-398` (two `RefreshItem` calls per keypress).
+**Code:** `widget/list.go` (`RefreshItem`, `refreshVisibleItems`, `updateItemMin`, `SetItemHeight`, `TypedKey`, `SetHighlight`, `listRenderer.Refresh`).
 
 **Why it's a bottleneck:** `RefreshItem(id)` triggers `listRenderer.Refresh`, which (a) calls the user's `CreateItem()` to build a complete new widget tree just to measure `itemMin`, and (b) runs `updateList(false)`, re-running the user's `UpdateItem` callback for **every visible row**. Then it sets up the one requested row again. Arrow-key navigation does this twice per keypress. With a 50-row viewport and a non-trivial `UpdateItem`, one keypress costs 100+ row updates plus two full template constructions.
 
-**Proposed improvement:**
-- Cache the measuring template: store the created item on the `List`, call `Refresh()` + `MinSize()` on it in `listRenderer.Refresh` instead of `CreateItem()`. (`CreateItem` invocation count is not a documented contract, but flag it in the changelog; the widget already calls it at unpredictable times.)
-- Make `RefreshItem` update only the target row **for content-only refreshes**: selection/focus/`UpdateItem` changes need the min-size revalidation and a canvas dirty mark, not `updateList` over all rows. **Important:** `SetItemHeight` also funnels through `RefreshItem` (`widget/list.go:225`) and *does* depend on the full path — a height change moves every row below it, changes the scroller's content min size, and alters which rows are visible. The narrowing therefore needs two paths: a narrow one for content refresh, and a relayout path (geometry + `updateList`) that `SetItemHeight` keeps using. A conservative first cut: keep `BaseWidget.Refresh()` but add a `refreshingItem` flag the layout consults to skip re-running `setupListItem` on rows other than `id`, leaving all geometry work intact. The least invasive first step is to drop the duplicated work in `TypedKey` by batching the two `RefreshItem` calls.
+**Implemented fix:**
+- `List` now keeps a cached measuring template (`itemMinObject`) and `listRenderer.Refresh` calls `Refresh()` + `MinSize()` on it instead of calling `CreateItem()` every time. The cached template tracks `cache.WidgetScopeID`; if a theme override scope changes, it is recreated so `itemMin` is measured with the correct theme.
+- `RefreshItem` is now a narrow path: it searches the current visible rows and runs `setupListItem` only for the target row, then marks the canvas dirty. Off-screen item refreshes do no visible work.
+- `SetItemHeight` no longer uses `RefreshItem`; height changes keep the full `Refresh()`/relayout path because they affect content size, row positions, and visibility.
+- `SetHighlight` and arrow-key navigation batch the old/new row refreshes through the same narrow helper, avoiding the previous two full-list refreshes per keypress.
 
-**Expected impact:** keyboard navigation and selection in lists becomes O(1) row updates instead of O(visible) — often the difference between smooth and laggy for lists with image-bearing rows (which, per finding 1.1, currently re-parse SVGs on each update). Medium confidence on exact wins; depends on app callbacks.
+**Expected impact:** keyboard navigation and `RefreshItem` paths become O(1) row updates instead of O(visible), and full list refreshes no longer construct a throwaway measuring template on every call. The exact CPU win depends on app callbacks, but the callback-count reduction is deterministic: a visible `RefreshItem(id)` now invokes `UpdateItem` once for `id`, not once for every visible row plus the target again.
 
-**Behavior/risks:** visual output identical (the same rows end up in the same states). The observable difference is fewer invocations of user callbacks (`CreateItem`/`UpdateItem`); the API docs explicitly permit calling them for caching/reuse at any time, but this needs a careful pass over `searchVisible` invariants and the table/tree/gridwrap siblings which share the pattern. Validate with `widget/list_test.go` (it asserts callback behavior in places — adjust only where counts are over-specified).
+**Behavior preservation:** visual output is unchanged; the same visible rows are updated to the same state. `SetItemHeight` keeps the relayout semantics, and theme override changes recreate the cached measuring template to avoid stale `itemMin` measurements. **Observable delta:** user callbacks run fewer times (`CreateItem` is no longer called just to remeasure on every full refresh; `UpdateItem` is no longer called for unrelated visible rows on `RefreshItem`). Validation: added tests for narrow `RefreshItem` callback counts and template reuse; `go test ./widget -run TestList -count=1` and `go test ./widget -count=1` pass.
 
 ### 2.2 GL painter: per-draw vertex-slice allocations and string-keyed uniform lookups — ✅ IMPLEMENTED
 
@@ -301,8 +305,9 @@ All eight are implemented (2026-06-12). Items 1, 2, 3, 7 together remove the bul
 
 1. ✅ **SVG source/raster caching (1.1 + 1.2)** — **implemented** (2026-06-11). `ThemedResource.Content()` measured at ~31× faster (8.5 µs → 269 ns, 93 → 3 allocs); icon refresh is now cache-hits end to end. Full test suites green.
 2. ✅ **Quick-win batch (§4, items 1–7)** — **implemented** (2026-06-12), covering 1.3, 1.4, 2.2, 2.3 (pooling), 3.1. Measured: `MeasureString` ~13–23% faster; canvas-attach fast path 0 allocs/op; per-object GL draws no longer allocate or hash uniform names. All suites green.
-3. **List refresh narrowing (2.1)** and the **space-run cache remainder of 2.3** — next up.
-4. **Prototype damage tracking (5.1)** behind a build tag, validated by software-painter screenshot diffs, since it dwarfs everything else if it lands.
+3. ✅ **List refresh narrowing (2.1)** — **implemented** (2026-06-13). `RefreshItem` updates one visible row, keyboard/highlight refreshes batch old/new rows, `SetItemHeight` keeps full relayout, and the measuring template is cached with theme-scope tracking.
+4. **Space-run cache remainder of 2.3** — next low-risk text-stack item.
+5. **Prototype damage tracking (5.1)** behind a build tag, validated by software-painter screenshot diffs, since it dwarfs everything else if it lands.
 
 Every recommendation above keeps the GL command stream, layout results, event semantics, and public API unchanged; the only externally observable deltas are explicitly flagged (callback invocation counts in 2.1, the thread-misuse log in 2.4, texture-free timing in 1.4, and canvas-attachment expiry churn in 1.3). Before/after validation should combine the package test suite, `test`-package screenshot assertions, and CPU/alloc profiles of an animation-heavy and a text-heavy scenario.
 
@@ -313,7 +318,7 @@ Every recommendation above keeps the GL command stream, layout results, event se
 go2tv's UI profile (icon-dense toolbar, `widget.List` device/queue rows with icons, 1–2 s tickers driving refreshes — `internal/gui/main.go:414-489`, `main.go:61`, `gui.go:565/578`, `main.go:1010/1046`, `actions.go:1474/1634/2457`) makes the priorities:
 
 1. ✅ **1.1 + 1.2 (SVG source/raster caching)** — **implemented**; eliminates per-refresh XML parsing for all icon buttons and list rows; biggest perceived-smoothness win.
-2. **2.1 (List refresh narrowing)** — `DeviceList.Refresh()` currently re-creates the row template and re-runs `UpdateItem` for every visible row on each discovery tick.
+2. ✅ **2.1 (List refresh narrowing)** — **implemented**; `RefreshItem`/keyboard list interactions are now O(1), and full `DeviceList.Refresh()` no longer re-creates the measuring template. Note that a deliberate full `DeviceList.Refresh()` still re-runs `UpdateItem` for visible rows; skipping unchanged discovery results is a separate go2tv-side optimization.
 3. **5.3 (idle loop wakeups)** — battery/background-CPU win for a long-running utility app sitting mostly idle between ticker updates.
 
 The per-frame walk and GL allocation items matter less for go2tv than for animation-heavy apps: its window repaints in bursts (~1 Hz), so fixed per-refresh cost dominates over per-frame cost.

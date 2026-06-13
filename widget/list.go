@@ -103,6 +103,8 @@ type List struct {
 	scroller         *widget.Scroll
 	selected         []ListItemID
 	itemMin          fyne.Size
+	itemMinObject    fyne.CanvasObject
+	itemMinScopeID   string
 	itemHeights      map[ListItemID]float32
 	offsetY          float32
 	offsetUpdated    func(fyne.Position)
@@ -143,10 +145,8 @@ func NewListWithData(data binding.DataList, createItem func() fyne.CanvasObject,
 func (l *List) CreateRenderer() fyne.WidgetRenderer {
 	l.ExtendBaseWidget(l)
 
-	if f := l.CreateItem; f != nil && l.itemMin.IsZero() {
-		item := createItemAndApplyThemeScope(f, l)
-
-		l.itemMin = item.MinSize()
+	if l.CreateItem != nil && l.itemMin.IsZero() {
+		l.updateItemMin()
 	}
 
 	layout := &fyne.Container{Layout: newListLayout(l)}
@@ -188,12 +188,28 @@ func (l *List) SetHighlight(id ListItemID) {
 
 	old := l.currentHighlight
 	l.currentHighlight = id
-	l.RefreshItem(old)
 	l.scrollTo(id)
-	l.RefreshItem(id)
+	l.refreshVisibleItems(old, id)
 	if f := l.OnHighlighted; f != nil {
 		f(id)
 	}
+}
+
+func (l *List) updateItemMin() {
+	if l.CreateItem == nil {
+		return
+	}
+
+	scopeID := cache.WidgetScopeID(l)
+	item := l.itemMinObject
+	if item == nil || l.itemMinScopeID != scopeID {
+		item = createItemAndApplyThemeScope(l.CreateItem, l)
+		l.itemMinObject = item
+		l.itemMinScopeID = scopeID
+	} else {
+		item.Refresh()
+	}
+	l.itemMin = item.MinSize()
 }
 
 // MinSize returns the size that this widget should not shrink below.
@@ -209,11 +225,40 @@ func (l *List) RefreshItem(id ListItemID) {
 	if l.scroller == nil {
 		return
 	}
-	l.BaseWidget.Refresh()
+	l.refreshVisibleItems(id)
+}
+
+func (l *List) refreshVisibleItems(ids ...ListItemID) {
+	if l.scroller == nil {
+		return
+	}
+
 	lo := l.scroller.Content.(*fyne.Container).Layout.(*listLayout)
-	item, ok := lo.searchVisible(lo.visible, id)
-	if ok {
+	refreshed := false
+	for i, id := range ids {
+		if id < 0 {
+			continue
+		}
+		duplicate := false
+		for j := 0; j < i; j++ {
+			if ids[j] == id {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+
+		item, ok := lo.searchVisible(lo.visible, id)
+		if !ok {
+			continue
+		}
 		lo.setupListItem(item, id, l.focused && l.currentHighlight == id)
+		refreshed = true
+	}
+	if refreshed {
+		canvas.Refresh(l.super())
 	}
 }
 
@@ -231,7 +276,7 @@ func (l *List) SetItemHeight(id ListItemID, height float32) {
 	l.itemHeights[id] = height
 
 	if refresh {
-		l.RefreshItem(id)
+		l.Refresh()
 	}
 }
 
@@ -384,18 +429,18 @@ func (l *List) TypedKey(event *fyne.KeyEvent) {
 		if f := l.Length; f != nil && l.currentHighlight >= f()-1 {
 			return
 		}
-		l.RefreshItem(l.currentHighlight)
+		oldFocus := l.currentHighlight
 		l.currentHighlight++
 		l.scrollTo(l.currentHighlight)
-		l.RefreshItem(l.currentHighlight)
+		l.refreshVisibleItems(oldFocus, l.currentHighlight)
 	case fyne.KeyUp:
 		if l.currentHighlight <= 0 {
 			return
 		}
-		l.RefreshItem(l.currentHighlight)
+		oldFocus := l.currentHighlight
 		l.currentHighlight--
 		l.scrollTo(l.currentHighlight)
-		l.RefreshItem(l.currentHighlight)
+		l.refreshVisibleItems(oldFocus, l.currentHighlight)
 	}
 
 	if oldFocus != l.currentHighlight {
@@ -560,10 +605,7 @@ func (l *listRenderer) MinSize() fyne.Size {
 }
 
 func (l *listRenderer) Refresh() {
-	if f := l.list.CreateItem; f != nil {
-		item := createItemAndApplyThemeScope(f, l.list)
-		l.list.itemMin = item.MinSize()
-	}
+	l.list.updateItemMin()
 	l.Layout(l.list.Size())
 	l.scroller.Refresh()
 	layout := l.layout.Layout.(*listLayout)

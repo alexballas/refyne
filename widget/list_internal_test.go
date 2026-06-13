@@ -381,6 +381,66 @@ func TestList_ItemDataChange(t *testing.T) {
 	assert.Equal(t, "a", children[0].(*listItem).child.(*fyne.Container).Objects[1].(*Label).Text)
 }
 
+func TestList_RefreshItemOnlyUpdatesVisibleTarget(t *testing.T) {
+	test.NewTempApp(t)
+
+	data := []string{"a", "b", "c", "d", "e"}
+	createCount := 0
+	updateCounts := map[int]int{}
+	list := NewList(
+		func() int {
+			return len(data)
+		},
+		func() fyne.CanvasObject {
+			createCount++
+			return NewLabel("")
+		},
+		func(id ListItemID, item fyne.CanvasObject) {
+			updateCounts[id]++
+			item.(*Label).SetText(data[id])
+		},
+	)
+	w := test.NewTempWindow(t, list)
+	w.Resize(fyne.NewSize(200, 120))
+
+	createCountBefore := createCount
+	updateCounts = map[int]int{}
+	data[1] = "changed"
+	list.RefreshItem(1)
+
+	assert.Equal(t, createCountBefore, createCount)
+	assert.Equal(t, map[int]int{1: 1}, updateCounts)
+
+	layout := list.scroller.Content.(*fyne.Container).Layout.(*listLayout)
+	item, ok := layout.searchVisible(layout.visible, 1)
+	assert.True(t, ok)
+	assert.Equal(t, "changed", item.child.(*Label).Text)
+}
+
+func TestList_RefreshReusesMeasurementTemplate(t *testing.T) {
+	test.NewTempApp(t)
+
+	createCount := 0
+	list := NewList(
+		func() int {
+			return 1
+		},
+		func() fyne.CanvasObject {
+			createCount++
+			return NewLabel("Template")
+		},
+		func(ListItemID, fyne.CanvasObject) {
+		},
+	)
+	w := test.NewTempWindow(t, list)
+	w.Resize(fyne.NewSize(200, 120))
+
+	createCountBefore := createCount
+	list.Refresh()
+
+	assert.Equal(t, createCountBefore, createCount)
+}
+
 func TestList_SmallList(t *testing.T) {
 	test.NewTempApp(t)
 
