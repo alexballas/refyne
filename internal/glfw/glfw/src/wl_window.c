@@ -58,6 +58,12 @@
 #define GLFW_BORDER_SIZE    4
 #define GLFW_CAPTION_HEIGHT 24
 
+#define GLFW_PENDING_SURFACE    1
+#define GLFW_PENDING_BUTTON     2
+#define GLFW_PENDING_MOTION     4
+#define GLFW_PENDING_SCROLL     8
+#define GLFW_PENDING_DISCRETE   16
+
 static int createTmpfileCloexec(char* tmpname)
 {
     int fd;
@@ -1529,24 +1535,24 @@ static const char* refyneWindowShadowCursorName(uint32_t edge)
     }
 }
 
-static void pointerHandleEnter(void* userData,
-                               struct wl_pointer* pointer,
-                               uint32_t serial,
-                               struct wl_surface* surface,
-                               wl_fixed_t sx,
-                               wl_fixed_t sy)
+static struct wl_surface* getEffectivePointerSurface(void)
 {
-    // Happens in the case we just destroyed the surface.
+    if (_glfw.wl.pending.events & GLFW_PENDING_SURFACE)
+        return _glfw.wl.pending.pointerSurface;
+
+    return _glfw.wl.pointerSurface;
+}
+
+static void processPointerEnterSurface(struct wl_surface* surface)
+{
     if (!surface)
         return;
 
-    if (wl_proxy_get_tag((struct wl_proxy*) surface) != &_glfw.wl.tag)
+    _GLFWwindow* window = wl_surface_get_user_data(surface);
+    if (!window)
         return;
 
-    _GLFWwindow* window = wl_surface_get_user_data(surface);
-
-    _glfw.wl.serial = serial;
-    _glfw.wl.pointerEnterSerial = serial;
+    _glfw.wl.pointerSurface = surface;
     _glfw.wl.pointerFocus = window;
 
     if (surface == window->wl.surface)
@@ -1572,23 +1578,18 @@ static void pointerHandleEnter(void* userData,
     }
 }
 
-static void pointerHandleLeave(void* userData,
-                               struct wl_pointer* pointer,
-                               uint32_t serial,
-                               struct wl_surface* surface)
+static void processPointerLeaveSurface(struct wl_surface* surface)
 {
     if (!surface)
         return;
 
-    if (wl_proxy_get_tag((struct wl_proxy*) surface) != &_glfw.wl.tag)
-        return;
-
-    _GLFWwindow* window = _glfw.wl.pointerFocus;
+    _GLFWwindow* window = wl_surface_get_user_data(surface);
     if (!window)
         return;
 
-    _glfw.wl.serial = serial;
-    _glfw.wl.pointerFocus = NULL;
+    _glfw.wl.pointerSurface = NULL;
+    if (_glfw.wl.pointerFocus == window)
+        _glfw.wl.pointerFocus = NULL;
     _glfw.wl.cursorPreviousName = NULL;
 
     if (window->wl.hovered)
@@ -1605,11 +1606,7 @@ static void pointerHandleLeave(void* userData,
     }
 }
 
-static void pointerHandleMotion(void* userData,
-                                struct wl_pointer* pointer,
-                                uint32_t time,
-                                wl_fixed_t sx,
-                                wl_fixed_t sy)
+static void processPointerMotion(double xpos, double ypos)
 {
     _GLFWwindow* window = _glfw.wl.pointerFocus;
     if (!window)
@@ -1618,8 +1615,6 @@ static void pointerHandleMotion(void* userData,
     if (window->cursorMode == GLFW_CURSOR_DISABLED)
         return;
 
-    const double xpos = wl_fixed_to_double(sx);
-    const double ypos = wl_fixed_to_double(sy);
     window->wl.cursorPosX = xpos;
     window->wl.cursorPosY = ypos;
 
@@ -1680,12 +1675,9 @@ static void pointerHandleMotion(void* userData,
     }
 }
 
-static void pointerHandleButton(void* userData,
-                                struct wl_pointer* pointer,
-                                uint32_t serial,
-                                uint32_t time,
-                                uint32_t button,
-                                uint32_t state)
+static void processPointerButton(uint32_t serial,
+                                 uint32_t button,
+                                 uint32_t state)
 {
     _GLFWwindow* window = _glfw.wl.pointerFocus;
     if (!window)
@@ -1779,24 +1771,209 @@ static void pointerHandleButton(void* userData,
     }
 }
 
+static void processPointerScroll(double xoffset, double yoffset)
+{
+    _GLFWwindow* window = _glfw.wl.pointerFocus;
+    if (!window)
+        return;
+
+    if (!window->wl.hovered)
+        return;
+
+    _glfwInputScroll(window, xoffset, yoffset);
+}
+
+static void pointerHandleEnter(void* userData,
+                               struct wl_pointer* pointer,
+                               uint32_t serial,
+                               struct wl_surface* surface,
+                               wl_fixed_t sx,
+                               wl_fixed_t sy)
+{
+    // Happens in the case we just destroyed the surface.
+    if (!surface)
+        return;
+
+    if (wl_proxy_get_tag((struct wl_proxy*) surface) != &_glfw.wl.tag)
+        return;
+
+    _glfw.wl.serial = serial;
+    _glfw.wl.pointerEnterSerial = serial;
+
+    const double xpos = wl_fixed_to_double(sx);
+    const double ypos = wl_fixed_to_double(sy);
+
+    if (wl_pointer_get_version(pointer) >= WL_POINTER_FRAME_SINCE_VERSION)
+    {
+        _glfw.wl.pending.events |= (GLFW_PENDING_SURFACE | GLFW_PENDING_MOTION);
+        _glfw.wl.pending.pointerSurface = surface;
+        _glfw.wl.pending.pointerX = xpos;
+        _glfw.wl.pending.pointerY = ypos;
+    }
+    else
+    {
+        processPointerEnterSurface(surface);
+        processPointerMotion(xpos, ypos);
+    }
+}
+
+static void pointerHandleLeave(void* userData,
+                               struct wl_pointer* pointer,
+                               uint32_t serial,
+                               struct wl_surface* surface)
+{
+    if (!surface)
+        return;
+
+    if (wl_proxy_get_tag((struct wl_proxy*) surface) != &_glfw.wl.tag)
+        return;
+
+    _glfw.wl.serial = serial;
+
+    if (wl_pointer_get_version(pointer) >= WL_POINTER_FRAME_SINCE_VERSION)
+    {
+        _glfw.wl.pending.events |= GLFW_PENDING_SURFACE;
+        _glfw.wl.pending.pointerSurface = NULL;
+    }
+    else
+        processPointerLeaveSurface(surface);
+}
+
+static void pointerHandleMotion(void* userData,
+                                struct wl_pointer* pointer,
+                                uint32_t time,
+                                wl_fixed_t sx,
+                                wl_fixed_t sy)
+{
+    if (!getEffectivePointerSurface())
+        return;
+
+    const double xpos = wl_fixed_to_double(sx);
+    const double ypos = wl_fixed_to_double(sy);
+
+    if (wl_pointer_get_version(pointer) >= WL_POINTER_FRAME_SINCE_VERSION)
+    {
+        _glfw.wl.pending.events |= GLFW_PENDING_MOTION;
+        _glfw.wl.pending.pointerX = xpos;
+        _glfw.wl.pending.pointerY = ypos;
+    }
+    else
+        processPointerMotion(xpos, ypos);
+}
+
+static void pointerHandleButton(void* userData,
+                                struct wl_pointer* pointer,
+                                uint32_t serial,
+                                uint32_t time,
+                                uint32_t button,
+                                uint32_t state)
+{
+    if (!getEffectivePointerSurface())
+        return;
+
+    if (wl_pointer_get_version(pointer) >= WL_POINTER_FRAME_SINCE_VERSION)
+    {
+        _glfw.wl.pending.events |= GLFW_PENDING_BUTTON;
+        _glfw.wl.pending.button = button;
+        _glfw.wl.pending.buttonState = state;
+        _glfw.wl.pending.buttonSerial = serial;
+    }
+    else
+        processPointerButton(serial, button, state);
+}
+
 static void pointerHandleAxis(void* userData,
                               struct wl_pointer* pointer,
                               uint32_t time,
                               uint32_t axis,
                               wl_fixed_t value)
 {
-    _GLFWwindow* window = _glfw.wl.pointerFocus;
-    if (!window)
+    if (!getEffectivePointerSurface())
         return;
 
-    if (window->wl.refyneShadow.focus)
+    if (wl_pointer_get_version(pointer) >= WL_POINTER_FRAME_SINCE_VERSION)
+    {
+        _glfw.wl.pending.events |= GLFW_PENDING_SCROLL;
+        if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
+            _glfw.wl.pending.scrollX = -wl_fixed_to_double(value) / 10.0;
+        else if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
+            _glfw.wl.pending.scrollY = -wl_fixed_to_double(value) / 10.0;
+    }
+    else
+    {
+        // NOTE: 10 units of motion per mouse wheel step seems to be a common ratio
+        if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
+            processPointerScroll(-wl_fixed_to_double(value) / 10.0, 0.0);
+        else if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
+            processPointerScroll(0.0, -wl_fixed_to_double(value) / 10.0);
+    }
+}
+
+static void pointerHandleFrame(void* userData, struct wl_pointer* pointer)
+{
+    if (_glfw.wl.pending.events & GLFW_PENDING_SURFACE)
+    {
+        if (_glfw.wl.pointerSurface)
+            processPointerLeaveSurface(_glfw.wl.pointerSurface);
+
+        if (_glfw.wl.pending.pointerSurface)
+            processPointerEnterSurface(_glfw.wl.pending.pointerSurface);
+    }
+
+    if (_glfw.wl.pointerSurface)
+    {
+        if (_glfw.wl.pending.events & GLFW_PENDING_MOTION)
+            processPointerMotion(_glfw.wl.pending.pointerX, _glfw.wl.pending.pointerY);
+
+        if (_glfw.wl.pending.events & GLFW_PENDING_BUTTON)
+        {
+            processPointerButton(_glfw.wl.pending.buttonSerial,
+                                 _glfw.wl.pending.button,
+                                 _glfw.wl.pending.buttonState);
+        }
+
+        if (_glfw.wl.pending.events & GLFW_PENDING_DISCRETE)
+            processPointerScroll(_glfw.wl.pending.discreteX, _glfw.wl.pending.discreteY);
+        else if (_glfw.wl.pending.events & GLFW_PENDING_SCROLL)
+            processPointerScroll(_glfw.wl.pending.scrollX, _glfw.wl.pending.scrollY);
+    }
+
+    memset(&_glfw.wl.pending, 0, sizeof(_glfw.wl.pending));
+}
+
+static void pointerHandleAxisSource(void* userData,
+                                    struct wl_pointer* pointer,
+                                    uint32_t axisSource)
+{
+}
+
+static void pointerHandleAxisStop(void* userData,
+                                  struct wl_pointer* pointer,
+                                  uint32_t time,
+                                  uint32_t axis)
+{
+}
+
+static void pointerHandleAxisDiscrete(void* userData,
+                                      struct wl_pointer* pointer,
+                                      uint32_t axis,
+                                      int32_t discrete)
+{
+}
+
+static void pointerHandleAxisValue120(void* userData,
+                                      struct wl_pointer* pointer,
+                                      uint32_t axis,
+                                      int32_t value120)
+{
+    if (!getEffectivePointerSurface())
         return;
 
-    // NOTE: 10 units of motion per mouse wheel step seems to be a common ratio
+    _glfw.wl.pending.events |= GLFW_PENDING_DISCRETE;
     if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
-        _glfwInputScroll(window, -wl_fixed_to_double(value) / 10.0, 0.0);
+        _glfw.wl.pending.discreteX = -(value120 / 120.0);
     else if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
-        _glfwInputScroll(window, 0.0, -wl_fixed_to_double(value) / 10.0);
+        _glfw.wl.pending.discreteY = -(value120 / 120.0);
 }
 
 static const struct wl_pointer_listener pointerListener =
@@ -1806,6 +1983,11 @@ static const struct wl_pointer_listener pointerListener =
     pointerHandleMotion,
     pointerHandleButton,
     pointerHandleAxis,
+    pointerHandleFrame,
+    pointerHandleAxisSource,
+    pointerHandleAxisStop,
+    pointerHandleAxisDiscrete,
+    pointerHandleAxisValue120,
 };
 
 static void keyboardHandleKeymap(void* userData,
@@ -2077,6 +2259,9 @@ static void seatHandleCapabilities(void* userData,
         }
         wl_pointer_destroy(_glfw.wl.pointer);
         _glfw.wl.pointer = NULL;
+        _glfw.wl.pointerSurface = NULL;
+        _glfw.wl.pointerFocus = NULL;
+        memset(&_glfw.wl.pending, 0, sizeof(_glfw.wl.pending));
     }
 
     if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !_glfw.wl.keyboard)
@@ -2396,8 +2581,18 @@ GLFWbool _glfwCreateWindowWayland(_GLFWwindow* window,
 
 void _glfwDestroyWindowWayland(_GLFWwindow* window)
 {
+    if (_glfw.wl.pending.pointerSurface &&
+        wl_surface_get_user_data(_glfw.wl.pending.pointerSurface) == window)
+    {
+        memset(&_glfw.wl.pending, 0, sizeof(_glfw.wl.pending));
+    }
+
     if (window == _glfw.wl.pointerFocus)
+    {
+        _glfw.wl.pointerSurface = NULL;
         _glfw.wl.pointerFocus = NULL;
+        memset(&_glfw.wl.pending, 0, sizeof(_glfw.wl.pending));
+    }
 
     if (window == _glfw.wl.keyboardFocus)
     {

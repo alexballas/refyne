@@ -31,6 +31,10 @@ base that already contains them — check GLFW_C_REVISION.txt against each SHA):
   ignoring timer events when no window has keyboard focus, stopping the repeat timer when
   the focused window is destroyed, only stopping repeat on release of the repeating
   scancode, and seeding default repeat info for pre-v4 wl_keyboard objects.
+- 001f94e + 99cdcfb + 05f57c0 — Wayland: batch pointer events on wl_pointer.frame
+  and prefer axis_value120 high-resolution wheel data when available. Adapted to keep
+  Refyne's pointerFocus, fallback decoration focus, refyneShadow focus, and shadow resize
+  behavior instead of switching wholesale to upstream's pointerSurface-only flow.
 - Skipped 50b0a13 (depends on the unapplied EGL-swap fix fdd14e65) and the drag-enter NULL guard
   51b6434 (already covered by refyne's portal rewrite of dataDeviceHandleEnter).
 

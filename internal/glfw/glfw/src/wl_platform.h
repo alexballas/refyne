@@ -485,6 +485,20 @@ typedef struct _GLFWlibraryWayland
     char                        keynames[GLFW_KEY_LAST + 1][5];
 
     struct {
+        struct wl_surface*      pointerSurface;
+        unsigned int            events;
+        double                  pointerX;
+        double                  pointerY;
+        double                  scrollX;
+        double                  scrollY;
+        double                  discreteX;
+        double                  discreteY;
+        uint32_t                button;
+        uint32_t                buttonState;
+        uint32_t                buttonSerial;
+    } pending;
+
+    struct {
         void*                   handle;
         struct xkb_context*     context;
         struct xkb_keymap*      keymap;
@@ -523,6 +537,7 @@ typedef struct _GLFWlibraryWayland
         PFN_xkb_compose_state_get_one_sym compose_state_get_one_sym;
     } xkb;
 
+    struct wl_surface*          pointerSurface;
     _GLFWwindow*                pointerFocus;
     _GLFWwindow*                keyboardFocus;
 
