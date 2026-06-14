@@ -1365,17 +1365,20 @@ static void handleEvents(double* timeout)
 
             if (read(_glfw.wl.keyRepeatTimerfd, &repeats, sizeof(repeats)) == 8)
             {
-                for (uint64_t i = 0; i < repeats; i++)
+                if (_glfw.wl.keyboardFocus)
                 {
-                    _glfwInputKey(_glfw.wl.keyboardFocus,
-                                  translateKey(_glfw.wl.keyRepeatScancode),
-                                  _glfw.wl.keyRepeatScancode,
-                                  GLFW_PRESS,
-                                  _glfw.wl.xkb.modifiers);
-                    inputText(_glfw.wl.keyboardFocus, _glfw.wl.keyRepeatScancode);
-                }
+                    for (uint64_t i = 0; i < repeats; i++)
+                    {
+                        _glfwInputKey(_glfw.wl.keyboardFocus,
+                                      translateKey(_glfw.wl.keyRepeatScancode),
+                                      _glfw.wl.keyRepeatScancode,
+                                      GLFW_PRESS,
+                                      _glfw.wl.xkb.modifiers);
+                        inputText(_glfw.wl.keyboardFocus, _glfw.wl.keyRepeatScancode);
+                    }
 
-                event = GLFW_TRUE;
+                    event = GLFW_TRUE;
+                }
             }
         }
 
@@ -1970,10 +1973,13 @@ static void keyboardHandleKey(void* userData,
 
             timer.it_value.tv_sec = _glfw.wl.keyRepeatDelay / 1000;
             timer.it_value.tv_nsec = (_glfw.wl.keyRepeatDelay % 1000) * 1000000;
+            timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, NULL);
         }
     }
-
-    timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, NULL);
+    else if (scancode == _glfw.wl.keyRepeatScancode)
+    {
+        timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, NULL);
+    }
 
     _glfwInputKey(window, key, scancode, action, _glfw.wl.xkb.modifiers);
 
@@ -2077,6 +2083,13 @@ static void seatHandleCapabilities(void* userData,
     {
         _glfw.wl.keyboard = wl_seat_get_keyboard(seat);
         wl_keyboard_add_listener(_glfw.wl.keyboard, &keyboardListener, NULL);
+
+        if (wl_keyboard_get_version(_glfw.wl.keyboard) <
+            WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION)
+        {
+            _glfw.wl.keyRepeatRate = 4;
+            _glfw.wl.keyRepeatDelay = 500;
+        }
     }
     else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && _glfw.wl.keyboard)
     {
@@ -2387,7 +2400,12 @@ void _glfwDestroyWindowWayland(_GLFWwindow* window)
         _glfw.wl.pointerFocus = NULL;
 
     if (window == _glfw.wl.keyboardFocus)
+    {
+        struct itimerspec timer = {0};
+        timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, NULL);
+
         _glfw.wl.keyboardFocus = NULL;
+    }
 
     if (window->wl.fractionalScale)
         wp_fractional_scale_v1_destroy(window->wl.fractionalScale);

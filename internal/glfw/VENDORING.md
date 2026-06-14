@@ -27,6 +27,10 @@ base that already contains them — check GLFW_C_REVISION.txt against each SHA):
   xkbcommon, wayland-cursor, libEGL, libwayland-client) to the end of _glfwTerminateWayland,
   after wl_display_disconnect and proxy teardown (#2744). Pairs with the egl_context.c guard
   `&& _glfw.platform.platformID != GLFW_PLATFORM_WAYLAND` in _glfwTerminateEGL.
+- 506c11b + feb2a6b + 768e81a + a98badf — Wayland: harden key repeat handling by
+  ignoring timer events when no window has keyboard focus, stopping the repeat timer when
+  the focused window is destroyed, only stopping repeat on release of the repeating
+  scancode, and seeding default repeat info for pre-v4 wl_keyboard objects.
 - Skipped 50b0a13 (depends on the unapplied EGL-swap fix fdd14e65) and the drag-enter NULL guard
   51b6434 (already covered by refyne's portal rewrite of dataDeviceHandleEnter).
 
