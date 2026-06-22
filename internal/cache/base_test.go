@@ -193,6 +193,28 @@ func Test_expiringCache(t *testing.T) {
 	assert.True(t, c.isExpired(tm.now))
 }
 
+func TestBeginFrameKeepsTouchedRendererAliveAfterIdle(t *testing.T) {
+	testClearAll()
+	tm := &timeMock{}
+	tm.setTime(10, 10)
+
+	destroyedRenderersCnt := 0
+	widget := &dummyWidget{onDestroy: func() {
+		destroyedRenderersCnt++
+	}}
+	Renderer(widget)
+
+	tm.advanceWallClock(2 * ValidDuration)
+	BeginFrame()
+
+	_, ok := CachedRenderer(widget)
+	assert.True(t, ok)
+
+	Clean(true)
+	assert.Equal(t, 1, renderers.Len())
+	assert.Zero(t, destroyedRenderersCnt)
+}
+
 type dummyCanvas struct {
 	fyne.Canvas
 }
@@ -247,7 +269,12 @@ func (t *timeMock) setTime(min, sec int) {
 	}
 }
 
+func (t *timeMock) advanceWallClock(d time.Duration) {
+	t.now = t.now.Add(d)
+}
+
 func testClearAll() {
+	lastClean = time.Time{}
 	skippedCleanWithCanvasRefresh = false
 	canvases.Clear()
 	svgs.Clear()

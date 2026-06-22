@@ -110,7 +110,9 @@ func (w *window) MainMenu() *fyne.MainMenu {
 func (w *window) SetMainMenu(menu *fyne.MainMenu) {
 	w.mainmenu = menu
 	w.runOnMainWhenCreated(func() {
-		w.canvas.buildMenu(w, menu)
+		w.updateChrome(func() {
+			w.canvas.buildMenu(w, menu)
+		})
 	})
 }
 
@@ -313,6 +315,25 @@ func (w *window) processResized(width, height int) {
 	w.RunWithContext(func() {
 		w.platformResize(canvasSize)
 	})
+}
+
+func (w *window) updateChrome(fn func()) {
+	oldHeight := w.canvas.chromeHeight()
+	fn()
+	w.preserveContentSizeForChromeHeight(oldHeight)
+}
+
+func (w *window) preserveContentSizeForChromeHeight(oldHeight float32) {
+	if w.canvas == nil || w.canvas.size.IsZero() {
+		return
+	}
+
+	delta := w.canvas.chromeHeight() - oldHeight
+	if delta == 0 {
+		return
+	}
+
+	w.Resize(w.canvas.size.AddWidthHeight(0, delta))
 }
 
 func (w *window) processFrameSized(width, height int) {

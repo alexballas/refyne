@@ -249,6 +249,10 @@ func (c *glCanvas) canvasSize(contentSize fyne.Size) fyne.Size {
 	return canvasSize
 }
 
+func (c *glCanvas) chromeHeight() float32 {
+	return c.menuHeight() + c.decorationHeight()
+}
+
 func (c *glCanvas) contentPos() fyne.Position {
 	contentPos := fyne.NewPos(0, c.decorationHeight()+c.menuHeight())
 	if c.Padded() {

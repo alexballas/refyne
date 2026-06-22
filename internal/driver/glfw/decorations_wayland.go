@@ -158,7 +158,9 @@ func (w *window) setupWaylandDecorations() {
 	d.onDragStart = func() { w.viewport.StartWindowMove() }
 	d.onDoubleTap = d.onMaximizeToggle
 
-	w.canvas.setDecoration(d)
+	w.updateChrome(func() {
+		w.canvas.setDecoration(d)
+	})
 	w.canvas.setWindowBackground(true)
 	w.canvas.setWindowOutline(true)
 	w.canvas.setWindowCornersSquare(w.viewport.GetAttrib(glfw.Maximized) == glfw.True || w.fullScreen)

@@ -15,11 +15,11 @@ var (
 	lastClean                     time.Time
 	skippedCleanWithCanvasRefresh = false
 
-	// coarseTimestamp holds unix nanos refreshed once per frame by Clean.
+	// coarseTimestamp holds unix nanos refreshed once per frame by BeginFrame.
 	// setAlive runs on every cache hit, so it reads this instead of calling
 	// time.Now; with a TTL measured in seconds, sub-frame precision is
-	// irrelevant. Zero means Clean has not run yet (e.g. headless tests) and
-	// setAlive falls back to timeNow.
+	// irrelevant. Zero means no frame timestamp has been set yet (e.g.
+	// headless tests) and setAlive falls back to timeNow.
 	coarseTimestamp atomic.Int64
 
 	// testing purpose only
@@ -31,6 +31,11 @@ func init() {
 		ValidDuration = t
 		cleanTaskInterval = ValidDuration / 2
 	}
+}
+
+// BeginFrame refreshes the coarse timestamp used by cache hits during a render frame.
+func BeginFrame() {
+	coarseTimestamp.Store(timeNow().UnixNano())
 }
 
 // Clean run cache clean task, it should be called on paint events.

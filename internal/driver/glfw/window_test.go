@@ -1556,6 +1556,46 @@ func TestWindow_SetPadded(t *testing.T) {
 	}
 }
 
+func TestWindow_UpdateChromePreservesContentSize(t *testing.T) {
+	w := createWindow("Test")
+	w.SetPadded(false)
+
+	content := canvas.NewRectangle(color.Black)
+	w.SetContent(content)
+
+	baseSize := fyne.NewSize(300, 200)
+	w.Resize(baseSize)
+	ensureCanvasSize(t, w, baseSize)
+
+	menu := canvas.NewRectangle(color.White)
+	menu.SetMinSize(fyne.NewSize(1, 20))
+	decoration := canvas.NewRectangle(color.Transparent)
+	decoration.SetMinSize(fyne.NewSize(1, titleBarHeight))
+	c := w.Canvas().glCanvas
+
+	runOnMain(func() {
+		contentSize := content.Size()
+
+		w.window.updateChrome(func() {
+			c.setMenuOverlay(menu)
+		})
+		assert.Equal(t, contentSize, content.Size())
+		assert.Equal(t, baseSize.AddWidthHeight(0, 20), c.Size())
+
+		w.window.updateChrome(func() {
+			c.setDecoration(decoration)
+		})
+		assert.Equal(t, contentSize, content.Size())
+		assert.Equal(t, baseSize.AddWidthHeight(0, 20+titleBarHeight), c.Size())
+
+		w.window.updateChrome(func() {
+			c.setMenuOverlay(nil)
+		})
+		assert.Equal(t, contentSize, content.Size())
+		assert.Equal(t, baseSize.AddWidthHeight(0, titleBarHeight), c.Size())
+	})
+}
+
 func TestWindow_Focus(t *testing.T) {
 	w := createWindow("Test")
 

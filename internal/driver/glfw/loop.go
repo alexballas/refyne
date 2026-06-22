@@ -118,6 +118,8 @@ func decideRepaint(visible, ready bool, checkDirtyAndClear func() bool) bool {
 }
 
 func (d *gLDriver) drawSingleFrame() {
+	cache.BeginFrame()
+
 	refreshed := false
 	for _, win := range d.windowList() {
 		w := win.(*window)
