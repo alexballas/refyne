@@ -98,6 +98,57 @@ Implemented:
 - Added new dependency `github.com/anthonynsimon/bild` for software-painter blur/shadow.
 - Added canvas tests for blur, ellipse, regular/arbitrary polygon, shader, and shadow.
 
+## Progress On Accessibility
+
+Implementation of **accessibility** (`fyne.Accessible`, roles, widget labels/roles, opt-in native bridges behind the `accessibility` build tag) is complete in the worktree.
+
+Implemented (core, unconditional):
+
+- Added public `fyne.AccessibleRole` type with `AccessibleRoleButton`, `AccessibleRoleContainer`, `AccessibleRoleLink`, `AccessibleRoleText` constants and the `fyne.Accessible` interface (`AccessibilityLabel()`, `AccessibilityRole()`) in `accessibility.go`.
+- `*fyne.Container` now conforms to `Accessible` (label `"Container"`, role `AccessibleRoleContainer`).
+- Widget roles/labels: `widget.Button` (text or icon name / `AccessibleRoleButton`), `widget.Label` (text / `AccessibleRoleText`), `widget.Hyperlink` (text / `AccessibleRoleLink`).
+
+Implemented (driver wiring, unconditional calls into build-tag-gated methods):
+
+- glfw: `updateAccessibility()` after repaint in `loop.go`, on `Show` and `SetContent` in `window.go`; `cleanupAccessibilityForWindow()` in `Close` (before `w.closing = true` so `view()` is still valid); `initAccessibilityForWindow()` at the end of `create()` in `window_desktop.go`.
+- mobile: `updateAccessibility()` after publish in `driver.go` `handlePaint`; `initAccessibilityForWindow()` in `window.go` `Show`; `cleanupAccessibilityForWindow()` in `window.go` `Close`.
+
+Implemented (native bridges, behind the `accessibility` build tag):
+
+- glfw macOS: `accessibility_darwin.go` + `.h`/`.m` (NSAccessibility element tree, recursive parent/child model).
+- glfw Windows: `accessibility_windows.go` + `.h`/`.c` (flat element model, leaf-only).
+- glfw stub: `accessibility_notdarwin.go` (`!accessibility || (!darwin && !windows)`).
+- mobile Android: `accessibility_android.go` + `.c` (JNI bridge, flat virtual-view overlay).
+- mobile iOS: `accessibility_ios.go` + `.m` (UIAccessibility elements).
+- mobile stub: `accessibility_notandroid.go` (`!accessibility || (!android && !ios)`).
+- Android Java side: added accessibility methods/fields to `internal/driver/mobile/app/GoNativeActivity.java` (`setupAccessibility`, `doSetupAccessibility`, `clearAccessibilityNodes`, `addAccessibilityNode`, `commitAccessibilityNodes`, `applySnapshot`, `rebuildA11yViews`, `mA11yContainer` real-view overlay, `ROLE_*` constants). Only the accessibility additions were ported; upstream's unrelated refactors in that file (hoisted IME listeners, system-bar appearance) were intentionally not pulled in.
+
+Notes:
+
+- Native bridge `.go` files were copied verbatim from upstream with the import path rewritten from `fyne.io/fyne/v2` to `github.com/alexballas/refyne/v2`.
+- Build-tag coverage is complete and non-overlapping: every `*window` gets `updateAccessibility`/`initAccessibilityForWindow`/`cleanupAccessibilityForWindow` from exactly one file for any (tag, GOOS) combination, including wasm (resolves to the glfw `notdarwin` stub).
+- Regenerated the embedded Android dex; decoded `dex.go` now contains `setupAccessibility`, `addAccessibilityNode`, `commitAccessibilityNodes`, `clearAccessibilityNodes`, `doSetupAccessibility`, `rebuildA11yViews` (and still retains the scheduled-notification symbols).
+- Added tests: `accessibility_test.go` (container) and `widget/accessibility_test.go` (button/label/hyperlink labels and roles). Upstream ships no accessibility tests.
+
+Verification for accessibility passed:
+
+```sh
+gofumpt -l -w .
+git diff --check
+go build ./...
+go build -tags accessibility ./...
+go test ./ ./widget ./theme ./container ./test
+# native bridges cross-compile with the accessibility tag:
+ANDROID_HOME=/home/alex/Android/Sdk ANDROID_NDK_HOME=/home/alex/Downloads/android-ndk-r27d CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
+  CC=$NDK/.../aarch64-linux-android35-clang CXX=$NDK/.../aarch64-linux-android35-clang++ \
+  go build -tags accessibility ./internal/driver/mobile/
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -tags accessibility ./internal/driver/glfw/
+ANDROID_HOME=/home/alex/Android/Sdk go generate ./cmd/fyne/internal/mobile
+go build ./cmd/fyne/...
+```
+
+Caveat: the macOS (`accessibility_darwin.*`) and iOS (`accessibility_ios.*`) native bridges could not be compiled in this Linux environment (no Apple toolchain). Their Go-side API usage is identical to the Windows/Android bridges that *were* cross-compiled successfully, and the source is verbatim-from-upstream plus the import-path rewrite, so risk is low — but they still need a real darwin/ios build to confirm the cgo layer.
+
 ## Post-Port Fix And Cleanup
 
 After the port, an audit found and fixed one functional regression plus dead code:
@@ -198,15 +249,18 @@ Important new files:
 - `canvas/blur.go`, `canvas/shader.go`, `canvas/shadow.go`, `canvas/ellipse.go`, `canvas/regularpolygon.go`, `canvas/arbitrary_polygon.go` (plus their `_test.go` files)
 - `internal/cache/blur_kernel.go`
 - `internal/painter/gl/shaders/{blur,blur_es}.{frag,vert}`, `internal/painter/gl/shaders/{ellipse,ellipse_es,regular_polygon,regular_polygon_es,arbitrary_polygon,arbitrary_polygon_es}.frag`
+- `accessibility.go`, `accessibility_test.go`, `widget/accessibility_test.go`
+- `internal/driver/glfw/accessibility_{darwin,notdarwin,windows}.go` (+ `accessibility_darwin.{h,m}`, `accessibility_windows.{h,c}`)
+- `internal/driver/mobile/accessibility_{android,ios,notandroid}.go` (+ `accessibility_android.c`, `accessibility_ios.m`)
 
 Important modified generated file:
 
-- `cmd/fyne/internal/mobile/dex.go`
+- `cmd/fyne/internal/mobile/dex.go` (regenerated for both scheduled notifications and accessibility Java methods)
 
 ## Remaining Ranked Missing Feature Areas
 
 1. ~~Canvas graphics/effects: `Blur`, `Shader`, `NewShaderAnimation`, `Shadow`, `Ellipse`, `ArbitraryPolygon`, `RegularPolygon`, shadows.~~ **Done** — see "Progress On Canvas Graphics / Shaders" above.
-2. Accessibility: `fyne.Accessible`, roles, widget labels/roles, opt-in native bridges behind the `accessibility` tag.
+2. ~~Accessibility: `fyne.Accessible`, roles, widget labels/roles, opt-in native bridges behind the `accessibility` tag.~~ **Done** — see "Progress On Accessibility" above.
 3. Desktop window controls: `desktop.Window`, secondary fullscreen, always-on-top, requested position, `HasSecondaryDisplay`, `IOSWindowContext`.
 4. Theme/visual customization: new radius/blur/split/inner-window theme names, active/inactive inner windows, shadows/radius polish.
 5. Collection widget API parity: `List.Bind`, `List.Unbind`, upstream `Highlight` methods on list/grid/table/tree. Refyne already has custom list/grid keyboard hooks not in upstream.

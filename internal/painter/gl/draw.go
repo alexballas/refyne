@@ -265,8 +265,6 @@ func (p *painter) drawObject(o fyne.CanvasObject, pos fyne.Position, frame fyne.
 		p.drawGradient(obj, p.newGlLinearGradientTexture, pos, frame)
 	case *canvas.RadialGradient:
 		p.drawGradient(obj, p.newGlRadialGradientTexture, pos, frame)
-	case *canvas.Polygon:
-		p.drawPolygon(obj, pos, frame)
 	case *canvas.RegularPolygon:
 		p.drawRegularPolygon(obj, pos, frame)
 	case *canvas.ArbitraryPolygon:
@@ -504,66 +502,6 @@ func (p *painter) drawOblong(obj fyne.CanvasObject, fill, stroke color.Color, st
 			p.SetUniform1f(p.uniforms.rect.addShadow, 0)
 		}
 	}
-	p.logError()
-	// Fragment: END
-
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
-	p.logError()
-}
-
-func (p *painter) drawPolygon(polygon *canvas.Polygon, pos fyne.Position, frame fyne.Size) {
-	if ((polygon.FillColor == color.Transparent || polygon.FillColor == nil) && (polygon.StrokeColor == color.Transparent || polygon.StrokeColor == nil || polygon.StrokeWidth == 0)) || polygon.Sides < 3 {
-		return
-	}
-	size := polygon.Size()
-
-	// Vertex: BEG
-	bounds, points := p.vecRectCoords(pos, polygon, frame, 0.0)
-	program := p.polygonProgram
-	uniforms := &p.uniforms.polygon
-	p.ctx.UseProgram(program.ref)
-	p.updateBuffer(program.buff, points)
-	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
-	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
-
-	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
-	p.logError()
-	// Vertex: END
-
-	// Fragment: BEG
-	frameWidthScaled, frameHeightScaled := p.scaleFrameSize(frame)
-	p.SetUniform2f(uniforms.frameSize, frameWidthScaled, frameHeightScaled)
-
-	x1Scaled, x2Scaled, y1Scaled, y2Scaled := p.scaleRectCoords(bounds[0], bounds[2], bounds[1], bounds[3])
-	p.SetUniform4f(uniforms.rectCoords, x1Scaled, x2Scaled, y1Scaled, y2Scaled)
-
-	edgeSoftnessScaled := roundToPixel(edgeSoftness*p.pixScale, 1.0)
-	p.SetUniform1f(uniforms.edgeSoftness, edgeSoftnessScaled)
-
-	outerRadius := fyne.Min(size.Width, size.Height) / 2
-	outerRadiusScaled := roundToPixel(outerRadius*p.pixScale, 1.0)
-	p.SetUniform1f(uniforms.outerRadius, outerRadiusScaled)
-
-	p.SetUniform1f(uniforms.angle, polygon.Angle)
-	p.SetUniform1f(uniforms.sides, float32(polygon.Sides))
-
-	cornerRadius := fyne.Min(paint.GetMaximumRadius(size), polygon.CornerRadius)
-	cornerRadiusScaled := roundToPixel(cornerRadius*p.pixScale, 1.0)
-	p.SetUniform1f(uniforms.cornerRadius, cornerRadiusScaled)
-
-	strokeWidthScaled := roundToPixel(polygon.StrokeWidth*p.pixScale, 1.0)
-	p.SetUniform1f(uniforms.strokeWidth, strokeWidthScaled)
-
-	r, g, b, a := getFragmentColor(polygon.FillColor)
-	p.SetUniform4f(uniforms.fillColor, r, g, b, a)
-
-	strokeColor := polygon.StrokeColor
-	if strokeColor == nil {
-		strokeColor = color.Transparent
-	}
-	r, g, b, a = getFragmentColor(strokeColor)
-	p.SetUniform4f(uniforms.strokeColor, r, g, b, a)
-
 	p.logError()
 	// Fragment: END
 

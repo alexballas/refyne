@@ -143,6 +143,7 @@ func (d *gLDriver) drawSingleFrame() {
 					refreshed = true
 				}
 			})
+			w.updateAccessibility()
 		} else {
 			w.markCacheAlive()
 		}

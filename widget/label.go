@@ -68,6 +68,20 @@ func NewLabelWithStyle(text string, alignment fyne.TextAlign, style fyne.TextSty
 	return l
 }
 
+// AccessibilityLabel for a label is just the text for that label.
+//
+// Since: 2.8
+func (l *Label) AccessibilityLabel() string {
+	return l.Text
+}
+
+// AccessibilityRole for a label is fyne.AccessibleRoleText.
+//
+// Since: 2.8
+func (l *Label) AccessibilityRole() fyne.AccessibleRole {
+	return fyne.AccessibleRoleText
+}
+
 // Bind connects the specified data source to this Label.
 // The current value will be displayed and any changes in the data will cause the widget to update.
 //

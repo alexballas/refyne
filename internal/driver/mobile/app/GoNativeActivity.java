@@ -23,7 +23,9 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyCharacterMap;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.view.KeyEvent;
@@ -31,6 +33,9 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class GoNativeActivity extends NativeActivity {
 	private static GoNativeActivity goNativeActivity;
@@ -54,6 +59,15 @@ public class GoNativeActivity extends NativeActivity {
 	private EditText mTextEdit;
 	private boolean ignoreKey = false;
 	private boolean keyboardUp = false;
+
+	// Accessibility – real-view overlay approach.
+	private static FrameLayout mA11yContainer;
+
+	// Staging buffer – written by Go threads, consumed on the UI thread.
+	private static final List<int[]>  sStagingData   = new ArrayList<>();
+	private static final List<String> sStagingLabels = new ArrayList<>();
+	// Signature of the last committed layout; skip UI work when nothing changed.
+	private static String sLastCommittedSignature = null;
 
 	public GoNativeActivity() {
 		super();
@@ -442,5 +456,164 @@ public class GoNativeActivity extends NativeActivity {
     protected void updateTheme(Configuration config) {
         boolean dark = (config.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         setDarkMode(dark);
+    }
+
+    // -------------------------------------------------------------------------
+    // Android accessibility bridge  (real-view overlay approach)
+    // -------------------------------------------------------------------------
+
+    static final int ROLE_BUTTON    = 1;
+    static final int ROLE_TEXT      = 2;
+    static final int ROLE_LINK      = 3;
+    static final int ROLE_CONTAINER = 4;
+
+    // Called once from Go (via JNI).
+    static void setupAccessibility() {
+        goNativeActivity.doSetupAccessibility();
+    }
+
+    void doSetupAccessibility() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mA11yContainer != null) {
+                    return; // already set up
+                }
+                // Full-screen transparent container.  Its children are the real
+                // accessibility Views; they intercept no touch events.
+                mA11yContainer = new FrameLayout(goNativeActivity);
+                mA11yContainer.setClickable(false);
+                mA11yContainer.setFocusable(false);
+
+                mA11yContainer.setImportantForAccessibility(
+                        View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+
+                ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+                decorView.addView(mA11yContainer, new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
+
+                // If Go already committed nodes before the UI thread ran, apply them now.
+                applySnapshot();
+            }
+        });
+    }
+
+    // Called from Go (via JNI) before rebuilding the accessibility tree.
+    static synchronized void clearAccessibilityNodes() {
+        sStagingData.clear();
+        sStagingLabels.clear();
+    }
+
+    // Called from Go (via JNI) to register one accessible element.
+    static synchronized void addAccessibilityNode(int id, int role, String label,
+            int x, int y, int width, int height, int parentID) {
+        sStagingData.add(new int[]{id, role, x, y, width, height});
+        sStagingLabels.add(label != null ? label : "");
+    }
+
+    // Called from Go (via JNI) after all nodes for this frame have been added.
+    static synchronized void commitAccessibilityNodes() {
+        // Build a cheap signature to avoid redundant UI work.
+        StringBuilder sig = new StringBuilder();
+        for (int i = 0; i < sStagingData.size(); i++) {
+            int[] d = sStagingData.get(i);
+            sig.append(d[0]).append(',').append(d[1]).append(',')
+               .append(d[2]).append(',').append(d[3]).append(',')
+               .append(d[4]).append(',').append(d[5]).append(';')
+               .append(sStagingLabels.get(i)).append('|');
+        }
+        String newSig = sig.toString();
+        boolean changed = !newSig.equals(sLastCommittedSignature);
+        sLastCommittedSignature = newSig;
+
+        if (!changed) {
+            return;
+        }
+
+        // Snapshot the staging data for the UI thread (sStagingData is modified
+        // on Go threads so we must not access it directly from the UI thread).
+        final List<int[]>  snapData   = new ArrayList<>(sStagingData);
+        final List<String> snapLabels = new ArrayList<>(sStagingLabels);
+
+        if (mA11yContainer == null) {
+            return; // UI not ready yet; doSetupAccessibility will call applySnapshot.
+        }
+        mA11yContainer.post(new Runnable() {
+            @Override
+            public void run() {
+                rebuildA11yViews(snapData, snapLabels);
+            }
+        });
+    }
+
+    // Applies the most-recently committed snapshot.  Called on the UI thread
+    // either from doSetupAccessibility (if setup ran after commit) or from the
+    // post() in commitAccessibilityNodes.
+    private static void applySnapshot() {
+        // Take a consistent copy of the current staging data.
+        final List<int[]>  snapData;
+        final List<String> snapLabels;
+        synchronized (GoNativeActivity.class) {
+            snapData   = new ArrayList<>(sStagingData);
+            snapLabels = new ArrayList<>(sStagingLabels);
+        }
+        rebuildA11yViews(snapData, snapLabels);
+    }
+
+    // Must be called on the UI thread.
+    private static void rebuildA11yViews(List<int[]> data, List<String> labels) {
+        if (mA11yContainer == null) {
+            return;
+        }
+        mA11yContainer.removeAllViews();
+
+        for (int i = 0; i < data.size(); i++) {
+            final int[] d     = data.get(i);
+            final String label = labels.get(i);
+            final int role  = d[1];
+            final int x = d[2], y = d[3], w = d[4], h = d[5];
+
+            View v = new View(goNativeActivity);
+            // Non-interactive so touch events fall through to the GL surface.
+            // No background is set, so the view is visually transparent.
+            // setAlpha is deliberately NOT called: alpha=0 causes TalkBack to
+            // mark the view as not visible to the user and skip it.
+            v.setClickable(false);
+            v.setFocusable(false);
+            v.setContentDescription(label);
+            v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+
+            // Customise the AccessibilityNodeInfo so TalkBack announces the
+            // correct role (Button vs label) and actions.
+            final int roleCopy = role;
+            final String labelCopy = label;
+            v.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+                @Override
+                public void onInitializeAccessibilityNodeInfo(
+                        View host, AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(host, info);
+                    info.setContentDescription(labelCopy);
+                    switch (roleCopy) {
+                        case ROLE_BUTTON:
+                        case ROLE_LINK:
+                            info.setClassName("android.widget.Button");
+                            info.setClickable(true);
+                            info.addAction(AccessibilityNodeInfo.ACTION_CLICK);
+                            break;
+                        default: // ROLE_TEXT
+                            info.setClassName("android.widget.TextView");
+                            info.setText(labelCopy);
+                            break;
+                    }
+                }
+            });
+
+            // Position the view at the widget's screen-pixel coordinates.
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h);
+            lp.leftMargin = x;
+            lp.topMargin  = y;
+            mA11yContainer.addView(v, lp);
+        }
     }
 }

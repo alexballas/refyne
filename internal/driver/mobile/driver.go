@@ -351,6 +351,7 @@ func (d *driver) handlePaint(e paint.Event, w *window) {
 
 		d.paintWindow(w, newSize)
 		d.app.Publish()
+		w.updateAccessibility()
 	}
 	cache.Clean(canvasNeedRefresh)
 }

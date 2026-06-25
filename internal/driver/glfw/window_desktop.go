@@ -880,6 +880,9 @@ func (w *window) create() {
 	w.requestedWidth, w.requestedHeight = w.width, w.height
 	// order of operation matters so we do these last items in order
 	w.viewport.SetSize(w.shouldWidth, w.shouldHeight) // ensure we requested latest size
+
+	// Initialize accessibility support
+	w.initAccessibilityForWindow()
 }
 
 func (w *window) view() *glfw.Window {

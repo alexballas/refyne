@@ -181,6 +181,8 @@ func (w *window) Show() {
 			w.RunWithContext(func() {
 				w.driver.repaintWindow(w)
 			})
+			// Update accessibility tree
+			w.updateAccessibility()
 		}
 	})
 }
@@ -207,6 +209,9 @@ func (w *window) Close() {
 			w.onClosed = nil // avoid possibility of calling twice
 			fn()
 		}
+
+		// Clean up accessibility resources
+		w.cleanupAccessibilityForWindow()
 
 		w.closing = true
 		w.viewport.SetShouldClose(true)
@@ -245,6 +250,8 @@ func (w *window) SetContent(content fyne.CanvasObject) {
 			}
 		}
 		w.RunWithContext(w.RescaleContext)
+		// Update accessibility tree when content changes
+		w.updateAccessibility()
 	})
 }
 

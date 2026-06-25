@@ -89,6 +89,24 @@ func NewButtonWithIcon(label string, icon fyne.Resource, tapped func()) *Button 
 	return button
 }
 
+// AccessibilityLabel for a button is the text, if there is some, otherwise the name of the icon.
+//
+// Since: 2.8
+func (b *Button) AccessibilityLabel() string {
+	if b.Text != "" {
+		return b.Text
+	}
+
+	return b.Icon.Name()
+}
+
+// AccessibilityRole for a button is fyne.AccessibleRoleButton.
+//
+// Since: 2.8
+func (b *Button) AccessibilityRole() fyne.AccessibleRole {
+	return fyne.AccessibleRoleButton
+}
+
 // CreateRenderer is a private method to Fyne which links this widget to its renderer
 func (b *Button) CreateRenderer() fyne.WidgetRenderer {
 	b.ExtendBaseWidget(b)
