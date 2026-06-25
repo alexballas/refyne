@@ -430,7 +430,7 @@ func TestPainter_paintCubicBezierCurve_thin(t *testing.T) {
 
 func TestPainter_paintPolygon(t *testing.T) {
 	test.ApplyTheme(t, test.Theme())
-	obj := canvas.NewPolygon(3, color.Black)
+	obj := canvas.NewRegularPolygon(3, color.Black)
 
 	c := test.NewCanvas()
 	c.SetPadded(true)

@@ -450,7 +450,7 @@ func Test_snapshot(t *testing.T) {
 				"</canvas>\n",
 		},
 		"polygon": {
-			content: fynecanvas.NewPolygon(3, color.NRGBA{R: 100, G: 200, B: 50, A: 0}),
+			content: fynecanvas.NewRegularPolygon(3, color.NRGBA{R: 100, G: 200, B: 50, A: 0}),
 			size:    fyne.NewSize(17, 42),
 			pos:     fyne.NewPos(42, 17),
 			want: "<canvas size=\"100x100\">\n" +
@@ -460,7 +460,7 @@ func Test_snapshot(t *testing.T) {
 				"</canvas>\n",
 		},
 		"polygon with theme color": { // we won’t test _all_ valid values … it’s not that important
-			content: fynecanvas.NewPolygon(5, theme.Color(theme.ColorNameHover)),
+			content: fynecanvas.NewRegularPolygon(5, theme.Color(theme.ColorNameHover)),
 			want: "<canvas size=\"100x100\">\n" +
 				"\t<content>\n" +
 				"\t\t<polygon fillColor=\"hover\" sides=\"5\" size=\"100x100\"/>\n" +
@@ -469,7 +469,7 @@ func Test_snapshot(t *testing.T) {
 		},
 		"polygon with stroke": {
 			content: func() fyne.CanvasObject {
-				r := fynecanvas.NewPolygon(4, color.NRGBA{R: 200, G: 100, B: 0, A: 50})
+				r := fynecanvas.NewRegularPolygon(4, color.NRGBA{R: 200, G: 100, B: 0, A: 50})
 				r.StrokeWidth = 6.375
 				r.StrokeColor = theme.Color(theme.ColorNamePlaceHolder)
 				r.Angle = 18.25
