@@ -9,34 +9,32 @@ import (
 )
 
 const (
-	arrayBuffer           = gl.ARRAY_BUFFER
-	bitColorBuffer        = gl.COLOR_BUFFER_BIT
-	bitDepthBuffer        = gl.DEPTH_BUFFER_BIT
-	clampToEdge           = gl.CLAMP_TO_EDGE
-	colorFormatRGBA       = gl.RGBA
-	compileStatus         = gl.COMPILE_STATUS
-	constantAlpha         = gl.CONSTANT_ALPHA
-	float                 = gl.FLOAT
-	fragmentShader        = gl.FRAGMENT_SHADER
-	front                 = gl.FRONT
-	glFalse               = gl.FALSE
-	linkStatus            = gl.LINK_STATUS
-	one                   = gl.ONE
-	oneMinusConstantAlpha = gl.ONE_MINUS_CONSTANT_ALPHA
-	oneMinusSrcAlpha      = gl.ONE_MINUS_SRC_ALPHA
-	scissorTest           = gl.SCISSOR_TEST
-	srcAlpha              = gl.SRC_ALPHA
-	staticDraw            = gl.STATIC_DRAW
-	texture0              = gl.TEXTURE0
-	texture2D             = gl.TEXTURE_2D
-	textureMinFilter      = gl.TEXTURE_MIN_FILTER
-	textureMagFilter      = gl.TEXTURE_MAG_FILTER
-	textureWrapS          = gl.TEXTURE_WRAP_S
-	textureWrapT          = gl.TEXTURE_WRAP_T
-	triangles             = gl.TRIANGLES
-	triangleStrip         = gl.TRIANGLE_STRIP
-	unsignedByte          = gl.UNSIGNED_BYTE
-	vertexShader          = gl.VERTEX_SHADER
+	arrayBuffer      = gl.ARRAY_BUFFER
+	bitColorBuffer   = gl.COLOR_BUFFER_BIT
+	bitDepthBuffer   = gl.DEPTH_BUFFER_BIT
+	clampToEdge      = gl.CLAMP_TO_EDGE
+	colorFormatRGBA  = gl.RGBA
+	compileStatus    = gl.COMPILE_STATUS
+	float            = gl.FLOAT
+	fragmentShader   = gl.FRAGMENT_SHADER
+	front            = gl.FRONT
+	glFalse          = gl.FALSE
+	linkStatus       = gl.LINK_STATUS
+	one              = gl.ONE
+	oneMinusSrcAlpha = gl.ONE_MINUS_SRC_ALPHA
+	scissorTest      = gl.SCISSOR_TEST
+	srcAlpha         = gl.SRC_ALPHA
+	staticDraw       = gl.STATIC_DRAW
+	texture0         = gl.TEXTURE0
+	texture2D        = gl.TEXTURE_2D
+	textureMinFilter = gl.TEXTURE_MIN_FILTER
+	textureMagFilter = gl.TEXTURE_MAG_FILTER
+	textureWrapS     = gl.TEXTURE_WRAP_S
+	textureWrapT     = gl.TEXTURE_WRAP_T
+	triangles        = gl.TRIANGLES
+	triangleStrip    = gl.TRIANGLE_STRIP
+	unsignedByte     = gl.UNSIGNED_BYTE
+	vertexShader     = gl.VERTEX_SHADER
 )
 
 type (
@@ -53,7 +51,7 @@ type (
 )
 
 var (
-	noBuffer          = Buffer(gl.NoBuffer)
+	noProgram         = Program(gl.NoProgram)
 	noShader          = Shader(gl.NoShader)
 	textureFilterToGL = [...]int32{gl.LINEAR, gl.NEAREST, gl.LINEAR}
 )
@@ -71,6 +69,15 @@ func (p *painter) Init() {
 	}
 	p.getUniformLocations(p.program, "text", "alpha", "cornerRadius", "size", "inset")
 	p.enableAttribArrays(p.program, "vert", "vertTexCoord")
+
+	p.blurProgram = ProgramState{
+		ref:        p.createProgram("blur_es"),
+		buff:       p.createBuffer(20),
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+	p.getUniformLocations(p.blurProgram, "radius", "size")
+	p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
 
 	p.lineProgram = ProgramState{
 		ref:        p.createProgram("line_es"),
@@ -90,6 +97,7 @@ func (p *painter) Init() {
 	p.getUniformLocations(
 		p.rectangleProgram,
 		"frame_size", "rect_coords", "stroke_width", "fill_color", "stroke_color",
+		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
 	)
 	p.enableAttribArrays(p.rectangleProgram, "vert", "normal")
 
@@ -105,6 +113,7 @@ func (p *painter) Init() {
 		"stroke_width_half", "rect_size_half",
 		"radius", "edge_softness",
 		"fill_color", "stroke_color",
+		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
 	)
 	p.enableAttribArrays(p.roundRectangleProgram, "vert", "normal")
 
@@ -154,6 +163,33 @@ func (p *painter) Init() {
 		"stroke_width_half", "stroke_color",
 	)
 	p.enableAttribArrays(p.bezierCurveProgram, "vert", "normal")
+
+	p.arbitraryPolygonProgram = ProgramState{
+		ref:        p.createProgram("arbitrary_polygon_es"),
+		buff:       p.createBuffer(16),
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+	p.getUniformLocations(
+		p.arbitraryPolygonProgram,
+		"frame_size", "rect_coords", "edge_softness", "vertex_count",
+		"vertices", "corner_radii", "fill_color", "stroke_color", "stroke_width",
+	)
+	p.enableAttribArrays(p.arbitraryPolygonProgram, "vert", "normal")
+
+	p.ellipseProgram = ProgramState{
+		ref:        p.createProgram("ellipse_es"),
+		buff:       p.createBuffer(16),
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+	p.getUniformLocations(
+		p.ellipseProgram,
+		"frame_size", "rect_coords", "stroke_width", "radius", "angle",
+		"fill_color", "stroke_color", "edge_softness",
+		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
+	)
+	p.enableAttribArrays(p.ellipseProgram, "vert", "normal")
 
 	p.resolveUniforms()
 }
@@ -298,6 +334,10 @@ func (c *xjsContext) LinkProgram(program Program) {
 	gl.LinkProgram(gl.Program(program))
 }
 
+func (c *xjsContext) CopyTexSubImage2D(target uint32, level, xoffset, yoffset, x, y, width, height int) {
+	gl.CopyTexSubImage2D(gl.Enum(target), level, xoffset, yoffset, x, y, width, height)
+}
+
 func (c *xjsContext) ReadBuffer(_ uint32) {
 }
 
@@ -333,8 +373,20 @@ func (c *xjsContext) Uniform1f(uniform Uniform, v float32) {
 	gl.Uniform1f(gl.Uniform(uniform), v)
 }
 
+func (c *xjsContext) Uniform1fv(uniform Uniform, v []float32) {
+	gl.Uniform1fv(gl.Uniform(uniform), v)
+}
+
+func (c *xjsContext) Uniform1i(uniform Uniform, v int32) {
+	gl.Uniform1i(gl.Uniform(uniform), int(v))
+}
+
 func (c *xjsContext) Uniform2f(uniform Uniform, v0, v1 float32) {
 	gl.Uniform2f(gl.Uniform(uniform), v0, v1)
+}
+
+func (c *xjsContext) Uniform2fv(uniform Uniform, v []float32) {
+	gl.Uniform2fv(gl.Uniform(uniform), v)
 }
 
 func (c *xjsContext) Uniform4f(uniform Uniform, v0, v1, v2, v3 float32) {

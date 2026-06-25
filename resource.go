@@ -82,3 +82,46 @@ func LoadResourceFromURLString(urlStr string) (Resource, error) {
 	name := filepath.Base(urlStr)
 	return NewStaticResource(name, bytes), nil
 }
+
+// CacheResourceFromURLString creates a new [StaticResource] in memory using the body of the specified URL.
+// It also adds the content to our cache so that future requests for this resource will be available locally
+// instead of downloaded from the URL.
+//
+// Since: 2.8
+func CacheResourceFromURLString(urlStr string) (Resource, error) {
+	cache := CurrentApp().Cache()
+	if read, err := cache.Read(urlStr); err == nil {
+		name := filepath.Base(urlStr)
+
+		data, err := io.ReadAll(read)
+		_ = read.Close()
+		if err != nil {
+			return nil, err
+		}
+		return NewStaticResource(name, data), nil
+	}
+
+	res, err := LoadResourceFromURLString(urlStr)
+	if err != nil {
+		return nil, err
+	}
+
+	write, err := cache.Write(urlStr)
+	if err != nil {
+		return res, err
+	}
+	defer write.Close()
+	data := res.Content()
+
+	n, err := write.Write(data)
+	for n < len(data) {
+		if err != nil {
+			return res, err
+		}
+
+		data = data[n:]
+		n, err = write.Write(data)
+	}
+
+	return res, nil
+}

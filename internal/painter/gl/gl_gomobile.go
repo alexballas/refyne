@@ -9,34 +9,32 @@ import (
 )
 
 const (
-	arrayBuffer           = gl.ArrayBuffer
-	bitColorBuffer        = gl.ColorBufferBit
-	bitDepthBuffer        = gl.DepthBufferBit
-	clampToEdge           = gl.ClampToEdge
-	colorFormatRGBA       = gl.RGBA
-	compileStatus         = gl.CompileStatus
-	constantAlpha         = gl.ConstantAlpha
-	float                 = gl.Float
-	fragmentShader        = gl.FragmentShader
-	front                 = gl.Front
-	glFalse               = gl.False
-	linkStatus            = gl.LinkStatus
-	one                   = gl.One
-	oneMinusConstantAlpha = gl.OneMinusConstantAlpha
-	oneMinusSrcAlpha      = gl.OneMinusSrcAlpha
-	scissorTest           = gl.ScissorTest
-	srcAlpha              = gl.SrcAlpha
-	staticDraw            = gl.StaticDraw
-	texture0              = gl.Texture0
-	texture2D             = gl.Texture2D
-	textureMinFilter      = gl.TextureMinFilter
-	textureMagFilter      = gl.TextureMagFilter
-	textureWrapS          = gl.TextureWrapS
-	textureWrapT          = gl.TextureWrapT
-	triangles             = gl.Triangles
-	triangleStrip         = gl.TriangleStrip
-	unsignedByte          = gl.UnsignedByte
-	vertexShader          = gl.VertexShader
+	arrayBuffer      = gl.ArrayBuffer
+	bitColorBuffer   = gl.ColorBufferBit
+	bitDepthBuffer   = gl.DepthBufferBit
+	clampToEdge      = gl.ClampToEdge
+	colorFormatRGBA  = gl.RGBA
+	compileStatus    = gl.CompileStatus
+	float            = gl.Float
+	fragmentShader   = gl.FragmentShader
+	front            = gl.Front
+	glFalse          = gl.False
+	linkStatus       = gl.LinkStatus
+	one              = gl.One
+	oneMinusSrcAlpha = gl.OneMinusSrcAlpha
+	scissorTest      = gl.ScissorTest
+	srcAlpha         = gl.SrcAlpha
+	staticDraw       = gl.StaticDraw
+	texture0         = gl.Texture0
+	texture2D        = gl.Texture2D
+	textureMinFilter = gl.TextureMinFilter
+	textureMagFilter = gl.TextureMagFilter
+	textureWrapS     = gl.TextureWrapS
+	textureWrapT     = gl.TextureWrapT
+	triangles        = gl.Triangles
+	triangleStrip    = gl.TriangleStrip
+	unsignedByte     = gl.UnsignedByte
+	vertexShader     = gl.VertexShader
 )
 
 type (
@@ -54,7 +52,7 @@ type (
 
 var (
 	compiled          []ProgramState // avoid multiple compilations with the re-used mobile GUI context
-	noBuffer          = Buffer{}
+	noProgram         = Program{}
 	noShader          = Shader{}
 	textureFilterToGL = [...]int32{gl.Linear, gl.Nearest, gl.Linear}
 )
@@ -77,6 +75,15 @@ func (p *painter) Init() {
 		p.getUniformLocations(p.program, "text", "alpha", "cornerRadius", "size", "inset")
 		p.enableAttribArrays(p.program, "vert", "vertTexCoord")
 
+		p.blurProgram = ProgramState{
+			ref:        p.createProgram("blur_es"),
+			buff:       p.createBuffer(20),
+			uniforms:   make(map[string]*UniformState),
+			attributes: make(map[string]Attribute),
+		}
+		p.getUniformLocations(p.blurProgram, "radius", "size")
+		p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
+
 		p.lineProgram = ProgramState{
 			ref:        p.createProgram("line_es"),
 			buff:       p.createBuffer(24),
@@ -95,6 +102,7 @@ func (p *painter) Init() {
 		p.getUniformLocations(
 			p.rectangleProgram,
 			"frame_size", "rect_coords", "stroke_width", "fill_color", "stroke_color",
+			"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
 		)
 		p.enableAttribArrays(p.rectangleProgram, "vert", "normal")
 
@@ -110,6 +118,7 @@ func (p *painter) Init() {
 			"stroke_width_half", "rect_size_half",
 			"radius", "edge_softness",
 			"fill_color", "stroke_color",
+			"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
 		)
 		p.enableAttribArrays(p.roundRectangleProgram, "vert", "normal")
 
@@ -159,24 +168,57 @@ func (p *painter) Init() {
 			"stroke_width_half", "stroke_color",
 		)
 		p.enableAttribArrays(p.bezierCurveProgram, "vert", "normal")
+
+		p.arbitraryPolygonProgram = ProgramState{
+			ref:        p.createProgram("arbitrary_polygon_es"),
+			buff:       p.createBuffer(16),
+			uniforms:   make(map[string]*UniformState),
+			attributes: make(map[string]Attribute),
+		}
+		p.getUniformLocations(
+			p.arbitraryPolygonProgram,
+			"frame_size", "rect_coords", "edge_softness", "vertex_count",
+			"vertices", "corner_radii", "fill_color", "stroke_color", "stroke_width",
+		)
+		p.enableAttribArrays(p.arbitraryPolygonProgram, "vert", "normal")
+
+		p.ellipseProgram = ProgramState{
+			ref:        p.createProgram("ellipse_es"),
+			buff:       p.createBuffer(16),
+			uniforms:   make(map[string]*UniformState),
+			attributes: make(map[string]Attribute),
+		}
+		p.getUniformLocations(
+			p.ellipseProgram,
+			"frame_size", "rect_coords", "stroke_width", "radius", "angle",
+			"fill_color", "stroke_color", "edge_softness",
+			"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
+		)
+		p.enableAttribArrays(p.ellipseProgram, "vert", "normal")
 		compiled = []ProgramState{
 			p.program,
+			p.blurProgram,
 			p.lineProgram,
 			p.rectangleProgram,
 			p.roundRectangleProgram,
 			p.polygonProgram,
 			p.arcProgram,
 			p.bezierCurveProgram,
+			p.arbitraryPolygonProgram,
+			p.ellipseProgram,
 		}
 	}
 
 	p.program = compiled[0]
-	p.lineProgram = compiled[1]
-	p.rectangleProgram = compiled[2]
-	p.roundRectangleProgram = compiled[3]
-	p.polygonProgram = compiled[4]
-	p.arcProgram = compiled[5]
-	p.bezierCurveProgram = compiled[6]
+	p.blurProgram = compiled[1]
+	p.lineProgram = compiled[2]
+	p.rectangleProgram = compiled[3]
+	p.roundRectangleProgram = compiled[4]
+	p.polygonProgram = compiled[5]
+	p.arcProgram = compiled[6]
+	p.bezierCurveProgram = compiled[7]
+	p.arbitraryPolygonProgram = compiled[8]
+	p.ellipseProgram = compiled[9]
 
 	p.resolveUniforms()
 }
@@ -328,6 +370,10 @@ func (c *mobileContext) LinkProgram(program Program) {
 	c.glContext.LinkProgram(gl.Program(program))
 }
 
+func (c *mobileContext) CopyTexSubImage2D(target uint32, level, xoffset, yoffset, x, y, width, height int) {
+	c.glContext.CopyTexSubImage2D(gl.Enum(target), level, xoffset, yoffset, x, y, width, height)
+}
+
 func (c *mobileContext) ReadBuffer(_ uint32) {
 }
 
@@ -364,8 +410,20 @@ func (c *mobileContext) Uniform1f(uniform Uniform, v float32) {
 	c.glContext.Uniform1f(gl.Uniform(uniform), v)
 }
 
+func (c *mobileContext) Uniform1fv(uniform Uniform, v []float32) {
+	c.glContext.Uniform1fv(gl.Uniform(uniform), v)
+}
+
+func (c *mobileContext) Uniform1i(uniform Uniform, v int32) {
+	c.glContext.Uniform1i(gl.Uniform(uniform), int(v))
+}
+
 func (c *mobileContext) Uniform2f(uniform Uniform, v0, v1 float32) {
 	c.glContext.Uniform2f(gl.Uniform(uniform), v0, v1)
+}
+
+func (c *mobileContext) Uniform2fv(uniform Uniform, v []float32) {
+	c.glContext.Uniform2fv(gl.Uniform(uniform), v)
 }
 
 func (c *mobileContext) Uniform4f(uniform Uniform, v0, v1, v2, v3 float32) {

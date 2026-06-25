@@ -7,11 +7,20 @@ import (
 	"fmt"
 	"net/http"
 	"syscall/js"
+	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
 	intRepo "github.com/alexballas/refyne/v2/internal/repository"
 	"github.com/alexballas/refyne/v2/storage/repository"
 )
+
+func (a *fyneApp) ScheduleNotification(n *fyne.Notification, when time.Time) (*fyne.ScheduledNotification, error) {
+	return a.scheduleViaScheduler(n, when)
+}
+
+func (a *fyneApp) CancelScheduledNotification(id string) error {
+	return a.cancelViaScheduler(id)
+}
 
 func (a *fyneApp) SendNotification(n *fyne.Notification) {
 	notification := js.Global().Get("window").Get("Notification")

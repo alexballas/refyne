@@ -63,6 +63,7 @@ type Entry struct {
 	validationStatus    *validationStatus
 	onValidationChanged func(error)
 	validationError     error
+	onRequiredChanged   func(bool)
 
 	// If true, the Validator runs automatically on render without user interaction.
 	// It will reflect any validation errors found or those explicitly set via SetValidationError().
@@ -1382,7 +1383,14 @@ func (e *Entry) updateMousePointer(p fyne.Position, rightClick bool) {
 // It assumes that a lock exists on the widget.
 func (e *Entry) updateText(text string, fromBinding bool) bool {
 	changed := e.Text != text
+	wasEmpty := e.Text == ""
 	e.Text = text
+	if e.onRequiredChanged != nil {
+		empty := text == ""
+		if wasEmpty != empty {
+			e.onRequiredChanged(!empty)
+		}
+	}
 	e.syncSegments()
 	e.text.updateRowBounds()
 

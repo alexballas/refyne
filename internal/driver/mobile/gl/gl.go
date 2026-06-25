@@ -208,6 +208,15 @@ func (ctx *context) DeleteBuffer(v Buffer) {
 	})
 }
 
+func (ctx *context) DeleteProgram(p Program) {
+	ctx.enqueue(call{
+		args: fnargs{
+			fn: glfnDeleteProgram,
+			a0: p.c(),
+		},
+	})
+}
+
 func (ctx *context) DeleteTexture(v Texture) {
 	ctx.enqueue(call{
 		args: fnargs{
@@ -401,6 +410,22 @@ func (ctx *context) LinkProgram(p Program) {
 	})
 }
 
+func (ctx *context) CopyTexSubImage2D(target Enum, level, xoffset, yoffset, x, y, width, height int) {
+	ctx.enqueue(call{
+		args: fnargs{
+			fn: glfnCopyTexSubImage2D,
+			a0: target.c(),
+			a1: uintptr(level),
+			a2: uintptr(xoffset),
+			a3: uintptr(yoffset),
+			a4: uintptr(x),
+			a5: uintptr(y),
+			a6: uintptr(width),
+			a7: uintptr(height),
+		},
+	})
+}
+
 func (ctx *context) ReadPixels(dst []byte, x, y, width, height int, format, ty Enum) {
 	ctx.enqueue(call{
 		args: fnargs{
@@ -491,6 +516,30 @@ func (ctx *context) Uniform1f(dst Uniform, v float32) {
 	})
 }
 
+func (ctx *context) Uniform1i(dst Uniform, v int) {
+	ctx.enqueue(call{
+		args: fnargs{
+			fn: glfnUniform1i,
+			a0: dst.c(),
+			a1: uintptr(v),
+		},
+	})
+}
+
+func (ctx *context) Uniform1fv(dst Uniform, src []float32) {
+	if len(src) == 0 {
+		return
+	}
+	ctx.enqueue(call{
+		args: fnargs{
+			fn: glfnUniform1fv,
+			a0: dst.c(),
+			a1: uintptr(len(src)),
+		},
+		parg: unsafe.Pointer(&src[0]),
+	})
+}
+
 func (ctx *context) Uniform2f(dst Uniform, v0, v1 float32) {
 	ctx.enqueue(call{
 		args: fnargs{
@@ -499,6 +548,20 @@ func (ctx *context) Uniform2f(dst Uniform, v0, v1 float32) {
 			a1: uintptr(math.Float32bits(v0)),
 			a2: uintptr(math.Float32bits(v1)),
 		},
+	})
+}
+
+func (ctx *context) Uniform2fv(dst Uniform, src []float32) {
+	if len(src) == 0 {
+		return
+	}
+	ctx.enqueue(call{
+		args: fnargs{
+			fn: glfnUniform2fv,
+			a0: dst.c(),
+			a1: uintptr(len(src) / 2),
+		},
+		parg: unsafe.Pointer(&src[0]),
 	})
 }
 

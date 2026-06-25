@@ -1,7 +1,11 @@
 package org.golang.app;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.NativeActivity;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -195,6 +199,92 @@ public class GoNativeActivity extends NativeActivity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         startActivityForResult(Intent.createChooser(intent, "Save File"), FILE_SAVE_CODE);
     }
+
+    // Scheduled notifications via AlarmManager.
+    //
+    // For delivery to survive the app process being killed, FyneNotificationReceiver
+    // must be declared in AndroidManifest.xml:
+    //
+    //   <receiver android:name="org.golang.app.FyneNotificationReceiver"
+    //             android:exported="false" />
+    //
+    // If the receiver is not registered the schedule call returns false and the
+    // Go layer falls back to an in-process scheduler.
+    static boolean scheduleNotification(String id, String title, String body, long deliveryTimeMillis) {
+        if (goNativeActivity == null) {
+            return false;
+        }
+        return goNativeActivity.doScheduleNotification(id, title, body, deliveryTimeMillis);
+    }
+
+    boolean doScheduleNotification(String id, String title, String body, long deliveryTimeMillis) {
+        ComponentName receiver = new ComponentName(this, FyneNotificationReceiver.class);
+        try {
+            getPackageManager().getReceiverInfo(receiver, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+
+        AlarmManager alarmMgr = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        if (alarmMgr == null) {
+            return false;
+        }
+
+        Intent intent = new Intent(this, FyneNotificationReceiver.class);
+        intent.putExtra("title", title);
+        intent.putExtra("body", body);
+        intent.putExtra("notif_id", id.hashCode());
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pi = PendingIntent.getBroadcast(this, id.hashCode(), intent, flags);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmMgr.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, deliveryTimeMillis, pi);
+            } else {
+                alarmMgr.set(AlarmManager.RTC_WAKEUP, deliveryTimeMillis, pi);
+            }
+        } catch (SecurityException e) {
+            Log.e("Fyne", "AlarmManager rejected scheduled notification", e);
+            return false;
+        }
+        return true;
+    }
+
+    static void cancelScheduledNotification(String id) {
+        if (goNativeActivity == null) {
+            return;
+        }
+        goNativeActivity.doCancelScheduledNotification(id);
+    }
+
+    void doCancelScheduledNotification(String id) {
+        AlarmManager alarmMgr = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        if (alarmMgr == null) {
+            return;
+        }
+
+        Intent intent = new Intent(this, FyneNotificationReceiver.class);
+        int flags = PendingIntent.FLAG_NO_CREATE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pi = PendingIntent.getBroadcast(this, id.hashCode(), intent, flags);
+        if (pi != null) {
+            alarmMgr.cancel(pi);
+            pi.cancel();
+        }
+
+        NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (mgr != null) {
+            mgr.cancel(id.hashCode());
+        }
+    }
+
 	static int getRune(int deviceId, int keyCode, int metaState) {
 		try {
 			int rune = KeyCharacterMap.load(deviceId).get(keyCode, metaState);

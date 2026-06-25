@@ -4,12 +4,14 @@ package test // import "github.com/alexballas/refyne/v2/test"
 import (
 	"net/url"
 	"sync"
+	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal"
 	intapp "github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/painter"
+	"github.com/alexballas/refyne/v2/internal/scheduler"
 	"github.com/alexballas/refyne/v2/internal/test"
 	"github.com/alexballas/refyne/v2/theme"
 )
@@ -26,12 +28,16 @@ type app struct {
 	propertyLock sync.RWMutex
 	storage      fyne.Storage
 	lifecycle    intapp.Lifecycle
+	cache        fyne.Cache
 	clip         fyne.Clipboard
 	cloud        fyne.CloudProvider
 
 	// user action variables
-	appliedTheme     fyne.Theme
-	lastNotification *fyne.Notification
+	appliedTheme              fyne.Theme
+	lastNotification          *fyne.Notification
+	scheduledNotifications    map[string]*fyne.ScheduledNotification
+	lastScheduledNotification *fyne.ScheduledNotification
+	lastCancelledScheduleID   string
 }
 
 func (a *app) CloudProvider() fyne.CloudProvider {
@@ -63,6 +69,10 @@ func (a *app) Quit() {
 	// no-op
 }
 
+func (a *app) Cache() fyne.Cache {
+	return a.cache
+}
+
 func (a *app) Clipboard() fyne.Clipboard {
 	return a.clip
 }
@@ -80,6 +90,31 @@ func (a *app) SendNotification(notify *fyne.Notification) {
 	defer a.propertyLock.Unlock()
 
 	a.lastNotification = notify
+}
+
+func (a *app) ScheduleNotification(n *fyne.Notification, when time.Time) (*fyne.ScheduledNotification, error) {
+	id, _ := scheduler.NewID()
+	scheduled := fyne.NewScheduledNotification(id, n, when)
+
+	a.propertyLock.Lock()
+	defer a.propertyLock.Unlock()
+
+	if a.scheduledNotifications == nil {
+		a.scheduledNotifications = map[string]*fyne.ScheduledNotification{}
+	}
+	a.scheduledNotifications[id] = scheduled
+	a.lastScheduledNotification = scheduled
+	return scheduled, nil
+}
+
+func (a *app) CancelScheduledNotification(id string) error {
+	a.propertyLock.Lock()
+	defer a.propertyLock.Unlock()
+
+	delete(a.scheduledNotifications, id)
+	a.lastCancelledScheduleID = id
+
+	return nil
 }
 
 func (a *app) SetCloudProvider(p fyne.CloudProvider) {
@@ -157,7 +192,10 @@ func NewApp() fyne.App {
 	settings := &testSettings{scale: 1.0, theme: Theme()}
 	prefs := internal.NewInMemoryPreferences()
 	store := &testStorage{}
-	test := &app{settings: settings, prefs: prefs, storage: store, driver: NewDriver().(*driver), clip: NewClipboard()}
+	test := &app{
+		settings: settings, prefs: prefs, storage: store, driver: NewDriver().(*driver), clip: NewClipboard(),
+		cache: makeCache(),
+	}
 	settings.app = test
 	root, _ := store.docRootURI()
 	store.Docs = &internal.Docs{RootDocURI: root}

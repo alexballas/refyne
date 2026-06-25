@@ -213,11 +213,15 @@ func (t *configurableTheme) Color(n fyne.ThemeColorName, _ fyne.ThemeVariant) co
 }
 
 func (t *configurableTheme) Font(style fyne.TextStyle) fyne.Resource {
-	if t.fonts[style] == nil {
+	lookup := style
+	lookup.Strikethrough = false
+	lookup.Underline = false
+
+	if t.fonts[lookup] == nil {
 		fyne.LogError(fmt.Sprintf("font for style %#v not defined in theme %s", style, t.name), nil)
 	}
 
-	return t.fonts[style]
+	return t.fonts[lookup]
 }
 
 func (t *configurableTheme) Icon(n fyne.ThemeIconName) fyne.Resource {

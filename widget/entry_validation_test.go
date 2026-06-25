@@ -59,6 +59,27 @@ func TestEntry_Validate(t *testing.T) {
 	assert.Equal(t, entry.Validate(), entry.Validator(entry.Text))
 }
 
+func TestEntry_RequiredState(t *testing.T) {
+	entry := widget.NewEntry()
+
+	assert.False(t, entry.HasValue())
+
+	var states []bool
+	entry.SetOnRequiredChanged(func(hasValue bool) {
+		states = append(states, hasValue)
+	})
+
+	entry.SetText("a")
+	entry.SetText("b")
+	entry.SetText("")
+
+	assert.Equal(t, []bool{true, false}, states)
+
+	entry.SetOnRequiredChanged(nil)
+	entry.SetText("again")
+	assert.Equal(t, []bool{true, false}, states)
+}
+
 func TestEntry_NotEmptyValidator(t *testing.T) {
 	test.NewTempApp(t)
 	entry := widget.NewEntry()

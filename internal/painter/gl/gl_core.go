@@ -4,6 +4,7 @@ package gl
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/go-gl/gl/v2.1/gl"
 
@@ -11,39 +12,37 @@ import (
 )
 
 const (
-	arrayBuffer           = gl.ARRAY_BUFFER
-	bitColorBuffer        = gl.COLOR_BUFFER_BIT
-	bitDepthBuffer        = gl.DEPTH_BUFFER_BIT
-	clampToEdge           = gl.CLAMP_TO_EDGE
-	colorFormatRGBA       = gl.RGBA
-	compileStatus         = gl.COMPILE_STATUS
-	constantAlpha         = gl.CONSTANT_ALPHA
-	float                 = gl.FLOAT
-	fragmentShader        = gl.FRAGMENT_SHADER
-	front                 = gl.FRONT
-	glFalse               = gl.FALSE
-	linkStatus            = gl.LINK_STATUS
-	one                   = gl.ONE
-	oneMinusConstantAlpha = gl.ONE_MINUS_CONSTANT_ALPHA
-	oneMinusSrcAlpha      = gl.ONE_MINUS_SRC_ALPHA
-	scissorTest           = gl.SCISSOR_TEST
-	srcAlpha              = gl.SRC_ALPHA
-	staticDraw            = gl.STATIC_DRAW
-	texture0              = gl.TEXTURE0
-	texture2D             = gl.TEXTURE_2D
-	textureMinFilter      = gl.TEXTURE_MIN_FILTER
-	textureMagFilter      = gl.TEXTURE_MAG_FILTER
-	textureWrapS          = gl.TEXTURE_WRAP_S
-	textureWrapT          = gl.TEXTURE_WRAP_T
-	triangles             = gl.TRIANGLES
-	triangleStrip         = gl.TRIANGLE_STRIP
-	unsignedByte          = gl.UNSIGNED_BYTE
-	vertexShader          = gl.VERTEX_SHADER
+	arrayBuffer      = gl.ARRAY_BUFFER
+	bitColorBuffer   = gl.COLOR_BUFFER_BIT
+	bitDepthBuffer   = gl.DEPTH_BUFFER_BIT
+	clampToEdge      = gl.CLAMP_TO_EDGE
+	colorFormatRGBA  = gl.RGBA
+	compileStatus    = gl.COMPILE_STATUS
+	float            = gl.FLOAT
+	fragmentShader   = gl.FRAGMENT_SHADER
+	front            = gl.FRONT
+	glFalse          = gl.FALSE
+	linkStatus       = gl.LINK_STATUS
+	one              = gl.ONE
+	oneMinusSrcAlpha = gl.ONE_MINUS_SRC_ALPHA
+	scissorTest      = gl.SCISSOR_TEST
+	srcAlpha         = gl.SRC_ALPHA
+	staticDraw       = gl.STATIC_DRAW
+	texture0         = gl.TEXTURE0
+	texture2D        = gl.TEXTURE_2D
+	textureMinFilter = gl.TEXTURE_MIN_FILTER
+	textureMagFilter = gl.TEXTURE_MAG_FILTER
+	textureWrapS     = gl.TEXTURE_WRAP_S
+	textureWrapT     = gl.TEXTURE_WRAP_T
+	triangles        = gl.TRIANGLES
+	triangleStrip    = gl.TRIANGLE_STRIP
+	unsignedByte     = gl.UNSIGNED_BYTE
+	vertexShader     = gl.VERTEX_SHADER
 )
 
 const (
-	noBuffer = Buffer(0)
-	noShader = Shader(0)
+	noProgram = Program(0)
+	noShader  = Shader(0)
 )
 
 type (
@@ -81,6 +80,15 @@ func (p *painter) Init() {
 	p.getUniformLocations(p.program, "text", "alpha", "cornerRadius", "size", "inset")
 	p.enableAttribArrays(p.program, "vert", "vertTexCoord")
 
+	p.blurProgram = ProgramState{
+		ref:        p.createProgram("blur"),
+		buff:       p.createBuffer(20),
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+	p.getUniformLocations(p.blurProgram, "radius", "size")
+	p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
+
 	p.lineProgram = ProgramState{
 		ref:        p.createProgram("line"),
 		buff:       p.createBuffer(24),
@@ -99,6 +107,7 @@ func (p *painter) Init() {
 	p.getUniformLocations(
 		p.rectangleProgram,
 		"frame_size", "rect_coords", "stroke_width", "fill_color", "stroke_color",
+		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
 	)
 	p.enableAttribArrays(p.rectangleProgram, "vert", "normal")
 
@@ -114,6 +123,7 @@ func (p *painter) Init() {
 		"stroke_width_half", "rect_size_half",
 		"radius", "edge_softness",
 		"fill_color", "stroke_color",
+		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
 	)
 	p.enableAttribArrays(p.roundRectangleProgram, "vert", "normal")
 
@@ -163,6 +173,33 @@ func (p *painter) Init() {
 		"stroke_width_half", "stroke_color",
 	)
 	p.enableAttribArrays(p.bezierCurveProgram, "vert", "normal")
+
+	p.arbitraryPolygonProgram = ProgramState{
+		ref:        p.createProgram("arbitrary_polygon"),
+		buff:       p.createBuffer(16),
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+	p.getUniformLocations(
+		p.arbitraryPolygonProgram,
+		"frame_size", "rect_coords", "edge_softness", "vertex_count",
+		"vertices", "corner_radii", "fill_color", "stroke_color", "stroke_width",
+	)
+	p.enableAttribArrays(p.arbitraryPolygonProgram, "vert", "normal")
+
+	p.ellipseProgram = ProgramState{
+		ref:        p.createProgram("ellipse"),
+		buff:       p.createBuffer(16),
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+	p.getUniformLocations(
+		p.ellipseProgram,
+		"frame_size", "rect_coords", "stroke_width", "radius", "angle",
+		"fill_color", "stroke_color", "edge_softness",
+		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
+	)
+	p.enableAttribArrays(p.ellipseProgram, "vert", "normal")
 
 	p.resolveUniforms()
 }
@@ -323,6 +360,10 @@ func (c *coreContext) LinkProgram(program Program) {
 	gl.LinkProgram(uint32(program))
 }
 
+func (c *coreContext) CopyTexSubImage2D(target uint32, level, xoffset, yoffset, x, y, width, height int) {
+	gl.CopyTexSubImage2D(target, int32(level), int32(xoffset), int32(yoffset), int32(x), int32(y), int32(width), int32(height))
+}
+
 func (c *coreContext) ReadBuffer(src uint32) {
 	gl.ReadBuffer(src)
 }
@@ -342,6 +383,10 @@ func (c *coreContext) ShaderSource(shader Shader, source string) {
 }
 
 func (c *coreContext) TexImage2D(target uint32, level, width, height int, colorFormat, typ uint32, data []uint8) {
+	var ptr unsafe.Pointer
+	if len(data) > 0 {
+		ptr = gl.Ptr(data)
+	}
 	gl.TexImage2D(
 		target,
 		int32(level),
@@ -351,7 +396,7 @@ func (c *coreContext) TexImage2D(target uint32, level, width, height int, colorF
 		0,
 		colorFormat,
 		typ,
-		gl.Ptr(data),
+		ptr,
 	)
 }
 
@@ -363,8 +408,26 @@ func (c *coreContext) Uniform1f(uniform Uniform, v float32) {
 	gl.Uniform1f(int32(uniform), v)
 }
 
+func (c *coreContext) Uniform1fv(uniform Uniform, v []float32) {
+	if len(v) == 0 {
+		return
+	}
+	gl.Uniform1fv(int32(uniform), int32(len(v)), &v[0])
+}
+
+func (c *coreContext) Uniform1i(uniform Uniform, v int32) {
+	gl.Uniform1i(int32(uniform), v)
+}
+
 func (c *coreContext) Uniform2f(uniform Uniform, v0, v1 float32) {
 	gl.Uniform2f(int32(uniform), v0, v1)
+}
+
+func (c *coreContext) Uniform2fv(uniform Uniform, v []float32) {
+	if len(v) == 0 {
+		return
+	}
+	gl.Uniform2fv(int32(uniform), int32(len(v)/2), &v[0])
 }
 
 func (c *coreContext) Uniform4f(uniform Uniform, v0, v1, v2, v3 float32) {

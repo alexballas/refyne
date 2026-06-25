@@ -52,27 +52,35 @@ func NewPainter(c fyne.Canvas, ctx driver.WithContext) Painter {
 }
 
 type painter struct {
-	canvas                fyne.Canvas
-	ctx                   context
-	contextProvider       driver.WithContext
-	program               ProgramState
-	lineProgram           ProgramState
-	rectangleProgram      ProgramState
-	roundRectangleProgram ProgramState
-	polygonProgram        ProgramState
-	arcProgram            ProgramState
-	bezierCurveProgram    ProgramState
-	texScale              float32
-	pixScale              float32 // pre-calculate scale*texScale for each draw
-	transparentBackground bool
-	preserveAlpha         bool
+	canvas                  fyne.Canvas
+	ctx                     context
+	contextProvider         driver.WithContext
+	program                 ProgramState
+	blurProgram             ProgramState
+	lineProgram             ProgramState
+	rectangleProgram        ProgramState
+	roundRectangleProgram   ProgramState
+	polygonProgram          ProgramState
+	arcProgram              ProgramState
+	bezierCurveProgram      ProgramState
+	arbitraryPolygonProgram ProgramState
+	ellipseProgram          ProgramState
+	shaderPrograms          map[string]*shaderState
+	texScale                float32
+	pixScale                float32 // pre-calculate scale*texScale for each draw
+	transparentBackground   bool
+	preserveAlpha           bool
+	blurSnapTex             Texture
+	blurSnapTexValid        bool
+	blurSnapW, blurSnapH    int
+	fbHeight                int
 
 	// uniforms and attributes resolved once in resolveUniforms, so per-draw
 	// updates avoid map[string] lookups.
 	uniforms resolvedUniforms
 
 	// vertexScratch backs the slices returned by the coord helpers
-	// (lineCoords, rectCoords, vecRectCoordsWithPad). The painter is
+	// (lineCoords, rectCoords, vecRectCoordsWithPadAndShadow). The painter is
 	// single-threaded per GL context and updateBuffer copies the data out
 	// synchronously, so one scratch array per painter avoids a per-draw
 	// allocation. No returned slice may be used after the next helper call.
@@ -98,21 +106,29 @@ type resolvedUniforms struct {
 		alpha, cornerRadius, size, inset *UniformState
 		vert, vertTexCoord               Attribute
 	}
+	blur struct {
+		radius, size       *UniformState
+		vert, vertTexCoord Attribute
+	}
 	line struct {
 		color, lineWidth, feather *UniformState
 		vert, normal              Attribute
 	}
 	rect struct {
-		frameSize, rectCoords, strokeWidth, fillColor, strokeColor *UniformState
-		vert, normal                                               Attribute
+		frameSize, rectCoords, strokeWidth, fillColor, strokeColor, addShadow, shadowBlurRadius, shadowSpread, shadowOffset, shadowColor, shadowType *UniformState
+		vert, normal                                                                                                                                 Attribute
 	}
 	roundRect struct {
-		frameSize, rectCoords, strokeWidthHalf, rectSizeHalf, radius, edgeSoftness, fillColor, strokeColor *UniformState
-		vert, normal                                                                                       Attribute
+		frameSize, rectCoords, strokeWidthHalf, rectSizeHalf, radius, edgeSoftness, fillColor, strokeColor, addShadow, shadowBlurRadius, shadowSpread, shadowOffset, shadowColor, shadowType *UniformState
+		vert, normal                                                                                                                                                                         Attribute
 	}
 	polygon struct {
 		frameSize, rectCoords, edgeSoftness, outerRadius, angle, sides, cornerRadius, strokeWidth, fillColor, strokeColor *UniformState
 		vert, normal                                                                                                      Attribute
+	}
+	arbitraryPolygon struct {
+		frameSize, rectCoords, edgeSoftness, vertexCount, vertices, cornerRadii, fillColor, strokeColor, strokeWidth *UniformState
+		vert, normal                                                                                                 Attribute
 	}
 	arc struct {
 		frameSize, rectCoords, innerRadius, outerRadius, startAngle, endAngle, edgeSoftness, cornerRadius, strokeWidth, fillColor, strokeColor *UniformState
@@ -121,6 +137,10 @@ type resolvedUniforms struct {
 	bezier struct {
 		frameSize, rectCoords, edgeSoftness, startPoint, endPoint, numControlPoints, controlPoint1, controlPoint2, strokeWidthHalf, strokeColor *UniformState
 		vert, normal                                                                                                                            Attribute
+	}
+	ellipse struct {
+		frameSize, rectCoords, strokeWidth, radius, angle, fillColor, strokeColor, edgeSoftness, addShadow, shadowBlurRadius, shadowSpread, shadowOffset, shadowColor, shadowType *UniformState
+		vert, normal                                                                                                                                                              Attribute
 	}
 }
 
@@ -138,6 +158,12 @@ func (p *painter) resolveUniforms() {
 	u.simple.vert = s.attributes["vert"]
 	u.simple.vertTexCoord = s.attributes["vertTexCoord"]
 
+	bl := &p.blurProgram
+	u.blur.radius = bl.uniforms["radius"]
+	u.blur.size = bl.uniforms["size"]
+	u.blur.vert = bl.attributes["vert"]
+	u.blur.vertTexCoord = bl.attributes["vertTexCoord"]
+
 	l := &p.lineProgram
 	u.line.color = l.uniforms["color"]
 	u.line.lineWidth = l.uniforms["lineWidth"]
@@ -151,6 +177,12 @@ func (p *painter) resolveUniforms() {
 	u.rect.strokeWidth = r.uniforms["stroke_width"]
 	u.rect.fillColor = r.uniforms["fill_color"]
 	u.rect.strokeColor = r.uniforms["stroke_color"]
+	u.rect.addShadow = r.uniforms["add_shadow"]
+	u.rect.shadowBlurRadius = r.uniforms["shadow_blur_radius"]
+	u.rect.shadowSpread = r.uniforms["shadow_spread"]
+	u.rect.shadowOffset = r.uniforms["shadow_offset"]
+	u.rect.shadowColor = r.uniforms["shadow_color"]
+	u.rect.shadowType = r.uniforms["shadow_type"]
 	u.rect.vert = r.attributes["vert"]
 	u.rect.normal = r.attributes["normal"]
 
@@ -163,6 +195,12 @@ func (p *painter) resolveUniforms() {
 	u.roundRect.edgeSoftness = rr.uniforms["edge_softness"]
 	u.roundRect.fillColor = rr.uniforms["fill_color"]
 	u.roundRect.strokeColor = rr.uniforms["stroke_color"]
+	u.roundRect.addShadow = rr.uniforms["add_shadow"]
+	u.roundRect.shadowBlurRadius = rr.uniforms["shadow_blur_radius"]
+	u.roundRect.shadowSpread = rr.uniforms["shadow_spread"]
+	u.roundRect.shadowOffset = rr.uniforms["shadow_offset"]
+	u.roundRect.shadowColor = rr.uniforms["shadow_color"]
+	u.roundRect.shadowType = rr.uniforms["shadow_type"]
 	u.roundRect.vert = rr.attributes["vert"]
 	u.roundRect.normal = rr.attributes["normal"]
 
@@ -179,6 +217,19 @@ func (p *painter) resolveUniforms() {
 	u.polygon.strokeColor = pg.uniforms["stroke_color"]
 	u.polygon.vert = pg.attributes["vert"]
 	u.polygon.normal = pg.attributes["normal"]
+
+	ap := &p.arbitraryPolygonProgram
+	u.arbitraryPolygon.frameSize = ap.uniforms["frame_size"]
+	u.arbitraryPolygon.rectCoords = ap.uniforms["rect_coords"]
+	u.arbitraryPolygon.edgeSoftness = ap.uniforms["edge_softness"]
+	u.arbitraryPolygon.vertexCount = ap.uniforms["vertex_count"]
+	u.arbitraryPolygon.vertices = ap.uniforms["vertices"]
+	u.arbitraryPolygon.cornerRadii = ap.uniforms["corner_radii"]
+	u.arbitraryPolygon.fillColor = ap.uniforms["fill_color"]
+	u.arbitraryPolygon.strokeColor = ap.uniforms["stroke_color"]
+	u.arbitraryPolygon.strokeWidth = ap.uniforms["stroke_width"]
+	u.arbitraryPolygon.vert = ap.attributes["vert"]
+	u.arbitraryPolygon.normal = ap.attributes["normal"]
 
 	a := &p.arcProgram
 	u.arc.frameSize = a.uniforms["frame_size"]
@@ -208,6 +259,24 @@ func (p *painter) resolveUniforms() {
 	u.bezier.strokeColor = b.uniforms["stroke_color"]
 	u.bezier.vert = b.attributes["vert"]
 	u.bezier.normal = b.attributes["normal"]
+
+	e := &p.ellipseProgram
+	u.ellipse.frameSize = e.uniforms["frame_size"]
+	u.ellipse.rectCoords = e.uniforms["rect_coords"]
+	u.ellipse.strokeWidth = e.uniforms["stroke_width"]
+	u.ellipse.radius = e.uniforms["radius"]
+	u.ellipse.angle = e.uniforms["angle"]
+	u.ellipse.fillColor = e.uniforms["fill_color"]
+	u.ellipse.strokeColor = e.uniforms["stroke_color"]
+	u.ellipse.edgeSoftness = e.uniforms["edge_softness"]
+	u.ellipse.addShadow = e.uniforms["add_shadow"]
+	u.ellipse.shadowBlurRadius = e.uniforms["shadow_blur_radius"]
+	u.ellipse.shadowSpread = e.uniforms["shadow_spread"]
+	u.ellipse.shadowOffset = e.uniforms["shadow_offset"]
+	u.ellipse.shadowColor = e.uniforms["shadow_color"]
+	u.ellipse.shadowType = e.uniforms["shadow_type"]
+	u.ellipse.vert = e.attributes["vert"]
+	u.ellipse.normal = e.attributes["normal"]
 }
 
 type ProgramState struct {
@@ -218,8 +287,9 @@ type ProgramState struct {
 }
 
 type UniformState struct {
-	ref  Uniform
-	prev [4]float32
+	ref   Uniform
+	prev  [4]float32
+	prevv []float32
 }
 
 func (p *painter) SetUniform1f(u *UniformState, v float32) {
@@ -228,6 +298,23 @@ func (p *painter) SetUniform1f(u *UniformState, v float32) {
 	}
 	u.prev[0] = v
 	p.ctx.Uniform1f(u.ref, v)
+}
+
+func (p *painter) SetUniform1i(u *UniformState, v int32) {
+	fv := float32(v)
+	if u.prev[0] == fv {
+		return
+	}
+	u.prev[0] = fv
+	p.ctx.Uniform1i(u.ref, v)
+}
+
+func (p *painter) SetUniform1fv(u *UniformState, v []float32) {
+	if float32SlicesEqual(u.prevv, v) {
+		return
+	}
+	u.prevv = append(u.prevv[:0], v...)
+	p.ctx.Uniform1fv(u.ref, v)
 }
 
 func (p *painter) SetUniform2f(u *UniformState, v0, v1 float32) {
@@ -239,6 +326,14 @@ func (p *painter) SetUniform2f(u *UniformState, v0, v1 float32) {
 	p.ctx.Uniform2f(u.ref, v0, v1)
 }
 
+func (p *painter) SetUniform2fv(u *UniformState, v []float32) {
+	if float32SlicesEqual(u.prevv, v) {
+		return
+	}
+	u.prevv = append(u.prevv[:0], v...)
+	p.ctx.Uniform2fv(u.ref, v)
+}
+
 func (p *painter) SetUniform4f(u *UniformState, v0, v1, v2, v3 float32) {
 	if u.prev[0] == v0 && u.prev[1] == v1 && u.prev[2] == v2 && u.prev[3] == v3 {
 		return
@@ -248,6 +343,60 @@ func (p *painter) SetUniform4f(u *UniformState, v0, v1, v2, v3 float32) {
 	u.prev[2] = v2
 	u.prev[3] = v3
 	p.ctx.Uniform4f(u.ref, v0, v1, v2, v3)
+}
+
+func (p *painter) setProgramUniform1f(pState ProgramState, name string, v float32) {
+	p.SetUniform1f(p.getUniformLocation(pState, name), v)
+}
+
+func (p *painter) setProgramUniform1i(pState ProgramState, name string, v int32) {
+	p.SetUniform1i(p.getUniformLocation(pState, name), v)
+}
+
+func (p *painter) getUniformLocation(pState ProgramState, name string) *UniformState {
+	u, ok := pState.uniforms[name]
+	if !ok {
+		u = &UniformState{ref: p.ctx.GetUniformLocation(pState.ref, name)}
+		pState.uniforms[name] = u
+	}
+
+	return u
+}
+
+func (p *painter) getAttribLocation(pState ProgramState, name string) Attribute {
+	a, ok := pState.attributes[name]
+	if !ok {
+		a = p.ctx.GetAttribLocation(pState.ref, name)
+		p.ctx.EnableVertexAttribArray(a)
+		pState.attributes[name] = a
+	}
+
+	return a
+}
+
+// shaderState caches a user shader's compiled program and uploaded textures.
+// valid is false when the source failed to compile, so the failure is cached.
+type shaderState struct {
+	program  ProgramState
+	valid    bool
+	textures map[string]*shaderTexture
+}
+
+type shaderTexture struct {
+	tex Texture
+	src image.Image
+}
+
+func float32SlicesEqual(a, b []float32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *painter) UpdateVertexArray(a Attribute, size, stride, offset int) {
@@ -312,6 +461,7 @@ func (p *painter) SetFrameBufferScale(scale float32) {
 
 func (p *painter) SetOutputSize(width, height int) {
 	p.ctx.Viewport(0, 0, width, height)
+	p.fbHeight = height
 	p.logError()
 }
 
@@ -361,13 +511,25 @@ func (p *painter) createProgram(shaderFilename string) Program {
 		panic("shader not found: " + shaderFilename)
 	}
 
-	vertShader, err := p.compileShader(string(vertexSrc), vertexShader)
+	prog, err := p.createProgramFromSource(vertexSrc, fragmentSrc)
 	if err != nil {
 		panic(err)
 	}
+
+	return prog
+}
+
+// createProgramFromSource compiles and links the given vertex and fragment shader sources
+// into a program. Unlike createProgram it returns an error rather than panicking, so it is
+// safe to use with application supplied shader source that may fail to compile.
+func (p *painter) createProgramFromSource(vertexSrc, fragmentSrc []byte) (Program, error) {
+	vertShader, err := p.compileShader(string(vertexSrc), vertexShader)
+	if err != nil {
+		return noProgram, err
+	}
 	fragShader, err := p.compileShader(string(fragmentSrc), fragmentShader)
 	if err != nil {
-		panic(err)
+		return noProgram, err
 	}
 
 	prog := p.ctx.CreateProgram()
@@ -377,7 +539,7 @@ func (p *painter) createProgram(shaderFilename string) Program {
 
 	info := p.ctx.GetProgramInfoLog(prog)
 	if p.ctx.GetProgrami(prog, linkStatus) == glFalse {
-		panic(fmt.Errorf("failed to link OpenGL program:\n%s", info))
+		return noProgram, fmt.Errorf("failed to link OpenGL program:\n%s", info)
 	}
 
 	// The info is probably a null terminated string.
@@ -387,12 +549,12 @@ func (p *painter) createProgram(shaderFilename string) Program {
 	}
 
 	if glErr := p.ctx.GetError(); glErr != 0 {
-		panic(fmt.Sprintf("failed to link OpenGL program; error code: %x", glErr))
+		return noProgram, fmt.Errorf("failed to link OpenGL program; error code: %x", glErr)
 	}
 
 	p.ctx.UseProgram(prog)
 
-	return prog
+	return prog, nil
 }
 
 func (p *painter) logError() {

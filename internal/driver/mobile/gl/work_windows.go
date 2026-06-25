@@ -152,6 +152,10 @@ var glfnFuncs = [...]func(c call) (ret uintptr){
 		syscall.SyscallN(glDeleteBuffers.Addr(), 1, uintptr(unsafe.Pointer(&c.args.a0)))
 		return ret
 	},
+	glfnDeleteProgram: func(c call) (ret uintptr) {
+		syscall.SyscallN(glDeleteProgram.Addr(), c.args.a0)
+		return ret
+	},
 	glfnDeleteTexture: func(c call) (ret uintptr) {
 		syscall.SyscallN(glDeleteTextures.Addr(), 1, uintptr(unsafe.Pointer(&c.args.a0)))
 		return ret
@@ -228,6 +232,10 @@ var glfnFuncs = [...]func(c call) (ret uintptr){
 		syscall.SyscallN(glLinkProgram.Addr(), c.args.a0)
 		return ret
 	},
+	glfnCopyTexSubImage2D: func(c call) (ret uintptr) {
+		syscall.SyscallN(glCopyTexSubImage2D.Addr(), c.args.a0, c.args.a1, c.args.a2, c.args.a3, c.args.a4, c.args.a5, c.args.a6, c.args.a7)
+		return ret
+	},
 	glfnReadPixels: func(c call) (ret uintptr) {
 		syscall.SyscallN(glReadPixels.Addr(), c.args.a0, c.args.a1, c.args.a2, c.args.a3, c.args.a4, c.args.a5, uintptr(c.parg))
 		return ret
@@ -252,8 +260,20 @@ var glfnFuncs = [...]func(c call) (ret uintptr){
 		syscall.SyscallN(glUniform1f.Addr(), c.args.a0, c.args.a1)
 		return ret
 	},
+	glfnUniform1fv: func(c call) (ret uintptr) {
+		syscall.SyscallN(glUniform1fv.Addr(), c.args.a0, c.args.a1, uintptr(c.parg))
+		return ret
+	},
+	glfnUniform1i: func(c call) (ret uintptr) {
+		syscall.SyscallN(glUniform1i.Addr(), c.args.a0, c.args.a1)
+		return ret
+	},
 	glfnUniform2f: func(c call) (ret uintptr) {
 		syscall.SyscallN(glUniform2f.Addr(), c.args.a0, c.args.a1, c.args.a2)
+		return ret
+	},
+	glfnUniform2fv: func(c call) (ret uintptr) {
+		syscall.SyscallN(glUniform2fv.Addr(), c.args.a0, c.args.a1, uintptr(c.parg))
 		return ret
 	},
 	glfnUniform4f: func(c call) (ret uintptr) {
@@ -314,6 +334,7 @@ var (
 	glCreateProgram           = libGLESv2.NewProc("glCreateProgram")
 	glCreateShader            = libGLESv2.NewProc("glCreateShader")
 	glDeleteBuffers           = libGLESv2.NewProc("glDeleteBuffers")
+	glDeleteProgram           = libGLESv2.NewProc("glDeleteProgram")
 	glDeleteTextures          = libGLESv2.NewProc("glDeleteTextures")
 	glDisable                 = libGLESv2.NewProc("glDisable")
 	glDrawArrays              = libGLESv2.NewProc("glDrawArrays")
@@ -334,13 +355,17 @@ var (
 	glGetUniformLocation      = libGLESv2.NewProc("glGetUniformLocation")
 	glPixelStorei             = libGLESv2.NewProc("glPixelStorei")
 	glLinkProgram             = libGLESv2.NewProc("glLinkProgram")
+	glCopyTexSubImage2D       = libGLESv2.NewProc("glCopyTexSubImage2D")
 	glReadPixels              = libGLESv2.NewProc("glReadPixels")
 	glScissor                 = libGLESv2.NewProc("glScissor")
 	glShaderSource            = libGLESv2.NewProc("glShaderSource")
 	glTexImage2D              = libGLESv2.NewProc("glTexImage2D")
 	glTexParameteri           = libGLESv2.NewProc("glTexParameteri")
 	glUniform1f               = libGLESv2.NewProc("glUniform1f")
+	glUniform1fv              = libGLESv2.NewProc("glUniform1fv")
+	glUniform1i               = libGLESv2.NewProc("glUniform1i")
 	glUniform2f               = libGLESv2.NewProc("glUniform2f")
+	glUniform2fv              = libGLESv2.NewProc("glUniform2fv")
 	glUniform4f               = libGLESv2.NewProc("glUniform4f")
 	glUniform4fv              = libGLESv2.NewProc("glUniform4fv")
 	glUseProgram              = libGLESv2.NewProc("glUseProgram")

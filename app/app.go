@@ -11,6 +11,7 @@ import (
 	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/app"
 	intRepo "github.com/alexballas/refyne/v2/internal/repository"
+	"github.com/alexballas/refyne/v2/internal/scheduler"
 	"github.com/alexballas/refyne/v2/storage"
 	"github.com/alexballas/refyne/v2/storage/repository"
 )
@@ -24,11 +25,13 @@ type fyneApp struct {
 	icon      fyne.Resource
 	uniqueID  string
 
+	cache     fyne.Cache
 	cloud     fyne.CloudProvider
 	lifecycle app.Lifecycle
 	settings  *settings
 	storage   fyne.Storage
 	prefs     fyne.Preferences
+	scheduler *scheduler.Scheduler
 }
 
 func (a *fyneApp) CloudProvider() fyne.CloudProvider {
@@ -118,6 +121,10 @@ func (a *fyneApp) newDefaultPreferences() *preferences {
 	return p
 }
 
+func (a *fyneApp) Cache() fyne.Cache {
+	return a.cache
+}
+
 func (a *fyneApp) Clipboard() fyne.Clipboard {
 	return a.clipboard
 }
@@ -171,6 +178,9 @@ func newAppWithDriver(d fyne.Driver, clipboard fyne.Clipboard, id string) fyne.A
 	})
 
 	newApp.registerRepositories() // for web this may provide docs / settings
+	newApp.cache = makeCache(newApp)
+	newApp.scheduler = scheduler.New(newApp.cache, newApp.SendNotification)
+	newApp.scheduler.Start()
 	newApp.settings = loadSettings()
 	store := &store{a: newApp}
 	store.Docs = makeStoreDocs(id, store)

@@ -46,6 +46,7 @@ const (
 	glfnCreateProgram
 	glfnCreateShader
 	glfnDeleteBuffer
+	glfnDeleteProgram
 	glfnDeleteTexture
 	glfnDisable
 	glfnDrawArrays
@@ -65,13 +66,17 @@ const (
 	glfnGetTexParameteriv
 	glfnGetUniformLocation
 	glfnLinkProgram
+	glfnCopyTexSubImage2D
 	glfnReadPixels
 	glfnScissor
 	glfnShaderSource
 	glfnTexImage2D
 	glfnTexParameteri
 	glfnUniform1f
+	glfnUniform1fv
+	glfnUniform1i
 	glfnUniform2f
+	glfnUniform2fv
 	glfnUniform4f
 	glfnUniform4fv
 	glfnUseProgram

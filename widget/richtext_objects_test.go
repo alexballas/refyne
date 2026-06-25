@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/storage"
 	"github.com/alexballas/refyne/v2/test"
 )
@@ -69,6 +71,37 @@ func TestRichText_OrderedList(t *testing.T) {
 	assert.Equal(t, "One", texts[1].(*canvas.Text).Text)
 	assert.Equal(t, "2.", strings.TrimSpace(texts[2].(*canvas.Text).Text))
 	assert.Equal(t, "Two", texts[3].(*canvas.Text).Text)
+}
+
+func TestRichText_HyperLink_WrappedHoverSynced(t *testing.T) {
+	u, _ := url.Parse("https://fyne.io")
+	seg := &HyperlinkSegment{Text: "this is a long hyperlink that wraps", URL: u}
+	rt := NewRichText(seg)
+	rt.Wrapping = fyne.TextWrapWord
+	rt.Resize(fyne.NewSize(100, 200))
+
+	objs := test.TempWidgetRenderer(t, rt).Objects()
+	var links []*Hyperlink
+	for _, obj := range objs {
+		if c, ok := obj.(*fyne.Container); ok {
+			if hl, ok := c.Objects[0].(*Hyperlink); ok {
+				links = append(links, hl)
+			}
+		}
+	}
+	assert.GreaterOrEqual(t, len(links), 2, "expected hyperlink to wrap into multiple segments")
+
+	center := fyne.NewPos(links[0].Size().Width/2, links[0].Size().Height/2)
+	inside := &desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: center}}
+	links[0].MouseIn(inside)
+	for i, hl := range links {
+		assert.True(t, hl.hovered, "expected link[%d] to be hovered after MouseIn on link[0]", i)
+	}
+
+	links[0].MouseOut()
+	for i, hl := range links {
+		assert.False(t, hl.hovered, "expected link[%d] to be unhovered after MouseOut on link[0]", i)
+	}
 }
 
 func TestRichText_OrderedListDifferentIndex(t *testing.T) {

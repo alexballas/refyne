@@ -15,6 +15,8 @@ import (
 // in an error
 var errFormItemInitialState = errors.New("widget.FormItem initial state error")
 
+var errFormItemRequired = errors.New("item is required")
+
 // FormItem provides the details for a row in a form
 type FormItem struct {
 	Text   string
@@ -23,8 +25,12 @@ type FormItem struct {
 	// Since: 2.0
 	HintText string
 
+	// Since: 2.8
+	Required bool
+
 	validationError error
 	invalid         bool
+	requiredMissing bool
 	helperOutput    *canvas.Text
 	wasFocused      bool
 }
@@ -58,8 +64,14 @@ type Form struct {
 	// Since: 2.5
 	Orientation Orientation
 
+	// Validator allows a form to handle some overall validation before it will enable Submit.
+	//
+	// Since: 2.8
+	Validator func() error `json:"-"`
+
 	itemGrid     *fyne.Container
 	buttonBox    *fyne.Container
+	validateText *canvas.Text
 	cancelButton *Button
 	submitButton *Button
 
@@ -81,7 +93,7 @@ func (f *Form) AppendItem(item *FormItem) {
 
 	f.Items = append(f.Items, item)
 	if f.itemGrid != nil {
-		f.itemGrid.Add(f.createLabel(item.Text))
+		f.itemGrid.Add(f.createLabel(item))
 		f.itemGrid.Add(f.createInput(item))
 		f.setUpValidation(item.Widget, len(f.Items)-1)
 	}
@@ -102,6 +114,7 @@ func (f *Form) Refresh() {
 	f.ensureRenderItems()
 	f.updateButtons()
 	f.updateLabels()
+	f.checkValidation(nil)
 
 	if f.isVertical() {
 		f.itemGrid.Layout = layout.NewVBoxLayout()
@@ -140,10 +153,44 @@ func (f *Form) Disabled() bool {
 	return f.disabled
 }
 
+// RemoveItem removes a specified item from the form.
+//
+// Since: 2.8
+func (f *Form) RemoveItem(item *FormItem) {
+	if len(f.Items) == 0 {
+		return
+	}
+	if f.Items[0] == item {
+		f.Items = f.Items[1:]
+	} else if f.Items[len(f.Items)-1] == item {
+		f.Items = f.Items[:len(f.Items)-1]
+	} else {
+		pos := -1
+		for i, child := range f.Items {
+			if child == item {
+				pos = i
+				break
+			}
+		}
+
+		if pos != -1 {
+			f.Items = append(f.Items[:pos], f.Items[pos+1:]...)
+		} else {
+			return
+		}
+	}
+
+	f.Refresh()
+}
+
 // SetOnValidationChanged is intended for parent widgets or containers to hook into the validation.
 // The function might be overwritten by a parent that cares about child validation (e.g. widget.Form)
 func (f *Form) SetOnValidationChanged(callback func(error)) {
 	f.onValidationChanged = callback
+
+	if callback != nil && f.validationError != nil && !errors.Is(f.validationError, errFormItemInitialState) {
+		callback(f.validationError)
+	}
 }
 
 // Validate validates the entire form and returns the first error that is encountered.
@@ -193,11 +240,11 @@ func (f *Form) itemWidgetHasValidator(w fyne.CanvasObject) bool {
 	return validator != nil
 }
 
-func (f *Form) createLabel(text string) fyne.CanvasObject {
+func (f *Form) createLabel(item *FormItem) fyne.CanvasObject {
 	th := f.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 	label := &canvas.Text{
-		Text:      text,
+		Text:      f.labelText(item),
 		Alignment: fyne.TextAlignTrailing,
 		Color:     th.Color(theme.ColorNameForeground, v),
 		TextSize:  th.Size(theme.SizeNameText),
@@ -242,14 +289,47 @@ func (f *Form) updateButtons() {
 
 func (f *Form) checkValidation(err error) {
 	if err != nil {
+		f.hideValidateText()
 		f.submitButton.Disable()
 		return
 	}
 
 	for _, item := range f.Items {
 		if item.invalid {
+			f.hideValidateText()
 			f.submitButton.Disable()
 			return
+		}
+		if item.Required {
+			if has, ok := item.Widget.(fyne.Requireable); ok {
+				if !has.HasValue() {
+					f.hideValidateText()
+					f.submitButton.Disable()
+					return
+				}
+
+				f.clearRequiredError(item)
+			}
+		} else {
+			f.clearRequiredError(item)
+		}
+	}
+
+	if f.Validator != nil {
+		err := f.Validator()
+		if err != nil {
+			f.setValidationError(err)
+			f.showValidateText(err)
+			f.submitButton.Disable()
+			return
+		}
+
+		f.setValidationError(nil)
+		f.hideValidateText()
+	} else {
+		f.hideValidateText()
+		if f.validationError != nil && !errors.Is(f.validationError, errFormItemInitialState) {
+			f.setValidationError(nil)
 		}
 	}
 
@@ -273,7 +353,7 @@ func (f *Form) ensureRenderItems() {
 			continue
 		}
 
-		objects[off] = f.createLabel(item.Text)
+		objects[off] = f.createLabel(item)
 		off++
 		f.setUpValidation(item.Widget, i)
 		objects[off] = f.createInput(item)
@@ -312,6 +392,36 @@ func (f *Form) setUpValidation(widget fyne.CanvasObject, i int) {
 		f.checkValidation(err)
 		f.updateHelperText(f.Items[i])
 	}
+	updateRequired := func(hasValue bool) {
+		if i >= len(f.Items) {
+			return // called after form has been truncated
+		}
+
+		item := f.Items[i]
+		if item.Required && !hasValue {
+			item.requiredMissing = true
+			if item.validationError == nil || errors.Is(item.validationError, errFormItemRequired) {
+				item.validationError = errFormItemRequired
+			}
+		} else {
+			wasMissing := item.requiredMissing
+			item.requiredMissing = false
+			if wasMissing && errors.Is(item.validationError, errFormItemRequired) {
+				item.validationError = nil
+			}
+		}
+
+		f.setValidationError(item.validationError)
+		f.checkValidation(item.validationError)
+		f.updateHelperText(item)
+	}
+
+	if r, ok := widget.(fyne.Requireable); ok {
+		r.SetOnRequiredChanged(updateRequired)
+	} else if f.Items[i].Required {
+		fyne.LogError("Cannot mark a widget that is not `Requireable` as required", nil)
+	}
+
 	if w, ok := widget.(fyne.Validatable); ok {
 		f.Items[i].invalid = w.Validate() != nil
 		if e, ok := w.(*Entry); ok {
@@ -324,6 +434,26 @@ func (f *Form) setUpValidation(widget fyne.CanvasObject, i int) {
 			}
 		}
 		w.SetOnValidationChanged(updateValidation)
+	}
+}
+
+func (f *Form) labelText(item *FormItem) string {
+	if item.Required {
+		return "* " + item.Text
+	}
+
+	return item.Text
+}
+
+func (f *Form) clearRequiredError(item *FormItem) {
+	if !item.requiredMissing {
+		return
+	}
+
+	item.requiredMissing = false
+	if errors.Is(item.validationError, errFormItemRequired) {
+		item.validationError = nil
+		f.updateHelperText(item)
 	}
 }
 
@@ -347,6 +477,25 @@ func (f *Form) setValidationError(err error) {
 			f.onValidationChanged(err)
 		}
 	}
+}
+
+func (f *Form) hideValidateText() {
+	if f.validateText == nil {
+		return
+	}
+
+	f.validateText.Hide()
+	f.validateText.Refresh()
+}
+
+func (f *Form) showValidateText(err error) {
+	if f.validateText == nil {
+		return
+	}
+
+	f.validateText.Text = err.Error()
+	f.validateText.Show()
+	f.validateText.Refresh()
 }
 
 func (f *Form) updateHelperText(item *FormItem) {
@@ -399,7 +548,7 @@ func (f *Form) updateLabels() {
 			l.Color = th.Color(theme.ColorNameForeground, v)
 		}
 
-		l.Text = item.Text
+		l.Text = f.labelText(item)
 		if f.isVertical() {
 			l.Alignment = fyne.TextAlignLeading
 		} else {
@@ -407,6 +556,11 @@ func (f *Form) updateLabels() {
 		}
 		l.Refresh()
 		f.updateHelperText(item)
+	}
+
+	if f.validateText != nil {
+		f.validateText.Color = theme.ColorForWidget(theme.ColorNameError, f)
+		f.validateText.Refresh()
 	}
 }
 
@@ -426,7 +580,11 @@ func (f *Form) CreateRenderer() fyne.WidgetRenderer {
 	} else {
 		f.itemGrid.Layout = layout.NewFormLayout()
 	}
-	content := &fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{f.itemGrid, f.buttonBox}}
+	f.validateText = canvas.NewText("", theme.ColorForWidget(theme.ColorNameError, f))
+	f.validateText.TextSize = th.Size(theme.SizeNameCaptionText)
+	f.validateText.Hide()
+
+	content := &fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{f.itemGrid, f.validateText, f.buttonBox}}
 	renderer := NewSimpleRenderer(content)
 	f.ensureRenderItems()
 	f.updateButtons()

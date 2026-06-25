@@ -2,6 +2,7 @@ package theme_test
 
 import (
 	"net/url"
+	"time"
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/theme"
@@ -51,6 +52,14 @@ func (t *themedApp) UniqueID() string {
 }
 
 func (t *themedApp) SendNotification(notification *fyne.Notification) {
+}
+
+func (t *themedApp) ScheduleNotification(_ *fyne.Notification, _ time.Time) (*fyne.ScheduledNotification, error) {
+	return nil, nil
+}
+
+func (t *themedApp) CancelScheduledNotification(_ string) error {
+	return nil
 }
 
 func (t *themedApp) Settings() fyne.Settings {
@@ -111,5 +120,9 @@ func (t *themedApp) AddListener(func(fyne.Settings)) {
 }
 
 func (t *themedApp) Clipboard() fyne.Clipboard {
+	return nil
+}
+
+func (t *themedApp) Cache() fyne.Cache {
 	return nil
 }
