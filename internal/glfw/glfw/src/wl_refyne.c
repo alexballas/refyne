@@ -230,7 +230,14 @@ static GLFWbool createRefyneShadowSlice(_GLFWwindow* window,
 
     wl_subsurface_set_position(slice->subsurface, x, y);
     wl_subsurface_place_below(slice->subsurface, window->wl.surface);
-    wl_subsurface_set_desync(slice->subsurface);
+
+    // Keep shadow commits synchronized with the parent content surface. During
+    // interactive resize the compositor sends a configure, we update the shadow
+    // slice viewports, then Go renders and swaps the matching EGL buffer. If
+    // these subsurfaces are desynchronized, their viewport commits can take
+    // effect before that buffer swap and the shadow/resize extents visually
+    // lead the content by one frame on Mutter/Mesa.
+    wl_subsurface_set_sync(slice->subsurface);
 
     slice->viewport =
         wp_viewporter_get_viewport(_glfw.wl.viewporter, slice->surface);
@@ -337,8 +344,8 @@ static void resizeRefyneWindowShadow(_GLFWwindow* window)
     // snap back on the next eglSwapBuffers -> the content trembles in the
     // resize direction. Every size-changed path that reaches here is followed
     // by _glfwInputWindowDamage -> a Fyne paint -> eglSwapBuffers, which commits
-    // the main surface and applies this geometry (and the shadow subsurface
-    // positions, which are parent-commit-driven) atomically with the matching
+    // the main surface and atomically applies this geometry plus the synced
+    // shadow subsurface positions and viewport commits with the matching
     // buffer. This mirrors the maximized/fullscreen branch in
     // _glfwRefyneUpdateWindowShadow, which defers to the content swap for the
     // same reason.
