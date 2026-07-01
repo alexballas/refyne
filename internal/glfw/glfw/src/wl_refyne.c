@@ -470,6 +470,18 @@ GLFWAPI void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos)
     }
 }
 
+// Reports whether the window is inside a compositor-driven interactive resize
+// (the xdg_toplevel RESIZING state). While this is set, the client must follow
+// the compositor's configure sizes; client-initiated resizes would fight the
+// grab and make the window size oscillate.
+GLFWAPI int glfwRefyneInteractiveResizing(GLFWwindow* handle)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    if (!window)
+        return 0;
+    return window->wl.resizing == GLFW_TRUE;
+}
+
 // 0 = unknown/none (e.g. GNOME, no decoration manager),
 // 1 = client-side, 2 = server-side (matches zxdg_toplevel_decoration_v1 mode).
 GLFWAPI int glfwRefyneDecorationMode(GLFWwindow* handle)

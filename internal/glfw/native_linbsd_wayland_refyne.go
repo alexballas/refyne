@@ -13,6 +13,7 @@ package glfw
 //extern void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos);
 //extern void glfwRefyneSetWindowShadow(GLFWwindow* handle, int enabled);
 //extern int  glfwRefyneDecorationMode(GLFWwindow* handle);
+//extern int  glfwRefyneInteractiveResizing(GLFWwindow* handle);
 //extern int  glfwRefyneSetWindowIcon(GLFWwindow* handle, const unsigned char* pixels, int width, int height);
 import "C"
 
@@ -92,6 +93,15 @@ func (w *Window) DecorationMode() DecorationMode {
 	mode := C.glfwRefyneDecorationMode(w.data)
 	panicError()
 	return DecorationMode(mode)
+}
+
+// InteractiveResizingWayland reports whether the window is currently inside a
+// compositor-driven interactive resize (xdg_toplevel RESIZING state). Wayland
+// only; call on the main thread.
+func (w *Window) InteractiveResizingWayland() bool {
+	resizing := C.glfwRefyneInteractiveResizing(w.data)
+	panicError()
+	return resizing != 0
 }
 
 // SetWindowIconWayland pushes an application icon to the compositor via the

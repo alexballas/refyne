@@ -320,7 +320,12 @@ func (d *gLDriver) processWindowEvents() {
 		expand := w.shouldExpand
 		fullScreen := w.fullScreen
 
-		if expand && !fullScreen {
+		// While the compositor drives an interactive resize the client must
+		// follow its configure sizes. Pushing back with SetSize (e.g. when the
+		// drag goes below the content minimum) makes the two sides commit
+		// alternating sizes every frame — visible as the window trembling.
+		// shouldExpand stays set, so the min size is enforced when the grab ends.
+		if expand && !fullScreen && !w.interactiveResizing() {
 			w.fitContent()
 			shouldExpand := w.shouldExpand
 			w.shouldExpand = false
