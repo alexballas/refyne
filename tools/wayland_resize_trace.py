@@ -25,14 +25,19 @@ compositor-side, not client-side.
 import re
 import sys
 
+# libwayland >= 1.23 inserts a "{queue name}" field after the timestamp; accept
+# it (and an optional "-> " sent-marker) in either order.
 MSG = re.compile(
-    r"^\[\s*(\d+[.,]\d+)\]\s*(->\s*)?([a-zA-Z0-9_]+)@(\d+)\.([a-zA-Z0-9_]+)\((.*)\)\s*$"
+    r"^\[\s*(\d+[.,]\d+)\]\s*(?:\{[^}]*\}\s*)?(->\s*)?(?:\{[^}]*\}\s*)?"
+    r"([a-zA-Z0-9_]+)[@#](\d+)\.([a-zA-Z0-9_]+)\((.*)\)\s*$"
 )
-NEW_ID = re.compile(r"new id ([a-zA-Z0-9_]+)@(\d+)")
+NEW_ID = re.compile(r"new id ([a-zA-Z0-9_]+)[@#](\d+)")
 
 
 def ints(args):
-    return [int(x) for x in re.findall(r"(?<![@\w])-?\d+", args)]
+    # The lookbehind skips object ids in both spellings (wl_buffer@53 and
+    # wl_buffer#53) so only real integer arguments are returned.
+    return [int(x) for x in re.findall(r"(?<![@#\w])-?\d+", args)]
 
 
 def main(path):
@@ -87,14 +92,14 @@ def main(path):
                 buffers[int(nid.group(2))] = (size[1], size[2])
         elif iface == "wp_viewporter" and op == "get_viewport":
             nid = NEW_ID.search(args)
-            target = re.search(r"wl_surface@(\d+)", args)
+            target = re.search(r"wl_surface[@#](\d+)", args)
             if nid and target:
                 sid = int(target.group(1))
                 viewport_surface[int(nid.group(2))] = sid
                 surf(sid)["viewport"] = True
         elif iface == "xdg_wm_base" and op == "get_xdg_surface":
             nid = NEW_ID.search(args)
-            target = re.search(r"wl_surface@(\d+)", args)
+            target = re.search(r"wl_surface[@#](\d+)", args)
             if nid and target:
                 xdg_surface[int(nid.group(2))] = int(target.group(1))
                 toplevels.add(int(target.group(1)))
@@ -102,19 +107,25 @@ def main(path):
             sid = viewport_surface.get(oid)
             if sid is not None:
                 s = surf(sid)
-                s["dest"], s["dest_dirty"] = tuple(ints(args)[:2]), True
+                dest = tuple(ints(args)[:2])
+                # Re-staging an unchanged value is harmless; only a value
+                # change makes a bufferless commit hazardous.
+                s["dest_dirty"] = s["dest_dirty"] or dest != s["dest"]
+                s["dest"] = dest
         elif iface == "xdg_surface" and op == "set_window_geometry":
             sid = xdg_surface.get(oid)
             if sid is not None:
                 g = ints(args)
                 s = surf(sid)
-                s["geom"], s["geom_dirty"] = (g[2], g[3]), True
+                geom = (g[2], g[3])
+                s["geom_dirty"] = s["geom_dirty"] or geom != s["geom"]
+                s["geom"] = geom
         elif iface == "xdg_toplevel" and op == "configure" and not sent:
             size = ints(args)
             if len(size) >= 2 and size[0] and size[1]:
                 last_configure = (size[0], size[1])
         elif iface == "wl_surface" and op == "attach":
-            buf = re.search(r"wl_buffer@(\d+)", args)
+            buf = re.search(r"wl_buffer[@#](\d+)", args)
             s = surf(oid)
             s["buffer"] = buffers.get(int(buf.group(1))) if buf else None
             s["attached"] = True

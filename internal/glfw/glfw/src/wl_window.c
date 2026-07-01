@@ -345,18 +345,35 @@ void _glfwApplyPendingEGLResizeWayland(_GLFWwindow* window)
         resizeEGLWindow(window);
 }
 
+// Same as _glfwApplyPendingEGLResizeWayland but keeps the pending flag set so
+// the post-eglMakeCurrent apply runs again. Mesa sizes the back buffer while
+// validating the drawable inside eglMakeCurrent, so it must see the new size
+// BEFORE the surface becomes current; NVIDIA's EGL only honors the resize
+// once the surface IS current. makeContextCurrentEGL therefore calls this
+// before eglMakeCurrent and the clearing variant after it.
+void _glfwPrimePendingEGLResizeWayland(_GLFWwindow* window)
+{
+    if (window->wl.egl.resizePending && window->wl.egl.window)
+    {
+        wl_egl_window_resize(window->wl.egl.window,
+                             window->wl.fbWidth,
+                             window->wl.fbHeight,
+                             0, 0);
+    }
+}
+
 static void resizeFramebuffer(_GLFWwindow* window)
 {
     if (window->wl.fractionalScale)
     {
-        // Round half up, as fractional-scale-v1 specifies. Truncating can
-        // undershoot the compositor's expected buffer size by one pixel,
-        // forcing it to scale the buffer slightly on every commit — during
-        // interactive resize the varying error reads as content shimmer.
-        window->wl.fbWidth =
-            (window->wl.width * window->wl.scalingNumerator + 60) / 120;
-        window->wl.fbHeight =
-            (window->wl.height * window->wl.scalingNumerator + 60) / 120;
+        // Deliberately truncate rather than round half up: the Fyne painter
+        // independently derives its GL output size as int(logical*texScale),
+        // which truncates. Rounding here makes the EGL buffer one pixel
+        // larger than the painted viewport on ~half of all sizes at
+        // fractional scales, leaving an unrendered edge row that flickers
+        // during interactive resize.
+        window->wl.fbWidth = (window->wl.width * window->wl.scalingNumerator) / 120;
+        window->wl.fbHeight = (window->wl.height * window->wl.scalingNumerator) / 120;
     }
     else
     {
@@ -591,34 +608,6 @@ void fractionalScaleHandlePreferredScale(void* userData,
     _GLFWwindow* window = userData;
 
     window->wl.scalingNumerator = numerator;
-
-    // Only engage the scaling viewport for genuinely fractional scales. At
-    // 120 (scale 1.0) the destination merely restates the buffer size, but
-    // the viewport's presence is what permits the compositor to scale the
-    // content at all: any buffer/destination disagreement it perceives during
-    // interactive resize becomes a full-window stretch (trembling) instead of
-    // a benign one-frame lag. Without a viewport a plain scale-1 buffer
-    // defines the surface size and no scaling is possible.
-    if (numerator != 120)
-    {
-        if (!window->wl.scalingViewport && _glfw.wl.viewporter)
-        {
-            window->wl.scalingViewport =
-                wp_viewporter_get_viewport(_glfw.wl.viewporter,
-                                           window->wl.surface);
-            wp_viewport_set_destination(window->wl.scalingViewport,
-                                        window->wl.width,
-                                        window->wl.height);
-        }
-    }
-    else if (window->wl.scalingViewport)
-    {
-        // Removal is double-buffered: it latches together with the next
-        // content-buffer commit, so buffer and scale state stay in phase.
-        wp_viewport_destroy(window->wl.scalingViewport);
-        window->wl.scalingViewport = NULL;
-    }
-
     _glfwInputWindowContentScale(window, numerator / 120.f, numerator / 120.f);
     resizeFramebuffer(window);
 
@@ -1147,9 +1136,21 @@ static GLFWbool createNativeSurface(_GLFWwindow* window,
     {
         if (window->wl.scaleFramebuffer)
         {
-            // The scaling viewport is created lazily by
-            // fractionalScaleHandlePreferredScale once the compositor asks
-            // for a non-1.0 scale; see that handler for the rationale.
+            // Keep the scaling viewport attached even at scale 1.0 (upstream
+            // behavior). Its destination pins the committed surface size to
+            // the configured size even when the EGL buffer trails a configure
+            // by one frame — NVIDIA's EGL sizes the next back buffer at
+            // eglSwapBuffers, so during interactive resize every commit
+            // attaches a one-frame-old buffer. With the viewport the
+            // compositor absorbs that as a sub-percent stretch; without it
+            // the geometry/buffer disagreement shows as edge trembling.
+            window->wl.scalingViewport =
+                wp_viewporter_get_viewport(_glfw.wl.viewporter, window->wl.surface);
+
+            wp_viewport_set_destination(window->wl.scalingViewport,
+                                        window->wl.width,
+                                        window->wl.height);
+
             window->wl.fractionalScale =
                 wp_fractional_scale_manager_v1_get_fractional_scale(
                     _glfw.wl.fractionalScaleManager,

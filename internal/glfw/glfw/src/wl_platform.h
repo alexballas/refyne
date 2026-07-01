@@ -720,6 +720,7 @@ EGLenum _glfwGetEGLPlatformWayland(EGLint** attribs);
 EGLNativeDisplayType _glfwGetEGLNativeDisplayWayland(void);
 EGLNativeWindowType _glfwGetEGLNativeWindowWayland(_GLFWwindow* window);
 void _glfwApplyPendingEGLResizeWayland(_GLFWwindow* window);
+void _glfwPrimePendingEGLResizeWayland(_GLFWwindow* window);
 
 void _glfwGetRequiredInstanceExtensionsWayland(char** extensions);
 GLFWbool _glfwGetPhysicalDevicePresentationSupportWayland(VkInstance instance, VkPhysicalDevice device, uint32_t queuefamily);
