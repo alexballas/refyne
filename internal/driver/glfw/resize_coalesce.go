@@ -13,6 +13,12 @@ import "github.com/alexballas/refyne/v2/internal/glfw"
 func (w *window) resized(_ *glfw.Window, width, height int) {
 	w.pendingResizeWidth, w.pendingResizeHeight = width, height
 	w.pendingResize = true
+
+	// A native configure already changed the platform window size. On Wayland,
+	// do not wait for an older frame callback before drawing the matching
+	// buffer, or Mutter may scale the previous buffer during interactive resize.
+	w.frame.markReady()
+	w.canvas.SetDirty()
 }
 
 // applyPendingResize applies the most recent coalesced resize, if any. It is

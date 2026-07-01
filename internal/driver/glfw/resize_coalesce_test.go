@@ -5,10 +5,20 @@ package glfw
 import (
 	"math"
 	"testing"
+	"unsafe"
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/widget"
 )
+
+type resizeReadyGate struct {
+	presentable bool
+}
+
+func (g *resizeReadyGate) ready() bool        { return g.presentable }
+func (g *resizeReadyGate) arm(unsafe.Pointer) { g.presentable = false }
+func (g *resizeReadyGate) markReady()         { g.presentable = true }
+func (g *resizeReadyGate) free()              {}
 
 // TestResizeCoalescing verifies that a burst of configure events delivered to the
 // resized callback does NOT resize synchronously (it is coalesced), and that a
@@ -66,5 +76,25 @@ func TestResizeCoalescing(t *testing.T) {
 	}
 	if sizeAfter == sizeBefore {
 		t.Errorf("canvas was not resized after applyPendingResize: still %v", sizeBefore)
+	}
+}
+
+func TestResizeCoalescingSchedulesFrameWhenGateNotReady(t *testing.T) {
+	canvas := newCanvas()
+	canvas.CheckDirtyAndClear()
+
+	gate := &resizeReadyGate{}
+	w := &window{canvas: canvas, frame: gate}
+
+	w.resized(nil, 640, 480)
+
+	if !w.pendingResize {
+		t.Fatal("resize callback did not leave a pending coalesced resize")
+	}
+	if !gate.ready() {
+		t.Fatal("resize callback did not mark the present gate ready")
+	}
+	if !canvas.Dirty() {
+		t.Fatal("resize callback did not schedule a repaint")
 	}
 }
