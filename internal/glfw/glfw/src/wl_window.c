@@ -605,6 +605,7 @@ static void xdgToplevelHandleConfigure(void* userData,
     window->wl.pending.activated  = GLFW_FALSE;
     window->wl.pending.maximized  = GLFW_FALSE;
     window->wl.pending.fullscreen = GLFW_FALSE;
+    window->wl.pending.resizing   = GLFW_FALSE;
 
     wl_array_for_each(state, states)
     {
@@ -617,6 +618,7 @@ static void xdgToplevelHandleConfigure(void* userData,
                 window->wl.pending.fullscreen = GLFW_TRUE;
                 break;
             case XDG_TOPLEVEL_STATE_RESIZING:
+                window->wl.pending.resizing = GLFW_TRUE;
                 break;
             case XDG_TOPLEVEL_STATE_ACTIVATED:
                 window->wl.pending.activated = GLFW_TRUE;
@@ -683,6 +685,7 @@ static void xdgSurfaceHandleConfigure(void* userData,
     }
 
     window->wl.fullscreen = window->wl.pending.fullscreen;
+    window->wl.resizing = window->wl.pending.resizing;
 
     int width  = window->wl.pending.width;
     int height = window->wl.pending.height;
@@ -1470,6 +1473,9 @@ static char* readDataOfferAsString(struct wl_data_offer* offer, const char* mime
     return string;
 }
 
+static struct wl_cursor* getCursorThemeCursorByName(struct wl_cursor_theme* theme,
+                                                    const char* name);
+
 static void setCursorNameWayland(_GLFWwindow* window, const char* cursorName)
 {
     if (_glfw.wl.cursorPreviousName == cursorName)
@@ -1494,7 +1500,7 @@ static void setCursorNameWayland(_GLFWwindow* window, const char* cursorName)
         theme = _glfw.wl.cursorThemeHiDPI;
     }
 
-    struct wl_cursor* cursor = wl_cursor_theme_get_cursor(theme, cursorName);
+    struct wl_cursor* cursor = getCursorThemeCursorByName(theme, cursorName);
     if (!cursor)
         return;
 
@@ -1541,6 +1547,114 @@ static struct wl_surface* getEffectivePointerSurface(void)
         return _glfw.wl.pending.pointerSurface;
 
     return _glfw.wl.pointerSurface;
+}
+
+static struct wl_cursor* getCursorThemeCursorByName(struct wl_cursor_theme* theme,
+                                                    const char* name)
+{
+    static const char* const defaultNames[] =
+        { "default", "left_ptr", NULL };
+    static const char* const textNames[] =
+        { "text", "xterm", NULL };
+    static const char* const pointerNames[] =
+        { "pointer", "hand2", NULL };
+    static const char* const ewNames[] =
+        { "ew-resize", "col-resize", "e-resize", "w-resize",
+          "sb_h_double_arrow", "right_side", "left_side", NULL };
+    static const char* const nsNames[] =
+        { "ns-resize", "row-resize", "n-resize", "s-resize",
+          "sb_v_double_arrow", "top_side", "bottom_side", NULL };
+    static const char* const nNames[] =
+        { "n-resize", "ns-resize", "row-resize", "top_side",
+          "sb_v_double_arrow", NULL };
+    static const char* const sNames[] =
+        { "s-resize", "ns-resize", "row-resize", "bottom_side",
+          "sb_v_double_arrow", NULL };
+    static const char* const wNames[] =
+        { "w-resize", "ew-resize", "col-resize", "left_side",
+          "sb_h_double_arrow", NULL };
+    static const char* const eNames[] =
+        { "e-resize", "ew-resize", "col-resize", "right_side",
+          "sb_h_double_arrow", NULL };
+    static const char* const nwseNames[] =
+        { "nwse-resize", "nw-resize", "se-resize",
+          "top_left_corner", "bottom_right_corner", NULL };
+    static const char* const neswNames[] =
+        { "nesw-resize", "ne-resize", "sw-resize",
+          "top_right_corner", "bottom_left_corner", NULL };
+    static const char* const nwNames[] =
+        { "nw-resize", "nwse-resize", "top_left_corner", NULL };
+    static const char* const neNames[] =
+        { "ne-resize", "nesw-resize", "top_right_corner", NULL };
+    static const char* const swNames[] =
+        { "sw-resize", "nesw-resize", "bottom_left_corner", NULL };
+    static const char* const seNames[] =
+        { "se-resize", "nwse-resize", "bottom_right_corner", NULL };
+    static const char* const allNames[] =
+        { "all-scroll", "fleur", NULL };
+    static const char* const notAllowedNames[] =
+        { "not-allowed", "crossed_circle", NULL };
+    const char* const* names = NULL;
+
+    if (!theme || !name)
+        return NULL;
+
+    if (strcmp(name, "default") == 0 || strcmp(name, "left_ptr") == 0)
+        names = defaultNames;
+    else if (strcmp(name, "text") == 0 || strcmp(name, "xterm") == 0)
+        names = textNames;
+    else if (strcmp(name, "pointer") == 0 || strcmp(name, "hand2") == 0)
+        names = pointerNames;
+    else if (strcmp(name, "ew-resize") == 0 ||
+             strcmp(name, "sb_h_double_arrow") == 0)
+    {
+        names = ewNames;
+    }
+    else if (strcmp(name, "ns-resize") == 0 ||
+             strcmp(name, "sb_v_double_arrow") == 0)
+    {
+        names = nsNames;
+    }
+    else if (strcmp(name, "n-resize") == 0)
+        names = nNames;
+    else if (strcmp(name, "s-resize") == 0)
+        names = sNames;
+    else if (strcmp(name, "w-resize") == 0)
+        names = wNames;
+    else if (strcmp(name, "e-resize") == 0)
+        names = eNames;
+    else if (strcmp(name, "nwse-resize") == 0)
+        names = nwseNames;
+    else if (strcmp(name, "nesw-resize") == 0)
+        names = neswNames;
+    else if (strcmp(name, "nw-resize") == 0)
+        names = nwNames;
+    else if (strcmp(name, "ne-resize") == 0)
+        names = neNames;
+    else if (strcmp(name, "sw-resize") == 0)
+        names = swNames;
+    else if (strcmp(name, "se-resize") == 0)
+        names = seNames;
+    else if (strcmp(name, "all-scroll") == 0 ||
+             strcmp(name, "fleur") == 0)
+    {
+        names = allNames;
+    }
+    else if (strcmp(name, "not-allowed") == 0)
+        names = notAllowedNames;
+
+    if (names)
+    {
+        for (size_t i = 0;  names[i];  i++)
+        {
+            struct wl_cursor* cursor =
+                wl_cursor_theme_get_cursor(theme, names[i]);
+            if (cursor)
+                return cursor;
+        }
+    }
+
+    return wl_cursor_theme_get_cursor(theme, name);
 }
 
 static void processPointerEnterSurface(struct wl_surface* surface)
@@ -3261,12 +3375,12 @@ GLFWbool _glfwCreateStandardCursorWayland(_GLFWcursor* cursor, int shape)
             break;
     }
 
-    cursor->wl.cursor = wl_cursor_theme_get_cursor(_glfw.wl.cursorTheme, name);
+    cursor->wl.cursor = getCursorThemeCursorByName(_glfw.wl.cursorTheme, name);
 
     if (_glfw.wl.cursorThemeHiDPI)
     {
         cursor->wl.cursorHiDPI =
-            wl_cursor_theme_get_cursor(_glfw.wl.cursorThemeHiDPI, name);
+            getCursorThemeCursorByName(_glfw.wl.cursorThemeHiDPI, name);
     }
 
     if (!cursor->wl.cursor)
@@ -3301,7 +3415,7 @@ GLFWbool _glfwCreateStandardCursorWayland(_GLFWcursor* cursor, int shape)
                 return GLFW_FALSE;
         }
 
-        cursor->wl.cursor = wl_cursor_theme_get_cursor(_glfw.wl.cursorTheme, name);
+        cursor->wl.cursor = getCursorThemeCursorByName(_glfw.wl.cursorTheme, name);
         if (!cursor->wl.cursor)
         {
             _glfwInputError(GLFW_CURSOR_UNAVAILABLE,
@@ -3315,7 +3429,7 @@ GLFWbool _glfwCreateStandardCursorWayland(_GLFWcursor* cursor, int shape)
             if (!cursor->wl.cursorHiDPI)
             {
                 cursor->wl.cursorHiDPI =
-                    wl_cursor_theme_get_cursor(_glfw.wl.cursorThemeHiDPI, name);
+                    getCursorThemeCursorByName(_glfw.wl.cursorThemeHiDPI, name);
             }
         }
     }

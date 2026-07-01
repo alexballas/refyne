@@ -25,8 +25,8 @@ func TestWaylandResizeEdgeAt(t *testing.T) {
 		{"right", fyne.NewPos(98, 40), nativeglfw.ResizeEdgeRight},
 		{"top", fyne.NewPos(50, 2), nativeglfw.ResizeEdgeTop},
 		{"bottom", fyne.NewPos(50, 78), nativeglfw.ResizeEdgeBottom},
-		{"border inclusive", fyne.NewPos(5, 40), nativeglfw.ResizeEdgeLeft},
-		{"outside border", fyne.NewPos(6, 6), nativeglfw.ResizeEdgeNone},
+		{"border inclusive", fyne.NewPos(8, 40), nativeglfw.ResizeEdgeLeft},
+		{"outside border", fyne.NewPos(9, 9), nativeglfw.ResizeEdgeNone},
 		{"center", fyne.NewPos(50, 40), nativeglfw.ResizeEdgeNone},
 	}
 

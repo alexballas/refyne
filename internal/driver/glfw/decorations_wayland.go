@@ -61,7 +61,7 @@ func applyWaylandWindowHints(decorate bool) {
 // waylandResizeBorder is the distance (in logical pixels) from a window edge
 // within which a primary-button press starts an interactive edge/corner resize
 // while custom (client-side) decorations are active.
-const waylandResizeBorder = float32(5)
+const waylandResizeBorder = float32(8)
 
 var waylandDecorationCursors map[glfw.StandardCursor]*glfw.Cursor
 

@@ -356,6 +356,7 @@ typedef struct _GLFWwindowWayland
     GLFWbool                    maximized;
     GLFWbool                    activated;
     GLFWbool                    fullscreen;
+    GLFWbool                    resizing;
     GLFWbool                    hovered;
     GLFWbool                    transparent;
     GLFWbool                    scaleFramebuffer;
@@ -373,6 +374,7 @@ typedef struct _GLFWwindowWayland
         GLFWbool                iconified;
         GLFWbool                activated;
         GLFWbool                fullscreen;
+        GLFWbool                resizing;
     } pending;
 
     struct {

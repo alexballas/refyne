@@ -361,12 +361,16 @@ void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
         return;
     }
 
-    if (window->wl.maximized || window->wl.fullscreen)
+    if (window->wl.maximized || window->wl.fullscreen || window->wl.resizing)
     {
         if (window->wl.refyneShadow.visible)
             destroyRefyneShadowSurfaces(window);
-        // Let the next content-buffer swap apply the geometry. Committing here
-        // would clamp an expanding maximized/fullscreen size to the old buffer.
+        // Keep off-geometry shadow subsurfaces out of live resize. Older Mutter
+        // versions can apply their input/viewport state out of phase with the
+        // xdg toplevel configure loop, which shows up as resize wobble and can
+        // make side handles unreliable. Let the next content-buffer swap apply
+        // the geometry; committing here would clamp an expanding resize to the
+        // old buffer.
         setRefyneWindowGeometry(window);
         return;
     }
