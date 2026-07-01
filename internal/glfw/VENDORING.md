@@ -7,6 +7,7 @@ Local patches (re-apply after any re-sync):
 - native_linbsd_wayland_refyne.go — Go wrappers for the above
 - c_glfw_lin_wayland.go + c_glfw_bsd.go — extra #include for wl_refyne.c
 - glfw/src/wl_platform.h + glfw/src/wl_window.c — per-window shadow state + resize/lifecycle/pointer hooks + cursor-shape-v1 themed cursors (set_shape with a wl_cursor_theme buffer fallback)
+- glfw/src/wl_platform.h sizeCommitPending + glfw/src/wl_window.c + glfw/src/wl_refyne.c + glfw/src/egl_context.c — set in resizeFramebuffer, cleared after eglSwapBuffers: suppress bare wl_surface commits while staged size state (EGL buffer size, viewport destination, xdg window geometry) awaits its matching content-buffer swap, so the compositor never latches a new size against the old buffer (interactive-resize wobble/scale glitch on Mutter)
 - wl_init.c — bind xdg_toplevel_icon_manager_v1 and wp_cursor_shape_manager_v1 from the registry
 - glfw/deps/wayland/xdg-toplevel-icon-v1.xml + generated headers
 - glfw/deps/wayland/cursor-shape-v1.xml + generated headers (glfw/src/cursor-shape-v1-client-protocol*.h). This is the upstream staging protocol with the get_tablet_tool_v2 request removed: refyne only drives the pointer cursor and does not vendor tablet-unstable-v2, so keeping it would leave zwp_tablet_tool_v2_interface undefined at link time.

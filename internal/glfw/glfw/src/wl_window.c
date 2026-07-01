@@ -366,6 +366,10 @@ static void resizeFramebuffer(_GLFWwindow* window)
             resizeEGLWindow(window);
         else
             window->wl.egl.resizePending = GLFW_TRUE;
+
+        // The attached buffer no longer matches the staged size state; hold
+        // off bare commits until eglSwapBuffers latches a matching buffer.
+        window->wl.sizeCommitPending = GLFW_TRUE;
     }
 
     if (!window->wl.transparent)
@@ -712,8 +716,16 @@ static void xdgSurfaceHandleConfigure(void* userData,
     }
     else
     {
-        if (_glfwRefyneUpdateWindowShadow(window))
+        // A state-only configure can share a dispatch batch with an earlier
+        // size-changing one (typical at the end of an interactive resize,
+        // when the RESIZING state is dropped). Committing here before the
+        // repaint has swapped would latch the staged viewport destination and
+        // geometry against the old buffer, so defer to that imminent swap.
+        if (_glfwRefyneUpdateWindowShadow(window) &&
+            !window->wl.sizeCommitPending)
+        {
             wl_surface_commit(window->wl.surface);
+        }
     }
 
     if (!window->wl.visible)
@@ -3138,8 +3150,11 @@ void _glfwSetWindowDecoratedWayland(_GLFWwindow* window, GLFWbool enabled)
 
         // The fallback edges affect the compositor-derived window geometry.
         // Commit their addition/removal immediately instead of leaving Mutter
-        // with stale extents until the next resize or buffer swap.
-        wl_surface_commit(window->wl.surface);
+        // with stale extents until the next resize or buffer swap — unless a
+        // size change is still waiting for its matching content buffer, in
+        // which case that imminent swap carries this state too.
+        if (!window->wl.sizeCommitPending)
+            wl_surface_commit(window->wl.surface);
     }
 }
 

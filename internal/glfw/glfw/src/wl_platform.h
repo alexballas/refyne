@@ -357,6 +357,12 @@ typedef struct _GLFWwindowWayland
     GLFWbool                    activated;
     GLFWbool                    fullscreen;
     GLFWbool                    resizing;
+    // Staged double-buffered size state (framebuffer size, viewport
+    // destination, xdg window geometry) not yet latched by a content-buffer
+    // swap. While set, bare wl_surface commits must be skipped: they would
+    // apply the new size state to the still-attached old buffer and the
+    // compositor would scale it for a frame (visible as resize wobble).
+    GLFWbool                    sizeCommitPending;
     GLFWbool                    hovered;
     GLFWbool                    transparent;
     GLFWbool                    scaleFramebuffer;

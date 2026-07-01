@@ -292,6 +292,16 @@ static void swapBuffersEGL(_GLFWwindow* window)
 #endif
 
     eglSwapBuffers(_glfw.egl.display, window->context.egl.surface);
+
+#if defined(_GLFW_WAYLAND)
+    if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
+    {
+        // This commit attached a content buffer matching the current size, so
+        // any staged size state (viewport destination, window geometry) is
+        // latched and bare wl_surface commits are safe again.
+        window->wl.sizeCommitPending = GLFW_FALSE;
+    }
+#endif
 }
 
 static void swapIntervalEGL(int interval)

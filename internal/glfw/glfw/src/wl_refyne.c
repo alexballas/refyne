@@ -149,7 +149,13 @@ static void commitRefyneWindowGeometry(_GLFWwindow* window)
         return;
 
     setRefyneWindowGeometry(window);
-    wl_surface_commit(window->wl.surface);
+
+    // A bare commit latches all staged double-buffered state. If a size
+    // change is still waiting for its matching content buffer, let the
+    // imminent eglSwapBuffers carry the geometry instead of scaling the old
+    // buffer to the new size.
+    if (!window->wl.sizeCommitPending)
+        wl_surface_commit(window->wl.surface);
 }
 
 static GLFWbool createRefyneShadowBuffer(_GLFWwindow* window)
@@ -424,8 +430,13 @@ GLFWAPI void glfwRefyneSetWindowShadow(GLFWwindow* handle, int enabled)
     if (enabled)
     {
         window->wl.refyneShadow.requested = GLFW_TRUE;
-        if (_glfwRefyneUpdateWindowShadow(window))
+        // Same rule as the configure path: never commit bare while staged
+        // size state awaits its matching content buffer.
+        if (_glfwRefyneUpdateWindowShadow(window) &&
+            !window->wl.sizeCommitPending)
+        {
             wl_surface_commit(window->wl.surface);
+        }
     }
     else
     {
