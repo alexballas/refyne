@@ -711,7 +711,10 @@ static void xdgSurfaceHandleConfigure(void* userData,
             _glfwInputWindowDamage(window);
     }
     else
-        _glfwRefyneUpdateWindowShadow(window);
+    {
+        if (_glfwRefyneUpdateWindowShadow(window))
+            wl_surface_commit(window->wl.surface);
+    }
 
     if (!window->wl.visible)
     {

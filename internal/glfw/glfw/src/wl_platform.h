@@ -685,7 +685,7 @@ float _glfwGetWindowOpacityWayland(_GLFWwindow* window);
 void _glfwSetWindowOpacityWayland(_GLFWwindow* window, float opacity);
 void _glfwSetWindowMousePassthroughWayland(_GLFWwindow* window, GLFWbool enabled);
 
-void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window);
+GLFWbool _glfwRefyneUpdateWindowShadow(_GLFWwindow* window);
 void _glfwRefyneDestroyWindowShadow(_GLFWwindow* window);
 uint32_t _glfwRefyneWindowShadowEdge(_GLFWwindow* window,
                                     struct wl_surface* surface);

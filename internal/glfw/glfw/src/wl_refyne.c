@@ -300,7 +300,7 @@ static GLFWbool createRefyneWindowShadow(_GLFWwindow* window)
     }
 
     window->wl.refyneShadow.visible = GLFW_TRUE;
-    commitRefyneWindowGeometry(window);
+    setRefyneWindowGeometry(window);
     return GLFW_TRUE;
 }
 
@@ -352,19 +352,30 @@ static void resizeRefyneWindowShadow(_GLFWwindow* window)
     setRefyneWindowGeometry(window);
 }
 
-void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
+// Returns true when it changed state that is synchronized by a parent commit.
+// Size-changing configure paths should let the next content-buffer swap commit
+// it, so the window geometry and visible buffer stay in phase.
+GLFWbool _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
 {
     if (!window->wl.refyneShadow.requested)
     {
         if (window->wl.refyneShadow.visible)
+        {
             destroyRefyneShadowSurfaces(window);
-        return;
+            setRefyneWindowGeometry(window);
+            return GLFW_TRUE;
+        }
+        return GLFW_FALSE;
     }
 
     if (window->wl.maximized || window->wl.fullscreen || window->wl.resizing)
     {
         if (window->wl.refyneShadow.visible)
+        {
             destroyRefyneShadowSurfaces(window);
+            setRefyneWindowGeometry(window);
+            return GLFW_TRUE;
+        }
         // Keep off-geometry shadow subsurfaces out of live resize. Older Mutter
         // versions can apply their input/viewport state out of phase with the
         // xdg toplevel configure loop, which shows up as resize wobble and can
@@ -372,17 +383,21 @@ void _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
         // the geometry; committing here would clamp an expanding resize to the
         // old buffer.
         setRefyneWindowGeometry(window);
-        return;
+        return GLFW_FALSE;
     }
 
     if (!window->wl.refyneShadow.visible)
     {
         if (!createRefyneWindowShadow(window))
+        {
             setRefyneWindowGeometry(window);
-        return;
+            return GLFW_FALSE;
+        }
+        return GLFW_TRUE;
     }
 
     resizeRefyneWindowShadow(window);
+    return GLFW_TRUE;
 }
 
 void _glfwRefyneDestroyWindowShadow(_GLFWwindow* window)
@@ -409,7 +424,8 @@ GLFWAPI void glfwRefyneSetWindowShadow(GLFWwindow* handle, int enabled)
     if (enabled)
     {
         window->wl.refyneShadow.requested = GLFW_TRUE;
-        _glfwRefyneUpdateWindowShadow(window);
+        if (_glfwRefyneUpdateWindowShadow(window))
+            wl_surface_commit(window->wl.surface);
     }
     else
     {
