@@ -270,8 +270,33 @@ static void createFallbackDecorations(_GLFWwindow* window)
     window->wl.fallback.decorations = GLFW_TRUE;
 }
 
+// Drop cached pointer-focus references to a surface that is about to be
+// destroyed. Any in-flight wl_pointer.leave for it will arrive with a NULL
+// surface (the proxy is gone by then), so pointerHandleLeave cannot clear
+// these; a stale proxy pointer left here would be dereferenced by the next
+// pointer frame (use-after-free in processPointerLeaveSurface).
+static void invalidatePointerSurface(struct wl_surface* surface)
+{
+    if (!surface)
+        return;
+
+    if (_glfw.wl.pointerSurface == surface)
+    {
+        _glfw.wl.pointerSurface = NULL;
+        _glfw.wl.pointerFocus = NULL;
+        _glfw.wl.cursorPreviousName = NULL;
+    }
+
+    // Keep any staged GLFW_PENDING_SURFACE flag: with the surface cleared it
+    // reads as a pointer leave, which is exactly what the destroy implies.
+    if (_glfw.wl.pending.pointerSurface == surface)
+        _glfw.wl.pending.pointerSurface = NULL;
+}
+
 static void destroyFallbackEdge(_GLFWfallbackEdgeWayland* edge)
 {
+    invalidatePointerSurface(edge->surface);
+
     if (edge->subsurface)
         wl_subsurface_destroy(edge->subsurface);
     if (edge->surface)
@@ -287,6 +312,7 @@ static void destroyFallbackEdge(_GLFWfallbackEdgeWayland* edge)
 static void destroyFallbackDecorations(_GLFWwindow* window)
 {
     window->wl.fallback.decorations = GLFW_FALSE;
+    window->wl.fallback.focus = NULL;
 
     destroyFallbackEdge(&window->wl.fallback.top);
     destroyFallbackEdge(&window->wl.fallback.left);
@@ -2741,11 +2767,9 @@ GLFWbool _glfwCreateWindowWayland(_GLFWwindow* window,
 
 void _glfwDestroyWindowWayland(_GLFWwindow* window)
 {
-    if (_glfw.wl.pending.pointerSurface &&
-        wl_surface_get_user_data(_glfw.wl.pending.pointerSurface) == window)
-    {
-        memset(&_glfw.wl.pending, 0, sizeof(_glfw.wl.pending));
-    }
+    // Decoration and shadow surfaces are covered by their own destroy paths
+    // via destroyShellObjects below; only the content surface is left.
+    invalidatePointerSurface(window->wl.surface);
 
     if (window == _glfw.wl.pointerFocus)
     {

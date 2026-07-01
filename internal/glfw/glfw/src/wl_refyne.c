@@ -73,6 +73,13 @@ static void setRefyneShadowPixel(unsigned char* pixel, float distanceSquared)
 
 static void destroyRefyneShadowSlice(_GLFWfallbackEdgeWayland* slice)
 {
+    // The slices double as pointer-enterable resize handles, and they are
+    // destroyed exactly when the pointer is likely on one (grabbing an edge
+    // starts an interactive resize, whose first RESIZING configure tears the
+    // shadow down). Without this the seat's cached focus would keep pointing
+    // at the freed wl_surface proxy.
+    invalidatePointerSurface(slice->surface);
+
     if (slice->viewport)
         wp_viewport_destroy(slice->viewport);
     if (slice->subsurface)
