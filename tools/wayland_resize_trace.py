@@ -66,10 +66,13 @@ def main(path):
         oid = int(oid)
 
         if iface == "zwp_linux_buffer_params_v1" and op in ("create", "create_immed"):
+            # ints() already skips object ids, so for both create_immed(new id
+            # wl_buffer@N, w, h, fmt, flags) and create(w, h, fmt, flags) the
+            # first two integers are width and height.
             nid = NEW_ID.search(args)
             size = ints(args)
-            if op == "create_immed" and nid and len(size) >= 3:
-                buffers[int(nid.group(2))] = (size[1], size[2])
+            if op == "create_immed" and nid and len(size) >= 2:
+                buffers[int(nid.group(2))] = (size[0], size[1])
             elif len(size) >= 2:
                 buffers.setdefault("pending_params_%d" % oid, (size[0], size[1]))
         elif iface == "zwp_linux_buffer_params_v1" and op == "created":
@@ -130,6 +133,9 @@ def main(path):
                 expect = s["dest"] if s["viewport"] and s["dest"] else (bw, bh)
                 if (gw, gh) != expect:
                     notes.append("MISMATCH geom=%dx%d vs %dx%d" % (gw, gh, *expect))
+                    if s.get("prev_geom") == (bw, bh):
+                        notes.append("BUFFER-LAGS-CONFIGURE-BY-1")
+                s["prev_geom"] = (gw, gh)
             line_out = "[%s] commit wl_surface@%d buf=%s dest=%s geom=%s cfg=%s%s" % (
                 ts, oid,
                 "%dx%d" % s["buffer"] if s["attached"] and s["buffer"] else

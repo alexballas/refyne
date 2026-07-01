@@ -240,6 +240,17 @@ static void makeContextCurrentEGL(_GLFWwindow* window)
 {
     if (window)
     {
+#if defined(_GLFW_WAYLAND)
+        // Apply any deferred wl_egl_window resize BEFORE the surface becomes
+        // current: Mesa validates the drawable and acquires the back buffer
+        // (at its then-current size) inside eglMakeCurrent, so a resize
+        // applied after it only takes effect one frame later. During
+        // interactive resize that made every committed buffer lag its
+        // configure by exactly one frame (visible as trembling on Mutter).
+        if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
+            _glfwApplyPendingEGLResizeWayland(window);
+#endif
+
         if (!eglMakeCurrent(_glfw.egl.display,
                             window->context.egl.surface,
                             window->context.egl.surface,
@@ -250,11 +261,6 @@ static void makeContextCurrentEGL(_GLFWwindow* window)
                             getEGLErrorString(eglGetError()));
             return;
         }
-
-#if defined(_GLFW_WAYLAND)
-        if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
-            _glfwApplyPendingEGLResizeWayland(window);
-#endif
     }
     else
     {
