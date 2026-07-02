@@ -381,7 +381,13 @@ GLFWbool _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
         return GLFW_FALSE;
     }
 
-    if (window->wl.maximized || window->wl.fullscreen || window->wl.resizing)
+    // Shadows stay up during interactive resize, matching native CSD
+    // (GTK/libadwaita). Their slice updates are synchronized subsurface state
+    // plus parent-latched positions, so they apply atomically with the
+    // matching content-buffer swap; hiding them here was only ever a
+    // workaround for the resize wobble whose real cause (the deferred EGL
+    // window resize) has since been fixed.
+    if (window->wl.maximized || window->wl.fullscreen)
     {
         if (window->wl.refyneShadow.visible)
         {
@@ -389,12 +395,8 @@ GLFWbool _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
             setRefyneWindowGeometry(window);
             return GLFW_TRUE;
         }
-        // Keep off-geometry shadow subsurfaces out of live resize. Older Mutter
-        // versions can apply their input/viewport state out of phase with the
-        // xdg toplevel configure loop, which shows up as resize wobble and can
-        // make side handles unreliable. Let the next content-buffer swap apply
-        // the geometry; committing here would clamp an expanding resize to the
-        // old buffer.
+        // Let the next content-buffer swap apply the geometry; committing
+        // here would clamp the pending size change to the old buffer.
         setRefyneWindowGeometry(window);
         return GLFW_FALSE;
     }
