@@ -1983,6 +1983,26 @@ static void pointerHandleEnter(void* userData,
     if (wl_proxy_get_tag((struct wl_proxy*) surface) != &_glfw.wl.tag)
         return;
 
+    // Mutter (observed on 46 and 50) ends an interactive resize grab with a
+    // final configure that still carries the RESIZING state and never sends a
+    // state-clearing follow-up, so wl.resizing would stay stale until some
+    // unrelated configure (e.g. a focus change) arrives. Pointer focus cannot
+    // exist while the compositor drives that grab, so an enter on any of our
+    // surfaces means the grab is over: drop the stale state and restore the
+    // CSD shadow the resize tore down, with the same commit policy as the
+    // configure path (never commit bare while staged size state awaits its
+    // matching content buffer).
+    _GLFWwindow* enteredWindow = wl_surface_get_user_data(surface);
+    if (enteredWindow && enteredWindow->wl.resizing)
+    {
+        enteredWindow->wl.resizing = GLFW_FALSE;
+        if (_glfwRefyneUpdateWindowShadow(enteredWindow) &&
+            !enteredWindow->wl.sizeCommitPending)
+        {
+            wl_surface_commit(enteredWindow->wl.surface);
+        }
+    }
+
     _glfw.wl.serial = serial;
     _glfw.wl.pointerEnterSerial = serial;
 
