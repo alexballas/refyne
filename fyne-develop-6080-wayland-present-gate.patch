@@ -1,0 +1,368 @@
+diff --git a/internal/driver/glfw/loop.go b/internal/driver/glfw/loop.go
+index 28e66e49a..3138330e8 100644
+--- a/internal/driver/glfw/loop.go
++++ b/internal/driver/glfw/loop.go
+@@ -56,6 +56,14 @@ func runOnMainWithWait(f func(), wait bool) {
+ 	}
+ }
+ 
++// decideRepaint reports whether a window should be repainted this frame.
++// checkDirtyAndClear is only called when the window is visible and presentable,
++// so a window that is not yet presentable keeps its dirty flag and the frame is
++// deferred until the compositor is ready (see issue #6080).
++func decideRepaint(visible, ready bool, checkDirtyAndClear func() bool) bool {
++	return visible && ready && checkDirtyAndClear()
++}
++
+ func (d *gLDriver) drawSingleFrame() {
+ 	refreshed := false
+ 	for _, win := range d.windowList() {
+@@ -64,38 +72,41 @@ func (d *gLDriver) drawSingleFrame() {
+ 			continue
+ 		}
+ 
+-		// CheckDirtyAndClear must be checked after visibility,
+-		// because when a window becomes visible, it could be
+-		// showing old content without a dirty flag set to true.
+-		// Do the clear if and only if the window is visible.
+-		if !w.visible || !w.canvas.CheckDirtyAndClear() {
+-			// Window hidden or not being redrawn, mark canvasForObject
+-			// cache alive if it hasn't been done recently
+-			// n.b. we need to make sure threshold is a bit *after*
+-			// time.Now() - CacheDuration()
+-			threshold := time.Now().Add(10*time.Second - cache.ValidDuration)
+-			if w.lastWalkedTime.Before(threshold) {
+-				w.canvas.WalkTrees(nil, func(node *common.RenderCacheNode, _ fyne.Position) {
+-					// marks canvas for object cache entry alive
+-					_ = cache.GetCanvasForObject(node.Obj())
+-					// marks renderer cache entry alive
+-					if wid, ok := node.Obj().(fyne.Widget); ok {
+-						_, _ = cache.CachedRenderer(wid)
+-					}
+-				})
+-				w.lastWalkedTime = time.Now()
+-			}
+-			continue
++		// Repaint only when the window is visible AND the compositor is ready
++		// to present it (Wayland frame callback). decideRepaint consults the
++		// dirty flag last, so a window that is not yet presentable keeps its
++		// dirty flag and the frame is deferred until the compositor is ready
++		// (issue #6080). When we are not repainting, keep the render caches
++		// alive instead.
++		if decideRepaint(w.visible, w.frame.ready(), w.canvas.CheckDirtyAndClear) {
++			w.RunWithContext(func() {
++				if w.driver.repaintWindow(w) {
++					refreshed = true
++				}
++			})
++			w.updateAccessibility()
++		} else {
++			w.markCacheAlive()
+ 		}
++	}
++	cache.Clean(refreshed)
++}
+ 
+-		w.RunWithContext(func() {
+-			if w.driver.repaintWindow(w) {
+-				refreshed = true
++// markCacheAlive keeps a non-drawn window's render caches from expiring without
++// repainting it.
++func (w *window) markCacheAlive() {
++	threshold := time.Now().Add(10*time.Second - cache.ValidDuration)
++	if w.lastWalkedTime.Before(threshold) {
++		w.canvas.WalkTrees(nil, func(node *common.RenderCacheNode, _ fyne.Position) {
++			// marks canvas for object cache entry alive
++			_ = cache.GetCanvasForObject(node.Obj())
++			// marks renderer cache entry alive
++			if wid, ok := node.Obj().(fyne.Widget); ok {
++				_, _ = cache.CachedRenderer(wid)
+ 			}
+ 		})
+-		w.updateAccessibility()
++		w.lastWalkedTime = time.Now()
+ 	}
+-	cache.Clean(refreshed)
+ }
+ 
+ func (d *gLDriver) applyThemeToWindow(w fyne.Window) {
+@@ -229,6 +240,11 @@ func (d *gLDriver) repaintWindow(w *window) bool {
+ 	visible := w.visible
+ 
+ 	if view != nil && visible {
++		// Request a frame callback for the surface; the SwapBuffers commit
++		// below delivers the request. No-op off Wayland. After this, the gate
++		// reports not-ready until the compositor presents us again, so we will
++		// not issue another (potentially blocking) swap on a suspended surface.
++		w.frame.arm(windowSurface(w))
+ 		view.SwapBuffers()
+ 	}
+ 
+diff --git a/internal/driver/glfw/present_other.go b/internal/driver/glfw/present_other.go
+new file mode 100644
+index 000000000..2d741d02c
+--- /dev/null
++++ b/internal/driver/glfw/present_other.go
+@@ -0,0 +1,12 @@
++//go:build wasm || !wayland || (!linux && !freebsd && !openbsd && !netbsd)
++
++package glfw
++
++import "unsafe"
++
++// newPresentGate returns the no-op gate on every non-Wayland build (X11,
++// Windows, macOS, wasm), so the render loop is unchanged off Wayland.
++func newPresentGate() presentGate { return noGate{} }
++
++// windowSurface has no meaning off Wayland.
++func windowSurface(_ *window) unsafe.Pointer { return nil }
+diff --git a/internal/driver/glfw/present_test.go b/internal/driver/glfw/present_test.go
+new file mode 100644
+index 000000000..1f57e821b
+--- /dev/null
++++ b/internal/driver/glfw/present_test.go
+@@ -0,0 +1,55 @@
++package glfw
++
++import "testing"
++
++func TestNoGateAlwaysReady(t *testing.T) {
++	var g presentGate = noGate{}
++	if !g.ready() {
++		t.Fatal("noGate.ready() = false, want true (off-Wayland must always present)")
++	}
++	// arm/markReady/free must be safe no-ops.
++	g.arm(nil)
++	g.markReady()
++	g.free()
++}
++
++func TestDecideRepaint(t *testing.T) {
++	cases := []struct {
++		name                        string
++		visible, ready, dirty       bool
++		wantRepaint, wantDirtyCheck bool
++	}{
++		{"visible+ready+dirty", true, true, true, true, true},
++		{"visible+ready+clean", true, true, false, false, true},
++		{"not ready defers, keeps dirty", true, false, true, false, false},
++		{"hidden defers, keeps dirty", false, true, true, false, false},
++		{"hidden+not ready", false, false, true, false, false},
++	}
++	for _, c := range cases {
++		t.Run(c.name, func(t *testing.T) {
++			checked := false
++			got := decideRepaint(c.visible, c.ready, func() bool {
++				checked = true
++				return c.dirty
++			})
++			if got != c.wantRepaint {
++				t.Errorf("decideRepaint = %v, want %v", got, c.wantRepaint)
++			}
++			// When not visible-and-ready, the dirty flag must NOT be consulted
++			// (so CheckDirtyAndClear does not clear it and the frame is deferred).
++			if checked != c.wantDirtyCheck {
++				t.Errorf("dirty checked = %v, want %v (dirty must be preserved when not presentable)", checked, c.wantDirtyCheck)
++			}
++		})
++	}
++}
++
++func TestNewPresentGateReadyByDefault(t *testing.T) {
++	// On the default (non-Wayland) test build this returns noGate; a freshly
++	// constructed gate must report ready so the first frame draws.
++	g := newPresentGate()
++	if !g.ready() {
++		t.Fatal("newPresentGate().ready() = false, want true")
++	}
++	g.free()
++}
+diff --git a/internal/driver/glfw/present_wayland.go b/internal/driver/glfw/present_wayland.go
+new file mode 100644
+index 000000000..3f7c5d457
+--- /dev/null
++++ b/internal/driver/glfw/present_wayland.go
+@@ -0,0 +1,74 @@
++//go:build !wasm && wayland && (linux || freebsd || openbsd || netbsd)
++
++package glfw
++
++/*
++#cgo pkg-config: wayland-client
++#include <stdlib.h>
++#include <wayland-client.h>
++
++// frame_state holds the presentable flag and the currently pending frame
++// callback for one surface. It lives in C so no Go pointer is stored across the
++// cgo boundary. We track cb so it can be destroyed on re-arm and on free,
++// otherwise a callback left pending when a suspended window is closed (or
++// re-armed) would leak its proxy and could fire frame_done into freed memory.
++typedef struct { int ready; struct wl_callback *cb; } frame_state;
++
++static void frame_done(void *data, struct wl_callback *cb, uint32_t t) {
++    (void)t;
++    frame_state *s = (frame_state *)data;
++    s->ready = 1;                        // compositor presented us
++    if (s->cb == cb) s->cb = NULL;       // it has fired; stop tracking it
++    wl_callback_destroy(cb);
++}
++static const struct wl_callback_listener frame_listener = { frame_done };
++
++static frame_state *frame_state_new(void) {
++    frame_state *s = calloc(1, sizeof(frame_state));
++    s->ready = 1;                        // first frame may proceed
++    return s;
++}
++// frame_arm requests a frame callback and marks the surface not-ready. No
++// commit here: the eglSwapBuffers that follows carries the request. Any
++// still-pending callback (e.g. one armed while the surface was suspended) is
++// destroyed first so it cannot fire later or leak.
++static void frame_arm(struct wl_surface *surface, frame_state *s) {
++    s->ready = 0;
++    if (s->cb) wl_callback_destroy(s->cb);
++    s->cb = wl_surface_frame(surface);
++    wl_callback_add_listener(s->cb, &frame_listener, s);
++}
++static int  frame_ready(frame_state *s) { return s->ready; }
++static void frame_state_free(frame_state *s) {
++    if (s->cb) wl_callback_destroy(s->cb);
++    free(s);
++}
++*/
++import "C"
++
++import "unsafe"
++
++type frameTracker struct{ state *C.frame_state }
++
++func newPresentGate() presentGate { return &frameTracker{state: C.frame_state_new()} }
++
++func (t *frameTracker) ready() bool { return C.frame_ready(t.state) != 0 }
++
++func (t *frameTracker) arm(surface unsafe.Pointer) {
++	if surface == nil {
++		return
++	}
++	C.frame_arm((*C.struct_wl_surface)(surface), t.state)
++}
++
++func (t *frameTracker) markReady() { t.state.ready = 1 }
++
++func (t *frameTracker) free() { C.frame_state_free(t.state) }
++
++// windowSurface returns the window's *wl_surface as an opaque pointer.
++func windowSurface(w *window) unsafe.Pointer {
++	if w.viewport == nil {
++		return nil
++	}
++	return unsafe.Pointer(w.viewport.GetWaylandWindow())
++}
+diff --git a/internal/driver/glfw/window.go b/internal/driver/glfw/window.go
+index d874c738a..df4476143 100644
+--- a/internal/driver/glfw/window.go
++++ b/internal/driver/glfw/window.go
+@@ -261,6 +261,7 @@ func (w *window) processClosed() {
+ // destroy this window and, if it's the last window quit the app
+ func (w *window) destroy(d *gLDriver) {
+ 	cache.CleanCanvas(w.canvas)
++	w.frame.free()
+ 
+ 	if w.master {
+ 		d.Quit()
+@@ -766,6 +767,13 @@ func (w *window) processFocused(focus bool) {
+ 		}
+ 		curWindow = w
+ 		w.canvas.FocusGained()
++
++		// Backstop for issue #6080: if a compositor discarded a pending frame
++		// callback while the window was hidden instead of firing it on return,
++		// force the surface presentable again and request a repaint so updates
++		// resume even in that pathological case. No-op off Wayland.
++		w.frame.markReady()
++		w.canvas.SetDirty()
+ 	} else {
+ 		w.canvas.FocusLost()
+ 		w.mousePos = fyne.Position{}
+@@ -976,7 +984,7 @@ func (d *gLDriver) createWindow(title string, decorate bool) fyne.Window {
+ 
+ 	d.init()
+ 
+-	ret = &window{title: title, decorate: decorate, driver: d}
++	ret = &window{title: title, decorate: decorate, driver: d, frame: newPresentGate()}
+ 	ret.canvas = newCanvas()
+ 	ret.canvas.context = ret
+ 	ret.SetIcon(ret.icon)
+diff --git a/internal/driver/glfw/window_desktop.go b/internal/driver/glfw/window_desktop.go
+index 98a7117ab..1e8a59ad0 100644
+--- a/internal/driver/glfw/window_desktop.go
++++ b/internal/driver/glfw/window_desktop.go
+@@ -70,6 +70,7 @@ var _ fyne.Window = (*window)(nil)
+ 
+ type window struct {
+ 	viewport  *glfw.Window
++	frame     presentGate
+ 	created   bool
+ 	decorate  bool
+ 	closing   bool
+@@ -835,6 +836,14 @@ func (w *window) create() {
+ 	w.RunWithContext(func() {
+ 		w.canvas.SetPainter(gl.NewPainter(w.canvas, w))
+ 		w.canvas.Painter().Init()
++
++		// On Wayland, presentability is driven by frame callbacks (see the
++		// presentGate); disable the EGL swap-interval throttle so the swap that
++		// lands as a window is hidden returns immediately instead of blocking
++		// on a frame callback that never arrives (issue #6080).
++		if build.IsWayland {
++			glfw.SwapInterval(0)
++		}
+ 	})
+ 
+ 	w.setDarkMode()
+diff --git a/internal/driver/glfw/window_wasm.go b/internal/driver/glfw/window_wasm.go
+index 853185da4..b02c7ced6 100644
+--- a/internal/driver/glfw/window_wasm.go
++++ b/internal/driver/glfw/window_wasm.go
+@@ -46,6 +46,7 @@ var _ fyne.Window = (*window)(nil)
+ 
+ type window struct {
+ 	viewport  *glfw.Window
++	frame     presentGate
+ 	created   bool
+ 	decorate  bool
+ 	closing   bool
+diff --git a/internal/driver/glfw/present.go b/internal/driver/glfw/present.go
+new file mode 100644
+index 000000000..dca0e751c
+--- /dev/null
++++ b/internal/driver/glfw/present.go
+@@ -0,0 +1,29 @@
++package glfw
++
++import "unsafe"
++
++// presentGate reports whether a window's surface is currently presentable and
++// lets the render loop register interest in the next presentable moment. On
++// Wayland this is backed by wl_surface.frame callbacks; elsewhere it is a
++// no-op that always reports ready.
++type presentGate interface {
++	// ready reports whether the compositor is ready to present this surface.
++	ready() bool
++	// arm requests notification for the next presentable frame. surface is the
++	// platform surface handle (a *wl_surface on Wayland) or nil. After arm,
++	// ready reports false until the compositor calls back.
++	arm(surface unsafe.Pointer)
++	// markReady forces the presentable state to true (focus-regain backstop).
++	markReady()
++	// free releases any resources held by the gate.
++	free()
++}
++
++// noGate is the off-Wayland implementation: the surface is always presentable,
++// so the render loop behaves exactly as before.
++type noGate struct{}
++
++func (noGate) ready() bool        { return true }
++func (noGate) arm(unsafe.Pointer) {}
++func (noGate) markReady()         {}
++func (noGate) free()              {}

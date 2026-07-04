@@ -2577,7 +2577,9 @@ static void dataDeviceHandleEnter(void* userData,
     if (surface && wl_proxy_get_tag((struct wl_proxy*) surface) == &_glfw.wl.tag)
     {
         _GLFWwindow* window = wl_surface_get_user_data(surface);
-        if (window->wl.surface == surface)
+        // Refyne CSD shadows and fallback edges are tagged surfaces with
+        // the parent window as user data, so accept drops that enter there.
+        if (window)
         {
             const GLFWbool portal =
                 _glfw.wl.offers[i].portal_file_transfer &&

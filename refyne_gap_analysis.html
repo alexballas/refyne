@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refyne Vendoring Gap Analysis</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --ink: #1d2733;
+      --muted: #607080;
+      --line: #d9e0e7;
+      --accent: #1d6f9f;
+      --accent-soft: #e8f3f7;
+      --warn: #8a5b00;
+      --warn-soft: #fff4d8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1, h2, h3 { line-height: 1.2; margin: 0; }
+    h1 { font-size: 30px; letter-spacing: 0; }
+    h2 { font-size: 20px; margin-top: 28px; }
+    h3 { font-size: 15px; margin-top: 18px; }
+    p { margin: 8px 0 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta {
+      margin-top: 10px;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      white-space: nowrap;
+    }
+    section {
+      margin-top: 18px;
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .summary {
+      border-left: 4px solid var(--accent);
+    }
+    .note {
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-color: #efd48d;
+    }
+    ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+    li { margin: 4px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--accent-soft);
+      color: #17313b;
+      font-weight: 650;
+    }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12.5px;
+    }
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: #eef2f6;
+    }
+    pre {
+      margin: 10px 0 0;
+      padding: 14px;
+      overflow-x: auto;
+      background: #111827;
+      color: #e5edf5;
+      border-radius: 6px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .mini {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfd;
+    }
+    .mini h3 { margin-top: 0; }
+    .foot {
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+    @media (max-width: 820px) {
+      .grid { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Refyne Vendoring Gap Analysis</h1>
+  <div class="meta">
+    <span class="pill">Generated: 2026-07-02</span>
+    <span class="pill">Refyne: <code>1bf007f</code></span>
+    <span class="pill">Fyne upstream: <code>develop@4a089fc</code></span>
+    <span class="pill">go-gl: <code>v3.4/glfw/v0.1.0-pre.1</code></span>
+    <span class="pill">GLFW: <code>3.4</code></span>
+  </div>
+
+  <section class="summary">
+    <h2>Executive Summary</h2>
+    <p>Refyne vendors the go-gl GLFW binding and the GLFW C source under <code>internal/glfw</code>. This gives Refyne direct control over Wayland behavior, custom decorations, resize timing, cursor protocols, icon protocols, and portal drops, but it creates a local maintenance fork.</p>
+    <p>A separate upstream setup, using Fyne plus go-gl plus GLFW as independent dependencies, reduces vendored-code ownership and tracks upstream packaging more cleanly. The main gap is that the separate setup does not include Refyne's local Wayland and portal patches unless they are upstreamed or carried as an external patch set.</p>
+  </section>
+
+  <section class="note">
+    <h2>Baseline Note</h2>
+    <p>GitHub does not currently expose a Fyne <code>devel</code> branch. The default upstream development branch is <code>develop</code>, so this report uses <code>fyne-io/fyne develop</code> at <code>4a089fc</code> from 2026-07-01. The branch changelog contains a <code>2.8.0</code> entry dated 2026-07-05, which is after this report date.</p>
+  </section>
+
+  <section>
+    <h2>Gap Analysis</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Refyne Vendored Approach</th>
+          <th>Separate Upstream Repositories</th>
+          <th>Gap / Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ownership model</td>
+          <td>Go wrapper and GLFW C source are copied into <code>internal/glfw</code>.</td>
+          <td>Fyne, go-gl, and GLFW remain independently versioned.</td>
+          <td>Separate setup lowers local source ownership; Refyne must re-apply or upstream its patches.</td>
+        </tr>
+        <tr>
+          <td>go-gl baseline</td>
+          <td>Starts from <code>github.com/go-gl/glfw/v3.4/glfw v0.1.0-pre.1</code>.</td>
+          <td>Uses the same requested tag as a normal module.</td>
+          <td>API parity is high for GLFW 3.4 wrapper features; divergence is mainly Refyne-specific patch files.</td>
+        </tr>
+        <tr>
+          <td>GLFW C baseline</td>
+          <td>Embeds GLFW <code>3.4</code> at <code>7b6aead</code> plus local/backported changes.</td>
+          <td>Uses upstream GLFW <code>3.4</code> unchanged.</td>
+          <td>Separate setup loses Refyne's post-3.4 Wayland fixes and custom helpers unless patched separately.</td>
+        </tr>
+        <tr>
+          <td>Wayland behavior</td>
+          <td>Custom CSD shadows, resize handles, app icon support, cursor-shape protocol, resize staging, EGL resize fixes, and interactive-resize detection.</td>
+          <td>Upstream GLFW 3.4 provides runtime Wayland/X11 selection, libdecor support, and app_id hint, without Refyne's custom surface/shadow logic.</td>
+          <td>Largest functional gap. Migration needs an upstreaming plan or a small external patch layer.</td>
+        </tr>
+        <tr>
+          <td>Portal/drop support</td>
+          <td>Includes optional runtime-loaded FileTransfer portal drop support extended to X11.</td>
+          <td>Not present in the requested GLFW 3.4/go-gl baseline.</td>
+          <td>Keep vendoring or upstream this feature before switching.</td>
+        </tr>
+        <tr>
+          <td>Fyne feature cadence</td>
+          <td>Forked from Fyne, with local performance and platform work.</td>
+          <td>Current <code>develop</code> includes the upcoming 2.8 feature set and a newer go-gl pseudo-version in its own <code>go.mod</code>.</td>
+          <td>Refyne should periodically merge or cherry-pick Fyne app/widget/canvas fixes independent of the vendored GLFW decision.</td>
+        </tr>
+        <tr>
+          <td>Maintenance risk</td>
+          <td>Higher: vendored C diffs must be audited on every GLFW/go-gl resync.</td>
+          <td>Lower for dependency updates, but higher risk of behavior regressions where Refyne relies on local patches.</td>
+          <td>Document patches, add smoke tests for Wayland resize/CSD/drop paths, then decide what can be upstreamed.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Separate Upstream Setup</h2>
+    <div class="grid">
+      <div class="mini">
+        <h3>Fyne: Features or Changes Added</h3>
+        <ul>
+          <li>New canvas objects and render paths: <code>ArbitraryPolygon</code>, <code>BezierCurve</code>, <code>Blur</code>, <code>Ellipse</code>, <code>Shader</code>, shader animation, and hardware-accelerated shadows.</li>
+          <li>Scheduled notifications, richer Form validation, new RichText/Markdown table and checklist support, underline and strikethrough text.</li>
+          <li>Accessibility support behind <code>-tags accessibility</code>, secondary monitor support, cache APIs, window position and always-on-top APIs.</li>
+          <li>Wayland is selected by default at runtime where available; Fyne <code>develop</code> also updates its module dependency to a newer go-gl GLFW 3.4 pseudo-version.</li>
+          <li>Behavior changes include popup padding removal, <code>Polygon</code> renamed to <code>RegularPolygon</code>, macOS scrollbar preference following, and launch warnings for apps not using <code>fyne.Do</code>.</li>
+        </ul>
+      </div>
+
+      <div class="mini">
+        <h3>go-gl: Features or Changes Added</h3>
+        <ul>
+          <li>Adds a GLFW 3.4 Go module at <code>github.com/go-gl/glfw/v3.4/glfw</code>, embedding GLFW 3.4 C sources.</li>
+          <li>Exposes GLFW 3.4 platform APIs such as <code>GetPlatform</code>, <code>PlatformSupported</code>, <code>PlatformHint</code>, and platform constants for Win32, Cocoa, Wayland, X11, and Null.</li>
+          <li>Adds Go access to <code>InitAllocator</code>, <code>GetWindowTitle</code>, captured cursor mode, mouse passthrough, initial position hints, framebuffer scaling, ANGLE hints, Wayland app_id, and libdecor hints.</li>
+          <li>Adds constants for newer standard cursors and GLFW 3.4 error codes.</li>
+          <li>Does not include Refyne's <code>wl_refyne.c</code>, portal drop support, icon protocol bindings, or custom resize/shadow behavior.</li>
+        </ul>
+      </div>
+
+      <div class="mini">
+        <h3>GLFW: Features or Changes Added</h3>
+        <ul>
+          <li>Runtime platform selection across compiled backends via <code>GLFW_PLATFORM</code>, <code>glfwGetPlatform</code>, and <code>glfwPlatformSupported</code>.</li>
+          <li>More standard cursor shapes, mouse event passthrough, window title query, captured cursor mode, and custom heap allocator support.</li>
+          <li>Framebuffer scaling and initial window-position hints, ANGLE backend selection, Win32 keyboard menu and startup show hints, and Cocoa NSView native access.</li>
+          <li>Wayland improvements include libdecor decorations and a <code>GLFW_WAYLAND_APP_ID</code> hint.</li>
+          <li>X11 gains a Vulkan surface-selection hint; GLFW 3.4 also changes version-string assumptions because one binary may include multiple native backends.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Vendored Refyne Components</h2>
+    <p class="foot">Only the vendored go-gl/GLFW area is shown; the rest of the Refyne framework is intentionally omitted.</p>
+<pre>internal/glfw/
+├── GLFW_C_REVISION.txt
+├── LICENSE
+├── VENDORING.md
+├── UPSTREAM_ADOPTION_PLAN.md
+├── build*.go
+├── c_glfw*.go
+├── context.go
+├── error.{c,go}
+├── glfw.go
+├── input.{c,go}
+├── monitor.{c,go}
+├── native_*.go
+├── native_linbsd_wayland_refyne.go
+├── not_wayland.go
+├── time.go
+├── util.go
+├── vulkan.go
+├── window.{c,go}
+├── testdata/customcursor/main.go
+└── glfw/
+    ├── LICENSE.md
+    ├── deps/
+    │   ├── glad/
+    │   ├── mingw/
+    │   ├── wayland/
+    │   │   ├── cursor-shape-v1.xml
+    │   │   ├── xdg-toplevel-icon-v1.xml
+    │   │   └── upstream Wayland protocol XML files
+    │   └── support headers and test/example deps
+    ├── include/
+    │   ├── GLFW/glfw3.h
+    │   ├── GLFW/glfw3native.h
+    │   └── generated Wayland protocol headers
+    └── src/
+        ├── core GLFW platform/context/input sources
+        ├── wl_refyne.c
+        ├── file_transfer_portal.{c,h}
+        ├── cursor-shape-v1-client-protocol*.h
+        └── xdg-toplevel-icon-v1-client-protocol*.h</pre>
+  </section>
+
+  <section>
+    <h2>Sources Checked</h2>
+    <ul>
+      <li><a href="https://github.com/fyne-io/fyne/tree/develop">fyne-io/fyne <code>develop</code></a> at <code>4a089fc</code>, checked 2026-07-02.</li>
+      <li><a href="https://github.com/go-gl/glfw/tree/v3.4/glfw/v0.1.0-pre.1">go-gl/glfw <code>v3.4/glfw/v0.1.0-pre.1</code></a> at <code>9c147ed</code>.</li>
+      <li><a href="https://github.com/glfw/glfw/tree/3.4">glfw/glfw <code>3.4</code></a> at <code>7b6aead</code>.</li>
+      <li>Local Refyne files: <code>internal/glfw/VENDORING.md</code>, <code>internal/glfw/GLFW_C_REVISION.txt</code>, and <code>go.mod</code>.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

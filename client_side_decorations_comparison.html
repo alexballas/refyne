@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Client-Side Decorations Comparison: Refyne vs go-gl/glfw v3.4/glfw/v0.1.0-pre.1</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #5f6f7f;
+      --line: #d8e0e7;
+      --accent: #176f9a;
+      --accent-soft: #e8f4f8;
+      --green: #206a3b;
+      --green-soft: #e8f6ed;
+      --amber: #8a5a00;
+      --amber-soft: #fff4d7;
+      --red: #9a2f2f;
+      --red-soft: #fae9e9;
+      --code: #eef2f5;
+      --dark: #111827;
+      --dark-code: #e5edf5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 940px;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-top: 2px;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin-top: 16px;
+    }
+
+    p {
+      margin: 8px 0 0;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12.5px;
+    }
+
+    code {
+      background: var(--code);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      overflow-x: auto;
+      padding: 14px;
+      color: var(--dark-code);
+      background: var(--dark);
+      border-radius: 6px;
+    }
+
+    section {
+      margin-top: 18px;
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--accent-soft);
+      color: #17313b;
+      font-weight: 650;
+    }
+
+    ul,
+    ol {
+      margin: 8px 0 0;
+      padding-left: 21px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      white-space: nowrap;
+    }
+
+    .summary {
+      border-left: 4px solid var(--accent);
+    }
+
+    .callout {
+      background: var(--amber-soft);
+      border-color: #e6c979;
+      color: var(--amber);
+    }
+
+    .tag {
+      display: inline-block;
+      min-width: 72px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .direct {
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .support {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .outside {
+      color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 12.5px;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        padding: 24px 14px 44px;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Client-Side Decorations Comparison: Refyne vs go-gl/glfw v3.4/glfw/v0.1.0-pre.1</h1>
+  <div class="meta">
+    <span class="pill">Updated: 2026-07-02 22:18 EEST</span>
+    <span class="pill">Local repo: <code>1bf007f28541</code></span>
+    <span class="pill">go-gl tag: <code>9c147ed2fc8c</code></span>
+    <span class="pill">GLFW C source: <code>7b6aead9fb88</code></span>
+  </div>
+
+  <section class="summary">
+    <h2>Executive Summary</h2>
+    <p>The local Refyne tree vendors <code>github.com/go-gl/glfw/v3.4/glfw v0.1.0-pre.1</code> under <code>internal/glfw</code>, then adds a Wayland client-side decoration layer that is not present in the upstream go-gl tag.</p>
+    <p>The vendored GLFW-side implementation is concentrated in <code>wl_refyne.c</code>, <code>wl_window.c</code>, <code>wl_platform.h</code>, <code>wl_init.c</code>, generated Wayland protocol bindings, and a Go wrapper file. It adds compositor move/resize/menu calls, decoration-mode detection, custom cached shadow subsurfaces that double as resize handles, cursor-shape-v1 support, xdg-toplevel-icon support, and EGL/Wayland commit timing guards for stable interactive resize.</p>
+    <p>There is also a Refyne driver/UI layer outside <code>internal/glfw</code>: it installs the in-canvas title bar, reserves canvas space for it, handles edge resize and title-bar menu gestures, updates rounded/square corners, pushes icons, and avoids resize fights while the Wayland compositor is driving an interactive resize.</p>
+    <p>The full vendored GLFW source diff against the requested go-gl tag is <strong>32 files</strong>, <strong>3,838 insertions</strong>, and <strong>188 deletions</strong>. Not all of that is CSD: FileTransfer portal support, X11 drop handling, module-path rewrites, and formatting/import cleanups are adjacent or unrelated and are separated below.</p>
+  </section>
+
+  <section>
+    <h2>Comparison Method</h2>
+    <p>Baseline source was checked out from the requested release tag and compared with the local vendored module root:</p>
+<pre>git clone --depth 1 --branch v3.4/glfw/v0.1.0-pre.1 https://github.com/go-gl/glfw.git /tmp/refyne-csd-compare/go-gl-glfw
+git diff --no-index /tmp/refyne-csd-compare/go-gl-glfw/v3.4/glfw internal/glfw</pre>
+    <p>The go-gl release tag resolves to <code>9c147ed2fc8c8daefcbb3225e10a059af407e53c</code>. The vendored GLFW C revision is <code>7b6aead9fb88b3623e3b3725ebb42670cbe4c579</code>, matching the dereferenced GLFW <code>3.4</code> tag and <code>internal/glfw/GLFW_C_REVISION.txt</code>.</p>
+  </section>
+
+  <section class="callout">
+    <h2>Scope Note</h2>
+    <p>This report treats "client-side decorations" as the Wayland decoration behavior used when the compositor either grants client-side xdg-decoration mode or does not provide server-side decorations. That includes the visible custom shadow/resize handles, fallback decoration pointer behavior, cursor selection for those handles, and the resize/commit synchronization needed to keep those surfaces stable during compositor-driven resize.</p>
+  </section>
+
+  <section>
+    <h2>Full Diff Inventory</h2>
+    <p class="small muted">Every file that differs from go-gl/glfw <code>v3.4/glfw/v0.1.0-pre.1</code> is listed. "Direct CSD" means it implements or exposes decoration behavior. "CSD support" means it supports CSD stability or buildability but also contains broader Wayland/backport work. "Outside CSD" means it is part of the source comparison but not part of the decoration implementation.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Diff</th>
+          <th>Classification</th>
+          <th>What Changed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>internal/glfw/VENDORING.md</code></td>
+          <td>+48</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Documents the local patch set, including Wayland CSD/shadow helpers, resize staging, cursor-shape, icon protocol, and pointer-focus invalidation.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/UPSTREAM_ADOPTION_PLAN.md</code></td>
+          <td>+319</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Tracks upstream backport/adoption work, including fallback decoration behavior and shadow resize test areas.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/c_glfw_lin_wayland.go</code></td>
+          <td>+1</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Includes <code>glfw/src/wl_refyne.c</code> in the Linux Wayland cgo translation unit.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/c_glfw_bsd.go</code></td>
+          <td>+1</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Includes <code>glfw/src/wl_refyne.c</code> for BSD Wayland builds.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/native_linbsd_wayland.go</code></td>
+          <td>+1/-2</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Changes build tags so Wayland native access is available for default non-X11 builds as well as explicit <code>wayland</code> builds.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/native_linbsd_wayland_refyne.go</code></td>
+          <td>+121</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Adds Go-facing wrappers and enums for Refyne's Wayland move, resize, menu, shadow, decoration-mode, resize-state, and icon APIs.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/wl_refyne.c</code></td>
+          <td>+547</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>New implementation file for Refyne-specific Wayland CSD helpers, cached shadows, resize handles, decoration-mode query, interactive resize query, and top-level icon setting.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/wl_platform.h</code></td>
+          <td>+52/-1</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Adds per-window CSD/shadow state, resizing state, pending-size commit state, cursor-shape state, global protocol manager fields, pointer batching state, and Refyne helper prototypes.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/wl_init.c</code></td>
+          <td>+78/-29</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Includes and registers cursor-shape-v1 and xdg-toplevel-icon-v1 protocols, destroys them on termination, and carries adjacent Wayland lifecycle/backport changes.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/wl_window.c</code></td>
+          <td>+820/-123</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Main integration point: shadow lifecycle, fallback decoration focus, pointer handling, cursor selection, xdg resize/move/menu dispatch, resize-state tracking, and commit timing for CSD surfaces.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/egl_context.c</code></td>
+          <td>+30/-1</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Applies deferred Wayland EGL resize before and after <code>eglMakeCurrent</code>, clears <code>sizeCommitPending</code> after swap, and defers EGL module unload on Wayland.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/deps/wayland/cursor-shape-v1.xml</code></td>
+          <td>+152</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Adds the cursor-shape protocol XML used to request desktop-themed resize cursors.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/cursor-shape-v1-client-protocol-code.h</code></td>
+          <td>+71</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Generated cursor-shape protocol code.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/cursor-shape-v1-client-protocol.h</code></td>
+          <td>+427</td>
+          <td><span class="tag direct">Direct CSD</span></td>
+          <td>Generated cursor-shape protocol declarations.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/deps/wayland/xdg-toplevel-icon-v1.xml</code></td>
+          <td>+205</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Adds top-level icon protocol XML; not decoration chrome by itself, but exposed through the same Wayland helper layer.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/xdg-toplevel-icon-v1-client-protocol-code.h</code></td>
+          <td>+83</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Generated top-level icon protocol code.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/xdg-toplevel-icon-v1-client-protocol.h</code></td>
+          <td>+410</td>
+          <td><span class="tag support">CSD support</span></td>
+          <td>Generated top-level icon protocol declarations.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/LICENSE</code></td>
+          <td>+27</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Local license copy for the vendored glfw module.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/build_cgo_hack.go</code></td>
+          <td>+4/-3</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Rewrites blank imports from go-gl module paths to the local Refyne internal module path and adds the generated include package.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/deps/dummy.go</code></td>
+          <td>+3/-3</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Rewrites vendored dependency blank imports to the local module path.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/c_glfw.go</code></td>
+          <td>+1</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Includes FileTransfer portal implementation, unrelated to window decorations.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/file_transfer_portal.c</code></td>
+          <td>+240</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Adds DBus FileTransfer portal drop support.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/file_transfer_portal.h</code></td>
+          <td>+149</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Header for FileTransfer portal support.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/internal.h</code></td>
+          <td>+5/-1</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Adds FileTransfer portal state to the GLFW library structure.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/x11_init.c</code></td>
+          <td>+6/-1</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Initializes and terminates FileTransfer portal support for X11.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/x11_platform.h</code></td>
+          <td>+2/-1</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Adds X11 portal MIME atom and Xdnd portal flag.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/glfw/src/x11_window.c</code></td>
+          <td>+23/-9</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Extends Xdnd handling to accept FileTransfer portal data.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/go.mod</code></td>
+          <td>-3</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Removes the upstream nested module file in the vendored copy.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/native_linbsd_x11.go</code></td>
+          <td>+1/-2</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Adjusts X11 build tags to match the local Linux/BSD backend-selection scheme.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/not_wayland.go</code></td>
+          <td>+1/-1</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Adjusts non-Wayland build tag coverage.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/vulkan.go</code></td>
+          <td>+6/-4</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Formatting/type-conversion cleanup in Vulkan wrapper.</td>
+        </tr>
+        <tr>
+          <td><code>internal/glfw/window.go</code></td>
+          <td>+4/-4</td>
+          <td><span class="tag outside">Outside CSD</span></td>
+          <td>Uses a literal for <code>GLFW_ANY_POSITION</code> and fixes a comment typo.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>CSD Implementation Change List</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Upstream go-gl/glfw Tag</th>
+          <th>Local Refyne Change</th>
+          <th>Local Anchors</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Compilation hook</td>
+          <td>No Refyne-specific Wayland helper C file.</td>
+          <td>Adds <code>wl_refyne.c</code> to the Wayland cgo translation units so it can access GLFW internal Wayland state.</td>
+          <td><code>c_glfw_lin_wayland.go:10</code>, <code>c_glfw_bsd.go:11</code></td>
+        </tr>
+        <tr>
+          <td>Go API surface</td>
+          <td>Only upstream GLFW native Wayland accessors are available.</td>
+          <td>Adds <code>ResizeEdge</code>, <code>DecorationMode</code>, <code>SetWindowShadowWayland</code>, <code>StartWindowMove</code>, <code>StartWindowResize</code>, <code>ShowWindowMenu</code>, <code>DecorationMode</code>, <code>InteractiveResizingWayland</code>, and <code>SetWindowIconWayland</code>.</td>
+          <td><code>native_linbsd_wayland_refyne.go:22-121</code></td>
+        </tr>
+        <tr>
+          <td>Decoration mode detection</td>
+          <td>GLFW tracks xdg-decoration internally but exposes no Refyne query for deciding SSD vs CSD.</td>
+          <td>Exposes the granted xdg-decoration mode as <code>glfwRefyneDecorationMode</code>, mapped to Go <code>DecorationMode</code>.</td>
+          <td><code>wl_refyne.c:494-502</code>, <code>native_linbsd_wayland_refyne.go:38-50</code>, <code>native_linbsd_wayland_refyne.go:89-96</code></td>
+        </tr>
+        <tr>
+          <td>Compositor move/resize/menu calls</td>
+          <td>Fallback decorations use GLFW's private handling; app code cannot call xdg move, resize, or menu through go-gl.</td>
+          <td>Exports helpers that reuse GLFW's tracked Wayland seat and serial to call <code>xdg_toplevel_move</code>, <code>xdg_toplevel_resize</code>, and <code>xdg_toplevel_show_window_menu</code>.</td>
+          <td><code>wl_refyne.c:457-480</code>, <code>native_linbsd_wayland_refyne.go:65-87</code></td>
+        </tr>
+        <tr>
+          <td>Cached shadow atlas</td>
+          <td>No external Refyne shadow for custom CSD.</td>
+          <td>Adds a generated alpha atlas approximating active CSD shadows and stores it in one wl_shm buffer.</td>
+          <td><code>wl_refyne.c:26-72</code>, <code>wl_refyne.c:168-223</code></td>
+        </tr>
+        <tr>
+          <td>Eight shadow subsurfaces</td>
+          <td>No Refyne shadow subsurfaces.</td>
+          <td>Creates eight synchronized subsurfaces around the window, positioned below the content surface, with viewports into the shared atlas.</td>
+          <td><code>wl_refyne.c:225-318</code>, <code>wl_platform.h:423-428</code></td>
+        </tr>
+        <tr>
+          <td>Shadow resize handles</td>
+          <td>Resize behavior exists only on GLFW fallback decoration edges.</td>
+          <td>The eight shadow slices remain pointer-enterable and map to xdg resize edges, so the shadow margin acts as a native-feeling resize area.</td>
+          <td><code>wl_refyne.c:109-138</code>, <code>wl_window.c:1755-1763</code>, <code>wl_window.c:1883-1901</code></td>
+        </tr>
+        <tr>
+          <td>Shadow lifecycle</td>
+          <td>No Refyne shadow state.</td>
+          <td>Adds requested/visible/buffer/focus fields, creates shadows for decorated non-maximized/non-fullscreen windows, resizes them with window content, and destroys them on shell teardown.</td>
+          <td><code>wl_platform.h:423-428</code>, <code>wl_refyne.c:371-427</code>, <code>wl_window.c:477</code>, <code>wl_window.c:1105-1108</code></td>
+        </tr>
+        <tr>
+          <td>Window geometry excluding visual shadows</td>
+          <td>Fallback decorations affect xdg geometry; no Refyne shadow geometry adjustment.</td>
+          <td>Uses <code>xdg_surface_set_window_geometry</code> to keep visual-only shadows out of the compositor frame rectangle.</td>
+          <td><code>wl_refyne.c:140-166</code>, <code>wl_refyne.c:351-365</code></td>
+        </tr>
+        <tr>
+          <td>Commit timing for CSD state</td>
+          <td>Upstream commits size and decoration state in the normal GLFW flow.</td>
+          <td>Adds <code>sizeCommitPending</code> so bare <code>wl_surface_commit</code> calls are skipped while viewport destination, EGL buffer size, or xdg geometry has changed but the matching content buffer has not yet swapped.</td>
+          <td><code>wl_platform.h:357-364</code>, <code>wl_window.c:410-422</code>, <code>wl_refyne.c:153-166</code>, <code>wl_window.c:768-777</code>, <code>egl_context.c:305-315</code></td>
+        </tr>
+        <tr>
+          <td>Deferred Wayland EGL resize</td>
+          <td>Upstream resizes the <code>wl_egl_window</code> directly from framebuffer resize.</td>
+          <td>Defers idle-window EGL resizes, primes the resize before <code>eglMakeCurrent</code>, applies it again after <code>eglMakeCurrent</code>, and clears pending size state after <code>eglSwapBuffers</code>.</td>
+          <td><code>wl_window.c:359-389</code>, <code>wl_window.c:410-422</code>, <code>egl_context.c:240-268</code>, <code>egl_context.c:305-315</code></td>
+        </tr>
+        <tr>
+          <td>Interactive resize state</td>
+          <td>GLFW consumes the xdg <code>RESIZING</code> state internally but does not expose it to Refyne.</td>
+          <td>Tracks pending/current <code>resizing</code>, exposes <code>glfwRefyneInteractiveResizing</code>, and clears stale resizing state on pointer re-enter when Mutter does not send a clearing configure.</td>
+          <td><code>wl_platform.h:356-381</code>, <code>wl_window.c:649-675</code>, <code>wl_window.c:716-742</code>, <code>wl_refyne.c:482-492</code>, <code>wl_window.c:1986-2005</code></td>
+        </tr>
+        <tr>
+          <td>Pointer focus for decoration surfaces</td>
+          <td>Pointer focus is centered on content/fallback behavior and can retain stale surface references when decoration surfaces are destroyed.</td>
+          <td>Adds global <code>pointerSurface</code>, pending pointer-frame state, fallback focus cleanup, Refyne shadow focus, and explicit invalidation before decoration/shadow/content surfaces are destroyed.</td>
+          <td><code>wl_platform.h:492-505</code>, <code>wl_platform.h:545</code>, <code>wl_window.c:273-294</code>, <code>wl_window.c:312-320</code>, <code>wl_refyne.c:74-107</code>, <code>wl_window.c:2789-2800</code></td>
+        </tr>
+        <tr>
+          <td>Pointer event batching</td>
+          <td>Upstream tag uses older direct pointer callbacks.</td>
+          <td>Backports/merges pointer-frame batching so enter, leave, motion, button, and high-resolution scroll state are applied coherently across content, fallback decoration, and Refyne shadow surfaces.</td>
+          <td><code>wl_window.c:1616-1622</code>, <code>wl_window.c:1972-2198</code></td>
+        </tr>
+        <tr>
+          <td>Fallback decoration behavior</td>
+          <td>Fallback decoration cursors and inputs are upstream GLFW behavior.</td>
+          <td>Keeps fallback focus separate, updates resize cursors by edge/corner, dispatches move on title region, dispatches resize on edges/corners, shows the window menu on right-click, and commits fallback add/remove unless size state is pending.</td>
+          <td><code>wl_window.c:1751-1754</code>, <code>wl_window.c:1814-1851</code>, <code>wl_window.c:1904-1957</code>, <code>wl_window.c:3203-3235</code></td>
+        </tr>
+        <tr>
+          <td>Cursor-shape-v1 protocol</td>
+          <td>The go-gl tag does not include cursor-shape-v1 protocol XML or generated bindings.</td>
+          <td>Adds protocol XML and generated headers, binds <code>wp_cursor_shape_manager_v1</code>, creates a per-pointer shape device, and destroys it on pointer/Wayland teardown.</td>
+          <td><code>cursor-shape-v1.xml</code>, <code>cursor-shape-v1-client-protocol*.h</code>, <code>wl_init.c:49-100</code>, <code>wl_init.c:225-234</code>, <code>wl_init.c:977-983</code>, <code>wl_window.c:1194-1237</code></td>
+        </tr>
+        <tr>
+          <td>Decoration cursor names</td>
+          <td>Standard cursor creation goes through libwayland-cursor names only.</td>
+          <td>Adds name-to-shape mapping and cursor-name fallbacks for resize cursors, allowing custom decoration cursors to prefer compositor-themed shapes and fall back to theme buffers.</td>
+          <td><code>wl_window.c:1239-1255</code>, <code>wl_window.c:1551-1598</code>, <code>wl_window.c:1600-1730</code></td>
+        </tr>
+        <tr>
+          <td>Standard cursor integration</td>
+          <td>No per-cursor cursor-shape field in upstream tag.</td>
+          <td>Adds <code>cursor->wl.shape</code>, records shapes for standard cursors, and asks the compositor to draw default, text, pointer, resize, all-scroll, and not-allowed cursors when possible.</td>
+          <td><code>wl_platform.h:646-654</code>, <code>wl_window.c:3396-3532</code>, <code>wl_window.c:3684-3730</code></td>
+        </tr>
+        <tr>
+          <td>xdg-toplevel-icon-v1</td>
+          <td>The go-gl tag has no generated top-level icon protocol and no wrapper for setting Wayland top-level icons.</td>
+          <td>Adds the protocol XML/generated headers, binds <code>xdg_toplevel_icon_manager_v1</code>, and exposes a helper that creates a square wl_shm-backed icon and sets it on the xdg toplevel.</td>
+          <td><code>xdg-toplevel-icon-v1.xml</code>, <code>xdg-toplevel-icon-v1-client-protocol*.h</code>, <code>wl_init.c:49-100</code>, <code>wl_init.c:178-186</code>, <code>wl_refyne.c:504-545</code>, <code>native_linbsd_wayland_refyne.go:107-121</code></td>
+        </tr>
+        <tr>
+          <td>Wayland object cleanup</td>
+          <td>Upstream tag destroys some Wayland modules/proxies earlier and lacks Refyne shadow cleanup.</td>
+          <td>Destroys Refyne shadows during shell-object teardown, destroys cursor-shape and icon manager objects, invalidates pointer focus, and defers module unload until Wayland proxies are gone.</td>
+          <td><code>wl_window.c:1105-1127</code>, <code>wl_init.c:930-983</code>, <code>wl_init.c:1010-1041</code>, <code>egl_context.c:574-582</code></td>
+        </tr>
+        <tr>
+          <td>Resize viewport guard</td>
+          <td>Upstream behavior keeps a scaling viewport when framebuffer scaling is enabled.</td>
+          <td>Adds local comments preserving that behavior because the viewport destination hides one-frame EGL buffer lag during interactive resize.</td>
+          <td><code>wl_window.c:1161-1189</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Vendored GLFW Refyne API Surface</h2>
+    <p class="small muted">These APIs are Refyne-specific extensions inside the vendored GLFW package, not public Fyne/Refyne window APIs. They live in <code>internal/glfw/native_linbsd_wayland_refyne.go</code> and call C entry points implemented by <code>internal/glfw/glfw/src/wl_refyne.c</code>. The Refyne driver layer in <code>internal/driver/glfw</code> consumes them.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Go API</th>
+          <th>C Entry Point</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>(*Window).SetWindowShadowWayland(bool)</code></td>
+          <td><code>glfwRefyneSetWindowShadow</code></td>
+          <td>Enable/disable cached external shadow subsurfaces for custom CSD.</td>
+        </tr>
+        <tr>
+          <td><code>(*Window).StartWindowMove()</code></td>
+          <td><code>glfwRefyneStartWindowMove</code></td>
+          <td>Ask the compositor to begin an interactive move using GLFW's current Wayland serial.</td>
+        </tr>
+        <tr>
+          <td><code>(*Window).StartWindowResize(ResizeEdge)</code></td>
+          <td><code>glfwRefyneStartWindowResize</code></td>
+          <td>Ask the compositor to begin edge/corner resize from a custom CSD hit target.</td>
+        </tr>
+        <tr>
+          <td><code>(*Window).ShowWindowMenu(x, y)</code></td>
+          <td><code>glfwRefyneShowWindowMenu</code></td>
+          <td>Show the compositor window menu from a custom CSD title/menu gesture.</td>
+        </tr>
+        <tr>
+          <td><code>(*Window).DecorationMode()</code></td>
+          <td><code>glfwRefyneDecorationMode</code></td>
+          <td>Report none/client/server decoration mode so Refyne can decide whether to draw CSD.</td>
+        </tr>
+        <tr>
+          <td><code>(*Window).InteractiveResizingWayland()</code></td>
+          <td><code>glfwRefyneInteractiveResizing</code></td>
+          <td>Expose xdg <code>RESIZING</code> state so the higher-level driver can avoid fighting compositor configure sizes.</td>
+        </tr>
+        <tr>
+          <td><code>(*Window).SetWindowIconWayland([]byte, int, int)</code></td>
+          <td><code>glfwRefyneSetWindowIcon</code></td>
+          <td>Set an xdg top-level icon when the compositor supports <code>xdg-toplevel-icon-v1</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Refyne Driver/UI CSD Support</h2>
+    <p class="small muted">These files are outside the vendored <code>internal/glfw</code> comparison against go-gl. They are Refyne-specific changes that consume the new Wayland helpers and make the client-side decorations visible and interactive in the app.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Area</th>
+          <th>Refyne-Specific Change</th>
+          <th>Local Anchors</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland.go</code></td>
+          <td>Wayland pre-create hints</td>
+          <td>Sets a Wayland <code>app_id</code> and requests an alpha-capable framebuffer for decorated windows before <code>glfw.CreateWindow</code>. This is required because CSD selection happens only after the window exists, but rounded CSD corners need transparency from the first frame.</td>
+          <td><code>decorations_wayland.go:20-59</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland.go</code></td>
+          <td>Decoration selection</td>
+          <td>After the first Wayland event pump, checks <code>DecorationMode()</code>. If server-side decorations were granted, Refyne leaves them alone. Otherwise it disables GLFW's fallback decorations and installs Refyne's own title bar and shadow.</td>
+          <td><code>decorations_wayland.go:104-168</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland.go</code></td>
+          <td>Title-bar callbacks</td>
+          <td>Wires the CSD title bar to window actions: close, minimize, maximize/restore, drag-to-move through <code>StartWindowMove</code>, and double-click maximize.</td>
+          <td><code>decorations_wayland.go:147-160</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland.go</code></td>
+          <td>Resize hit testing</td>
+          <td>Adds an 8 logical-pixel edge/corner resize zone, maps pointer position to Wayland <code>ResizeEdge</code> values, maps those edges to resize cursor shapes, and re-applies resize cursors so child widgets do not override frame cursors.</td>
+          <td><code>decorations_wayland.go:61-82</code>, <code>decorations_wayland.go:170-253</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland.go</code></td>
+          <td>Resize and menu gestures</td>
+          <td>Starts compositor-driven edge/corner resize via <code>StartWindowResize</code> when the primary button is pressed in a resize zone, and shows the compositor window menu via <code>ShowWindowMenu</code> when right-clicking the custom title bar.</td>
+          <td><code>decorations_wayland.go:255-288</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland.go</code></td>
+          <td>Icon propagation</td>
+          <td>Resolves the window/app icon, rasterizes SVG or bitmap resources into a square RGBA buffer, and passes it to <code>SetWindowIconWayland</code> for compositors that implement <code>xdg-toplevel-icon-v1</code>.</td>
+          <td><code>decorations_wayland.go:92-102</code>, <code>decorations_wayland.go:290-326</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/window_decoration.go</code></td>
+          <td>Custom title bar widget</td>
+          <td>Adds the themed in-canvas CSD title bar with icon, centered title, minimize/maximize/restore/close controls, callbacks supplied by the Wayland controller, and maximized/fullscreen square-corner state.</td>
+          <td><code>window_decoration.go:20-85</code>, <code>window_decoration.go:306-335</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/window_decoration.go</code></td>
+          <td>Window control rendering</td>
+          <td>Draws crisp minimize, maximize, restore, and close glyphs as rasterized device-pixel shapes, with a circular low-importance button hover style and title/icon layout that hides text or icon when space is too narrow.</td>
+          <td><code>window_decoration.go:97-190</code>, <code>window_decoration.go:357-427</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/window_decoration.go</code></td>
+          <td>Title-bar interaction</td>
+          <td>Implements drag-to-move and double-click-to-maximize on the custom title bar, plus <code>pointInWindowDecoration</code> so the driver can route right-click menu handling only to CSD chrome.</td>
+          <td><code>window_decoration.go:429-455</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/canvas.go</code></td>
+          <td>Canvas chrome layout</td>
+          <td>Adds CSD chrome fields, reserves a top decoration height, offsets content/menu/popup interactive areas below the title bar, and sizes the decoration, menu, background, and outline during canvas resize.</td>
+          <td><code>canvas.go:23-46</code>, <code>canvas.go:82-85</code>, <code>canvas.go:127-168</code>, <code>canvas.go:243-288</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/canvas.go</code></td>
+          <td>Rounded body and alpha handling</td>
+          <td>Adds a transparent clear path for rounded Wayland CSD corners, preserves framebuffer alpha on alpha-capable Wayland surfaces, paints an opaque lower body behind content, and draws a one-pixel inner outline for overlapping CSD windows.</td>
+          <td><code>canvas.go:309-324</code>, <code>canvas.go:379-466</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/canvas.go</code></td>
+          <td>Theme integration</td>
+          <td>Refreshes the out-of-tree CSD decoration, body background, and outline on theme changes, keeping the custom chrome visually aligned with the active Refyne theme.</td>
+          <td><code>canvas.go:468-483</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/window_desktop.go</code></td>
+          <td>Window lifecycle integration</td>
+          <td>Initializes Wayland decoration cursors, applies CSD-specific window hints before creation, disables swap-interval throttling on Wayland, updates CSD icon/title-bar state from <code>SetIcon</code>, and squares corners when fullscreen or maximized.</td>
+          <td><code>window_desktop.go:55-64</code>, <code>window_desktop.go:135-145</code>, <code>window_desktop.go:208-219</code>, <code>window_desktop.go:796-847</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/window_desktop.go</code></td>
+          <td>Mouse routing</td>
+          <td>Intercepts primary-button presses before normal canvas dispatch to start Wayland edge resize, and intercepts secondary-button title-bar presses/releases while the compositor owns the window menu.</td>
+          <td><code>window_desktop.go:436-455</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/window_desktop.go</code></td>
+          <td>Maximize state sync</td>
+          <td>Updates the custom title-bar maximize/restore glyph and top-corner shape when the compositor reports maximize state changes.</td>
+          <td><code>window_desktop.go:753-763</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/resize_interactive_wayland.go</code></td>
+          <td>Resize fight guard</td>
+          <td>Consumes the new GLFW helper <code>InteractiveResizingWayland</code> so Refyne can detect compositor-driven xdg resize and avoid client-side size enforcement fighting the compositor.</td>
+          <td><code>resize_interactive_wayland.go:5-14</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_other.go</code>, <code>resize_interactive_other.go</code></td>
+          <td>Non-Wayland isolation</td>
+          <td>Adds no-op implementations for non-Wayland builds so the CSD integration points stay compiled into shared driver code without changing Windows, macOS, X11, wasm, or test-web-driver behavior.</td>
+          <td><code>decorations_other.go:5-27</code>, <code>resize_interactive_other.go:19-21</code></td>
+        </tr>
+        <tr>
+          <td><code>internal/driver/glfw/decorations_wayland_test.go</code>, <code>window_decoration_test.go</code>, <code>canvas_test.go</code></td>
+          <td>Focused tests</td>
+          <td>Adds coverage for resize-edge hit testing, resize cursor mapping, title-bar behavior, rounded/square corner state, decoration layout, and canvas overlay ordering around CSD chrome.</td>
+          <td><code>decorations_wayland_test.go:13-57</code>, <code>window_decoration_test.go:16-175</code>, <code>canvas_test.go:613-771</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Implementation Flow</h2>
+    <ol>
+      <li>At build time, <code>wl_refyne.c</code> is included after upstream <code>wl_window.c</code>, allowing Refyne helpers to call GLFW internal Wayland functions and use internal structs.</li>
+      <li>At Wayland registry setup, Refyne binds <code>wp_cursor_shape_manager_v1</code> and <code>xdg_toplevel_icon_manager_v1</code> if the compositor advertises them.</li>
+      <li>The Refyne driver creates the window with Wayland app-id and transparent-framebuffer hints, then waits for decoration mode. Server-side decorations are left alone; otherwise Refyne disables GLFW fallback decorations and installs its own title bar in the canvas.</li>
+      <li>When Refyne requests custom decorations, <code>glfwRefyneSetWindowShadow</code> marks shadow state as requested and calls <code>_glfwRefyneUpdateWindowShadow</code>.</li>
+      <li>The shadow updater creates a single wl_shm atlas, eight subsurfaces around the content surface, viewports into that atlas, and xdg window geometry that excludes the shadows.</li>
+      <li>The canvas reserves title-bar height, offsets content/popups, paints rounded transparent corners plus an opaque body, and applies current theme colors to the custom chrome.</li>
+      <li>Pointer enter/motion/button handling distinguishes content, fallback decoration surfaces, and Refyne shadow slices. Refyne's driver also intercepts canvas-edge presses and title-bar right-clicks before normal widget dispatch. Shadow slices and canvas-edge hit zones map to xdg resize edges and issue compositor resize grabs.</li>
+      <li>During configure/resize, <code>sizeCommitPending</code> prevents bare commits from applying new viewport or geometry state against an old content buffer. The matching <code>eglSwapBuffers</code> clears the flag, while <code>InteractiveResizingWayland</code> lets Refyne avoid fighting compositor-driven resize.</li>
+      <li>Cursor selection prefers compositor-rendered cursor-shape-v1 resize cursors; if unsupported, it falls back to libwayland-cursor theme buffers and additional XDG/X11 cursor aliases. The Refyne driver keeps the frame resize cursor active while the pointer is in its edge hit zone.</li>
+      <li>Cleanup invalidates pointer focus before destroying CSD/fallback/content surfaces, destroys shadow subsurfaces and buffers, and releases protocol objects during Wayland termination.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Adjacent Non-CSD Changes</h2>
+    <p>These are present in the comparison but are not part of the client-side decoration implementation:</p>
+    <ul>
+      <li><code>file_transfer_portal.[ch]</code>, <code>c_glfw.go</code>, <code>internal.h</code>, <code>x11_*.c/.h</code>, and parts of <code>wl_window.c</code>/<code>wl_init.c</code> implement optional FileTransfer portal drops.</li>
+      <li><code>build_cgo_hack.go</code>, <code>glfw/deps/dummy.go</code>, and the removed nested <code>go.mod</code> are vendoring/module-path changes.</li>
+      <li><code>native_linbsd_x11.go</code>, <code>not_wayland.go</code>, <code>vulkan.go</code>, and <code>window.go</code> contain build-tag, formatting, or wrapper cleanups unrelated to CSD behavior.</li>
+      <li>Several Wayland hunks are post-GLFW-3.4 robustness backports that support the CSD paths but are not unique to decorations: key repeat hardening, data-offer cleanup, pointer-constraints guards, callback cleanup, and delayed module unload.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Sources</h2>
+    <ul>
+      <li><a href="https://github.com/go-gl/glfw/releases/tag/v3.4%2Fglfw%2Fv0.1.0-pre.1">go-gl/glfw release <code>v3.4/glfw/v0.1.0-pre.1</code></a>, tagged at <code>9c147ed2fc8c8daefcbb3225e10a059af407e53c</code>.</li>
+      <li><a href="https://github.com/go-gl/glfw/tree/v3.4/glfw/v0.1.0-pre.1/v3.4/glfw">go-gl/glfw module source at the requested tag</a>.</li>
+      <li><a href="https://github.com/glfw/glfw/releases/tag/3.4">GLFW 3.4 release</a>, dereferenced source commit <code>7b6aead9fb88b3623e3b3725ebb42670cbe4c579</code>.</li>
+      <li>Local files checked: <code>internal/glfw/VENDORING.md</code>, <code>internal/glfw/GLFW_C_REVISION.txt</code>, and all files under <code>internal/glfw</code> changed by the no-index diff.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
