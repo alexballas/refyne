@@ -842,7 +842,13 @@ func (w *window) create() {
 		// presentGate); disable the EGL swap-interval throttle so the swap that
 		// lands as a window is hidden returns immediately instead of blocking
 		// on a frame callback that never arrives (issue #6080).
-		if runningWayland() {
+		// On Windows, frame pacing comes from the run loop and DWM already
+		// synchronises windowed presentation, so the WGL default interval of 1
+		// only adds a blocking vblank wait to every SwapBuffers. That wait runs
+		// inside the Win32 modal resize loop (see resize_sync.go) and amplifies
+		// driver present stalls during interactive resize into UI freezes on
+		// some GPUs, e.g. Intel Arc (fyne-io/fyne#6373).
+		if runningWayland() || runtime.GOOS == "windows" {
 			glfw.SwapInterval(0)
 		}
 	})
