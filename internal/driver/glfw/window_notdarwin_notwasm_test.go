@@ -1,4 +1,4 @@
-//go:build !darwin && !wasm && !test_web_driver
+//go:build !darwin && !wasm && !test_web_driver && !no_glfw && !mobile
 
 package glfw
 
