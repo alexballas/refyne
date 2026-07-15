@@ -44,6 +44,24 @@ func windowScreen(_ fyne.Window) fyne.CanvasObject {
 			w.CenterOnScreen()
 			w.Show()
 		}),
+		widget.NewButton("Always on top window", func() {
+			w := fyne.CurrentApp().NewWindow("On Top")
+			w.SetContent(container.NewCenter(widget.NewLabel("Hello World!")))
+
+			if desktopWindow, ok := w.(desktop.Window); ok {
+				desktopWindow.RequestAlwaysOnTop()
+			}
+			w.Show()
+		}),
+		widget.NewButton("Positioned window", func() {
+			w := fyne.CurrentApp().NewWindow("Positioned")
+			w.SetContent(container.NewCenter(widget.NewLabel("Hello World!")))
+
+			if desktopWindow, ok := w.(desktop.Window); ok {
+				desktopWindow.RequestPosition(120, 80)
+			}
+			w.Show()
+		}),
 		widget.NewButton("Show/Hide window", func() {
 			if visibilityWindow == nil {
 				visibilityWindow = fyne.CurrentApp().NewWindow("Hello")

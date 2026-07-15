@@ -37,8 +37,8 @@ const (
 
 // VidMode describes a single video mode.
 type VidMode struct {
-	Width       int // The width, in pixels, of the video mode.
-	Height      int // The height, in pixels, of the video mode.
+	Width       int // The width, in screen coordinates, of the video mode.
+	Height      int // The height, in screen coordinates, of the video mode.
 	RedBits     int // The bit depth of the red channel of the video mode.
 	GreenBits   int // The bit depth of the green channel of the video mode.
 	BlueBits    int // The bit depth of the blue channel of the video mode.

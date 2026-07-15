@@ -91,6 +91,49 @@ func TestGlfwKeyToKeyName(t *testing.T) {
 	assert.Equal(t, fyne.KeyUnknown, invalid)
 }
 
+func TestWindowDesktopRequests(t *testing.T) {
+	w := &window{}
+
+	w.RequestAlwaysOnTop()
+	assert.True(t, w.onTop)
+
+	w.RequestFullScreenSecondary()
+	assert.True(t, w.fullScreen)
+	assert.True(t, w.fullScreenSecondary)
+	assert.True(t, w.FullScreen())
+
+	w.SetFullScreen(false)
+	assert.False(t, w.fullScreen)
+	assert.False(t, w.fullScreenSecondary)
+	assert.False(t, w.FullScreen())
+}
+
+func TestWindowRequestPosition(t *testing.T) {
+	if runningWayland() {
+		w := &window{}
+		w.RequestPosition(120, 80)
+
+		assert.Zero(t, w.xpos)
+		assert.Zero(t, w.ypos)
+		assert.False(t, w.positionRequested)
+		return
+	}
+
+	for name, position := range map[string]fyne.Position{
+		"non-zero": fyne.NewPos(120, 80),
+		"origin":   fyne.NewPos(0, 0),
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := &window{}
+			w.RequestPosition(int(position.X), int(position.Y))
+
+			assert.Equal(t, int(position.X), w.xpos)
+			assert.Equal(t, int(position.Y), w.ypos)
+			assert.True(t, w.positionRequested)
+		})
+	}
+}
+
 func TestConvertASCII(t *testing.T) {
 	for i := 0; i <= 'Z'-'A'; i++ {
 		translated := convertASCII(glfw.KeyA + glfw.Key(i))

@@ -38,7 +38,7 @@ func (w *window) SetTitle(title string) {
 }
 
 func (w *window) FullScreen() bool {
-	return w.fullScreen
+	return w.fullScreen || w.fullScreenSecondary
 }
 
 // minSizeOnScreen gets the padded minimum size of a window content in screen pixels
@@ -165,7 +165,9 @@ func (w *window) Show() {
 			w.xpos, w.ypos = view.GetPos()
 		}
 
-		if w.fullScreen { // this does not work if called before viewport.Show()
+		if w.fullScreenSecondary {
+			w.doSetFullScreen2(true)
+		} else if w.fullScreen { // this does not work if called before viewport.Show()
 			w.doSetFullScreen(true)
 		}
 
@@ -1025,7 +1027,9 @@ func (w *window) doShowAgain() {
 	view.Show()
 	w.visible = true
 
-	if w.fullScreen {
+	if w.fullScreenSecondary {
+		w.doSetFullScreen2(true)
+	} else if w.fullScreen {
 		w.doSetFullScreen(true)
 	}
 

@@ -63,8 +63,13 @@ func initCursors() {
 	initWaylandDecorationCursors()
 }
 
-// Declare conformity to Window interface
-var _ fyne.Window = (*window)(nil)
+// Declare conformity to window interfaces.
+var (
+	_ fyne.Window    = (*window)(nil)
+	_ desktop.Window = (*window)(nil)
+)
+
+type monitor = glfw.Monitor
 
 type window struct {
 	viewport  *glfw.Window
@@ -82,10 +87,9 @@ type window struct {
 	icon         fyne.Resource
 	mainmenu     *fyne.MainMenu
 
-	master     bool
-	fullScreen bool
-	centered   bool
-	visible    bool
+	master                          bool
+	fullScreen, fullScreenSecondary bool
+	centered, visible, onTop        bool
 
 	mousePosUpdateProcessed    bool
 	newMousePosX, newMousePosY float64
@@ -115,6 +119,7 @@ type window struct {
 	menuDeactivationPending fyne.KeyName
 
 	xpos, ypos                      int
+	positionRequested               bool
 	width, height                   int
 	requestedWidth, requestedHeight int
 	shouldWidth, shouldHeight       int
@@ -134,6 +139,7 @@ type window struct {
 
 func (w *window) SetFullScreen(full bool) {
 	w.fullScreen = full
+	w.fullScreenSecondary = false
 
 	if w.view() != nil {
 		async.EnsureMain(func() {
@@ -142,6 +148,37 @@ func (w *window) SetFullScreen(full bool) {
 			maximized := w.viewport.GetAttrib(glfw.Maximized) == glfw.True
 			w.canvas.setWindowCornersSquare(full || maximized)
 			w.doSetFullScreen(full)
+		})
+	}
+}
+
+func (w *window) RequestAlwaysOnTop() {
+	w.onTop = true
+}
+
+func (w *window) RequestFullScreenSecondary() {
+	w.fullScreenSecondary = true
+	w.fullScreen = true
+
+	if w.view() != nil {
+		async.EnsureMain(func() {
+			w.canvas.setWindowCornersSquare(true)
+			w.doSetFullScreen2(true)
+		})
+	}
+}
+
+func (w *window) RequestPosition(x, y int) {
+	if runningWayland() {
+		return
+	}
+
+	w.xpos = x
+	w.ypos = y
+	w.positionRequested = true
+	if w.view() != nil {
+		async.EnsureMain(func() {
+			w.viewport.SetPos(x, y)
 		})
 	}
 }
@@ -340,6 +377,18 @@ func (w *window) getMonitorForWindow() *glfw.Monitor {
 		monitor = glfw.GetPrimaryMonitor()
 	}
 	return monitor
+}
+
+// findSiblingMonitor returns the monitor of an already-visible window in this app, or nil.
+func (w *window) findSiblingMonitor() *glfw.Monitor {
+	for _, other := range w.driver.windowList() {
+		ow, ok := other.(*window)
+		if !ok || ow == w || !ow.visible || ow.viewport == nil {
+			continue
+		}
+		return ow.getMonitorForWindow()
+	}
+	return nil
 }
 
 func (w *window) detectScale() float32 {
@@ -808,6 +857,11 @@ func (w *window) create() {
 	} else {
 		glfw.WindowHint(glfw.Resizable, glfw.True)
 	}
+	if w.onTop {
+		glfw.WindowHint(glfw.Floating, glfw.True)
+	} else {
+		glfw.WindowHint(glfw.Floating, glfw.False)
+	}
 	glfw.WindowHint(glfw.AutoIconify, glfw.False)
 	initWindowHints()
 	applyWaylandWindowHints(w.decorate)
@@ -831,6 +885,23 @@ func (w *window) create() {
 	w.viewport = win
 	if w.view() == nil { // something went wrong above, it will have been logged
 		return
+	}
+
+	shouldSetPosition := w.positionRequested
+	// macOS 26 places new windows on a different screen than existing app windows;
+	// default new windows onto the same monitor as a visible sibling when no position was set.
+	if runtime.GOOS == "darwin" && !w.positionRequested {
+		if siblingMonitor := w.findSiblingMonitor(); siblingMonitor != nil {
+			monitorX, monitorY := siblingMonitor.GetPos()
+			mode := siblingMonitor.GetVideoMode()
+			w.xpos = monitorX + (mode.Width-pixWidth)/2
+			w.ypos = monitorY + (mode.Height-pixHeight)/2
+			shouldSetPosition = true
+		}
+	}
+
+	if shouldSetPosition && !runningWayland() {
+		win.SetPos(w.xpos, w.ypos)
 	}
 
 	// run the GL init on the draw thread

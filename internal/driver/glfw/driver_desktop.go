@@ -13,6 +13,7 @@ import (
 	"fyne.io/systray"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/driver/software"
+	"github.com/alexballas/refyne/v2/internal/glfw"
 	"github.com/alexballas/refyne/v2/internal/painter"
 	"github.com/alexballas/refyne/v2/internal/svg"
 	"github.com/alexballas/refyne/v2/lang"
@@ -27,6 +28,23 @@ var (
 	systrayIcon    fyne.Resource
 	systrayRunning bool
 )
+
+func (d *gLDriver) HasSecondaryDisplay() bool {
+	monitors := glfw.GetMonitors()
+	if len(monitors) < 2 {
+		return false
+	}
+
+	primaryX, primaryY := monitors[0].GetPos()
+	for _, monitor := range monitors[1:] {
+		x, y := monitor.GetPos()
+		if x != primaryX || y != primaryY {
+			return true
+		}
+	}
+
+	return false // all monitors share an origin, so they are mirrored
+}
 
 func (d *gLDriver) SetSystemTrayMenu(m *fyne.Menu) {
 	if !systrayRunning {
