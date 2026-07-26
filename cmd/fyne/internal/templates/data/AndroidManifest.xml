@@ -10,12 +10,32 @@
 		android:label="{{.Name}}"
 		android:configChanges="orientation|keyboardHidden|uiMode"
 		android:exported="true"
+{{- if .ShareMimeTypes}}
+		android:launchMode="singleTask"
+{{- end}}
 		android:theme="@android:style/Theme">
 		<meta-data android:name="android.app.lib_name" android:value="{{.LibName}}" />
 		<intent-filter>
 			<action android:name="android.intent.action.MAIN" />
 			<category android:name="android.intent.category.LAUNCHER" />
 		</intent-filter>
+{{- if .ShareMimeTypes}}
+		<intent-filter>
+			<action android:name="android.intent.action.SEND" />
+			<category android:name="android.intent.category.DEFAULT" />
+{{- range .ShareMimeTypes}}
+			<data android:mimeType="{{.}}" />
+{{- end}}
+		</intent-filter>
+		<intent-filter>
+			<action android:name="android.intent.action.VIEW" />
+			<category android:name="android.intent.category.DEFAULT" />
+			<data android:scheme="content" />
+{{- range .ShareMimeTypes}}
+			<data android:mimeType="{{.}}" />
+{{- end}}
+		</intent-filter>
+{{- end}}
 	</activity>
 	<receiver android:name="org.golang.app.FyneNotificationReceiver"
 		android:exported="false" />

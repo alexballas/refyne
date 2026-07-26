@@ -15,6 +15,7 @@ import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -50,6 +51,7 @@ public class GoNativeActivity extends NativeActivity {
 	private static final int PASSWORD_KEYBOARD_CODE = 3;
 
     private native void filePickerReturned(String str);
+    private native void intentReceived(String uri, String mime);
     private native void insetsChanged(int top, int bottom, int left, int right);
     private native void keyboardTyped(String str);
     private native void keyboardDelete();
@@ -59,6 +61,15 @@ public class GoNativeActivity extends NativeActivity {
 	private EditText mTextEdit;
 	private boolean ignoreKey = false;
 	private boolean keyboardUp = false;
+
+	// Identifies the share / open-with intent most recently passed to Go. It is
+	// static on purpose: Activity recreation (rotation, density change, forced
+	// recreation) re-delivers the *original launch* intent rather than whatever
+	// setIntent stored, so an instance field would replay the share every time.
+	// The Go runtime is not restarted on recreation, so a process-scoped marker
+	// matches the lifetime of the state it protects; after process death it is
+	// gone and a replay is correct, because the restored UI is empty.
+	private static String handledIntentKey;
 
 	// Accessibility – real-view overlay approach.
 	private static FrameLayout mA11yContainer;
@@ -351,6 +362,79 @@ public class GoNativeActivity extends NativeActivity {
 				GoNativeActivity.this.updateLayout();
 			}
 		});
+
+		// load() ran System.loadLibrary above, and calling an exported Go function
+		// blocks until the cgo runtime handshake completes, so the Go side can take
+		// this even on a cold start. Buffering until an app handler exists happens
+		// in Go, not here.
+		handleIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+
+    // handleIntent forwards a share (ACTION_SEND) or open-with (ACTION_VIEW) intent
+    // to Go. Anything else - notably the ACTION_MAIN of an ordinary launch - is
+    // ignored.
+    private void handleIntent(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+
+        String action = intent.getAction();
+        Uri uri;
+        if (Intent.ACTION_VIEW.equals(action)) {
+            uri = intent.getData();
+        } else if (Intent.ACTION_SEND.equals(action)) {
+            uri = getStreamExtra(intent);
+        } else {
+            return;
+        }
+
+        // A share carrying only EXTRA_TEXT has no stream. Returning here keeps
+        // uri.toString() from throwing before Go ever sees the intent.
+        if (uri == null) {
+            return;
+        }
+
+        String key = action + "\n" + uri.toString();
+        if (key.equals(handledIntentKey)) {
+            return;
+        }
+        handledIntentKey = key;
+
+        // resolveType rather than getType: an open-with URI can reach us with no
+        // explicit type on the intent while the provider still knows one. It may
+        // still come back null, which Go handles.
+        String mime = null;
+        try {
+            mime = intent.resolveType(getContentResolver());
+        } catch (Exception e) {
+            Log.e("Fyne", "could not resolve type of incoming intent", e);
+        }
+
+        intentReceived(uri.toString(), mime);
+    }
+
+    // getStreamExtra reads EXTRA_STREAM defensively. This activity is exported, so
+    // any app on the device can hand us a malformed parcel or a Parcelable that is
+    // not a Uri; both mean "no URI" rather than a crash.
+    private Uri getStreamExtra(Intent intent) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                return intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
+            }
+
+            Parcelable stream = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            return (stream instanceof Uri) ? (Uri) stream : null;
+        } catch (Exception e) {
+            Log.e("Fyne", "could not read shared stream", e);
+            return null;
+        }
     }
 
     private void setupEntry() {

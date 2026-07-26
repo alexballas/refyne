@@ -34,15 +34,27 @@ type manifestTmplData struct {
 	Version      string
 	Build        int
 	AdaptiveIcon bool
+
+	// ShareMimeTypes, when non-empty, adds ACTION_SEND and ACTION_VIEW intent
+	// filters for those types and switches the activity to singleTask so a share
+	// re-uses the running instance instead of creating a second one.
+	ShareMimeTypes []string
 }
 
 func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []string,
-	iconPath, appName, version string, build, target int, release bool, iconFG, iconBG, iconMono string,
+	iconPath, appName, version string, build, target int, distribution bool, iconFG, iconBG, iconMono string,
+	shareMimeTypes []string,
 ) (map[string]bool, error) {
-	var env []string
-	if release { // Google Play Store requires 16K alignment
-		env = []string{"CGO_LDFLAGS=\"-Wl,-z,max-page-size=16384\""}
+	// Every Android build needs 16 KB ELF alignment, not just the ones headed for
+	// the Play Store: a 4 KB aligned library makes Android 15+ devices with 16 KB
+	// pages run the app in page size compat mode and warn the user about it. The
+	// NDK only started defaulting to it in r28. The value carries no spaces, so
+	// the quoting the go tool applies to CGO_LDFLAGS leaves it alone.
+	ldflags := "-Wl,-z,max-page-size=16384"
+	if current := os.Getenv("CGO_LDFLAGS"); current != "" {
+		ldflags = current + " " + ldflags
 	}
+	env := []string{"CGO_LDFLAGS=" + ldflags}
 
 	ndkRoot, err := ndkRoot()
 	if err != nil {
@@ -67,13 +79,17 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 		buf := new(bytes.Buffer)
 		buf.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
 		err := templates.ManifestAndroid.Execute(buf, manifestTmplData{
-			JavaPkgPath:  bundleID,
-			Name:         strings.Title(appName), //lint:ignore SA1019 It is fine for our uses.
-			Debug:        !buildRelease,
-			LibName:      libName,
-			Version:      version,
-			Build:        build,
-			AdaptiveIcon: adaptive,
+			JavaPkgPath: bundleID,
+			Name:        strings.Title(appName), //lint:ignore SA1019 It is fine for our uses.
+			// -release is what asks for debug support to be stripped out. Tying
+			// this to -distribution instead would make every APK debuggable,
+			// since that flag emits an .aab.
+			Debug:          !buildRelease && !buildDistribution,
+			LibName:        libName,
+			Version:        version,
+			Build:          build,
+			AdaptiveIcon:   adaptive,
+			ShareMimeTypes: shareMimeTypes,
 		})
 		if err != nil {
 			return nil, err
@@ -100,7 +116,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 			return nil, err
 		}
 		// If building release and no ldflags are set then remove the useless debug and DWARF build options
-		if release && buildLdflags == "" {
+		if distribution && buildLdflags == "" {
 			buildLdflags = "-w" // gomobile requires symbol check, so "-s" cannot be used yet - TODO resolve this
 		}
 		err = goBuild(
@@ -120,7 +136,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 	}
 
 	ext := ".apk"
-	if release {
+	if distribution {
 		ext = ".aab"
 	}
 	if buildO == "" {
@@ -160,7 +176,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 			return nil, err
 		}
 	}
-	if release {
+	if distribution {
 		_, err := exec.LookPath("bundletool")
 		if err != nil {
 			_, _ = fmt.Fprint(os.Stderr, "Required command 'bundletool' not found when building Android for release.\n")

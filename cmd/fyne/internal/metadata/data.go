@@ -12,6 +12,7 @@ type FyneApp struct {
 	Source      *AppSource        `toml:",omitempty"`
 	CanOpen     *CanOpen          `toml:",omitempty"`
 	LinuxAndBSD *LinuxAndBSD      `toml:",omitempty"`
+	Android     *Android          `toml:",omitempty"`
 	Languages   []string          `toml:",omitempty"`
 	Migrations  map[string]bool   `toml:",omitempty"`
 }
@@ -46,4 +47,14 @@ type LinuxAndBSD struct {
 // CanOpen represents a selection of file types (mime etc) that this application can open.
 type CanOpen struct {
 	MimeTypes string `toml:",omitempty"`
+}
+
+// Android describes Android specific packaging metadata.
+//
+// Since: 2.8
+type Android struct {
+	// ShareMimeTypes registers ACTION_SEND / ACTION_VIEW intent filters for these
+	// MIME types, making the app a share target and an "open with" handler.
+	// Values are Android MIME patterns such as "video/*" or "image/png".
+	ShareMimeTypes []string `toml:",omitempty"`
 }

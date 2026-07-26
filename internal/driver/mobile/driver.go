@@ -62,6 +62,7 @@ type driver struct {
 	painting        bool
 	running         bool
 	queuedFuncs     *async.UnboundedChan[func()]
+	intents         uriIntentMailbox
 }
 
 // Declare conformity with Driver
@@ -182,6 +183,7 @@ func (d *driver) Run() {
 		async.SetMainGoroutine()
 		d.app = a
 		d.queuedFuncs = async.NewUnboundedChan[func()]()
+		d.startIntentDelivery()
 
 		fyne.CurrentApp().Settings().AddListener(func(s fyne.Settings) {
 			painter.ClearFontCache()

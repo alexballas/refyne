@@ -352,6 +352,13 @@ func filePickerReturned(str *C.char) {
 	fileCallback = nil
 }
 
+//export intentReceived
+func intentReceived(uri, mime *C.char) {
+	// Called on the Android UI thread, which on a cold start happens before the
+	// driver has started. The mailbox holds the intent until someone can take it.
+	theIntentMailbox.deliver(C.GoString(uri), C.GoString(mime))
+}
+
 //export insetsChanged
 func insetsChanged(top, bottom, left, right int) {
 	currentSize.InsetTopPx = top

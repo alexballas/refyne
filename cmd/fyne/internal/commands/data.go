@@ -12,6 +12,7 @@ type appData struct {
 	CustomMetadata    map[string]string
 	Migrations        map[string]bool
 	CanOpen           *metadata.CanOpen
+	Android           *metadata.Android
 	VersionAtLeast2_3 bool
 	VersionAtLeast2_6 bool
 }
@@ -55,4 +56,5 @@ func (a *appData) mergeMetadata(data *metadata.FyneApp) {
 	}
 	a.Migrations = data.Migrations
 	a.CanOpen = data.CanOpen
+	a.Android = data.Android
 }

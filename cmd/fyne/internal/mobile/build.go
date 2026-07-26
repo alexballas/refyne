@@ -109,11 +109,11 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 			return pkg, nil
 		}
 		target := 35
-		if !buildRelease {
+		if !buildDistribution {
 			target = 29 // TODO once we have gomobile debug signing working for v2 android signs
 		}
 		nmpkgs, err = goAndroidBuild(pkg, buildBundleID, targetArchs, cmd.IconPath, cmd.AppName, cmd.Version, cmd.Build,
-			target, buildRelease, cmd.iconFG, cmd.iconBG, cmd.iconMono)
+			target, buildDistribution, cmd.iconFG, cmd.iconBG, cmd.iconMono, cmd.shareMimeTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +121,7 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 		if !xcodeAvailable() {
 			return nil, fmt.Errorf("-os=ios requires XCode")
 		}
-		if buildRelease {
+		if buildDistribution {
 			if len(allArchs["ios"]) > 2 {
 				targetArchs = []string{"arm", "arm64"}
 			} else {
@@ -137,7 +137,7 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 			}
 			return pkg, nil
 		}
-		nmpkgs, err = goIOSBuild(pkg, buildBundleID, targetArchs, cmd.AppName, cmd.Version, cmd.Build, buildRelease, cmd.Cert, cmd.Profile)
+		nmpkgs, err = goIOSBuild(pkg, buildBundleID, targetArchs, cmd.AppName, cmd.Version, cmd.Build, buildDistribution, cmd.Cert, cmd.Profile)
 		if err != nil {
 			return nil, err
 		}
@@ -213,31 +213,36 @@ func printcmd(format string, args ...any) {
 
 // "Build flags", used by multiple commands.
 var (
-	buildA          bool        // -a
-	buildI          bool        // -i
-	buildN          bool        // -n
-	buildV          bool        // -v
-	buildX          bool        // -x
-	buildO          string      // -o
-	buildGcflags    string      // -gcflags
-	buildLdflags    string      // -ldflags
-	buildRelease    bool        // -release
-	buildTarget     string      // -os
-	buildTrimpath   bool        // -trimpath
-	buildWork       bool        // -work
-	buildBundleID   string      // -bundleid
-	buildIOSVersion string      // -iosversion
-	buildAndroidAPI int         // -androidapi
-	buildTags       stringsFlag // -tags
+	buildA       bool   // -a
+	buildI       bool   // -i
+	buildN       bool   // -n
+	buildV       bool   // -v
+	buildX       bool   // -x
+	buildO       string // -o
+	buildGcflags string // -gcflags
+	buildLdflags string // -ldflags
+	buildRelease bool   // -release: strip debug support out of the app
+	// -distribution: build the artifact a store wants (an .aab rather than an
+	// .apk). Kept apart from -release because the two answer different questions:
+	// one is where the build is going, the other is whether it is debuggable.
+	buildDistribution bool
+	buildTarget       string      // -os
+	buildTrimpath     bool        // -trimpath
+	buildWork         bool        // -work
+	buildBundleID     string      // -bundleid
+	buildIOSVersion   string      // -iosversion
+	buildAndroidAPI   int         // -androidapi
+	buildTags         stringsFlag // -tags
 )
 
 // RunNewBuild executes a new mobile build for the specified configuration
 func RunNewBuild(target, appID, icon, name, version string, build int, release, distribution bool, cert, profile string,
-	tags []string, iconFG, iconBG, iconMono string,
+	tags []string, iconFG, iconBG, iconMono string, shareMimeTypes []string,
 ) error {
 	buildTarget = target
 	buildBundleID = appID
-	buildRelease = distribution
+	buildRelease = release
+	buildDistribution = distribution
 	buildTags = tags
 	if release {
 		buildLdflags = "-w"
@@ -256,6 +261,7 @@ func RunNewBuild(target, appID, icon, name, version string, build int, release, 
 	cmd.iconFG = iconFG
 	cmd.iconBG = iconBG
 	cmd.iconMono = iconMono
+	cmd.shareMimeTypes = shareMimeTypes
 	return runBuild(cmd)
 }
 

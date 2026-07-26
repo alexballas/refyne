@@ -18,4 +18,8 @@ type command struct {
 	Build                  int
 
 	iconFG, iconBG, iconMono string
+
+	// shareMimeTypes registers Android share / open-with intent filters, see
+	// metadata.Android.ShareMimeTypes. Empty for apps that do not opt in.
+	shareMimeTypes []string
 }

@@ -285,6 +285,30 @@ void Java_org_golang_app_GoNativeActivity_filePickerReturned(JNIEnv *env, jclass
 	filePickerReturned((char*)cstr);
 }
 
+void Java_org_golang_app_GoNativeActivity_intentReceived(JNIEnv *env, jobject thiz, jstring uri, jstring mime) {
+	if (uri == NULL) {
+		return;
+	}
+
+	const char *uriStr = (*env)->GetStringUTFChars(env, uri, NULL);
+	if (uriStr == NULL) {
+		return;
+	}
+
+	// resolveType routinely returns null, so the MIME is optional.
+	const char *mimeStr = NULL;
+	if (mime != NULL) {
+		mimeStr = (*env)->GetStringUTFChars(env, mime, NULL);
+	}
+
+	intentReceived((char*)uriStr, mimeStr == NULL ? "" : (char*)mimeStr);
+
+	(*env)->ReleaseStringUTFChars(env, uri, uriStr);
+	if (mimeStr != NULL) {
+		(*env)->ReleaseStringUTFChars(env, mime, mimeStr);
+	}
+}
+
 void Java_org_golang_app_GoNativeActivity_insetsChanged(JNIEnv *env, jclass clazz, int top, int bottom, int left, int right) {
     insetsChanged(top, bottom, left, right);
 }
