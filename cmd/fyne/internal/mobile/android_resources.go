@@ -90,9 +90,24 @@ func writeAdaptiveIconResources(resDir, foregroundPath, backgroundPath, monochro
 	return nil
 }
 
+func writeLegacyIconResource(resDir, iconPath string) error {
+	if iconPath == "" {
+		return nil
+	}
+
+	xxxhdpiDir := filepath.Join(resDir, "mipmap-xxxhdpi")
+	if err := os.MkdirAll(xxxhdpiDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create mipmap-xxxhdpi directory: %w", err)
+	}
+	if err := util.CopyFile(iconPath, filepath.Join(xxxhdpiDir, "icon.png")); err != nil {
+		return fmt.Errorf("failed to copy launcher icon: %w", err)
+	}
+	return nil
+}
+
 // compileAndroidResources compiles Android resources using aapt2
 // Returns: resources.arsc path, res/ directory path, compiled AndroidManifest.xml path, error
-func compileAndroidResources(tempDir string, manifestData []byte, foregroundPath, backgroundPath, monochromePath string, targetSDK, versionCode int, versionName string) (arscPath string, resDir string, manifestPath string, err error) {
+func compileAndroidResources(tempDir string, manifestData []byte, legacyIconPath, foregroundPath, backgroundPath, monochromePath string, targetSDK, versionCode int, versionName string) (arscPath string, resDir string, manifestPath string, err error) {
 	aapt2, err := util.Aapt2Path()
 	if err != nil {
 		return "", "", "", err
@@ -103,7 +118,11 @@ func compileAndroidResources(tempDir string, manifestData []byte, foregroundPath
 		return "", "", "", fmt.Errorf("failed to create res directory: %w", err)
 	}
 
-	if err := writeAdaptiveIconResources(resDir, foregroundPath, backgroundPath, monochromePath); err != nil {
+	if foregroundPath != "" {
+		if err := writeAdaptiveIconResources(resDir, foregroundPath, backgroundPath, monochromePath); err != nil {
+			return "", "", "", err
+		}
+	} else if err := writeLegacyIconResource(resDir, legacyIconPath); err != nil {
 		return "", "", "", err
 	}
 
@@ -149,7 +168,7 @@ func compileAndroidResources(tempDir string, manifestData []byte, foregroundPath
 		"link",
 		"-o", outputAPK,
 		"--manifest", tempManifestPath,
-		"--min-sdk-version", "21", // Android 5.0, minimum for adaptive icons (v26) with backward compat
+		"--min-sdk-version", "21",
 		"--target-sdk-version", fmt.Sprintf("%d", targetSDK),
 		"--version-code", fmt.Sprintf("%d", versionCode),
 		"--version-name", versionName,
@@ -175,8 +194,12 @@ func compileAndroidResources(tempDir string, manifestData []byte, foregroundPath
 
 	// Extract resources.arsc from the output APK
 	arscPath = filepath.Join(tempDir, "resources.arsc")
-	if err := extractFileFromZip(outputAPK, "resources.arsc", arscPath); err != nil {
+	found, err := extractOptionalFileFromZip(outputAPK, "resources.arsc", arscPath)
+	if err != nil {
 		return "", "", "", fmt.Errorf("failed to extract resources.arsc: %w", err)
+	}
+	if !found {
+		arscPath = ""
 	}
 
 	// Extract compiled AndroidManifest.xml from the output APK
@@ -196,9 +219,20 @@ func compileAndroidResources(tempDir string, manifestData []byte, foregroundPath
 
 // extractFileFromZip extracts a single file from a zip archive
 func extractFileFromZip(zipPath, fileName, destPath string) error {
-	r, err := zip.OpenReader(zipPath)
+	found, err := extractOptionalFileFromZip(zipPath, fileName, destPath)
 	if err != nil {
 		return err
+	}
+	if !found {
+		return fmt.Errorf("file %s not found in zip", fileName)
+	}
+	return nil
+}
+
+func extractOptionalFileFromZip(zipPath, fileName, destPath string) (bool, error) {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return false, err
 	}
 	defer r.Close()
 
@@ -209,20 +243,20 @@ func extractFileFromZip(zipPath, fileName, destPath string) error {
 
 		rc, err := f.Open()
 		if err != nil {
-			return err
+			return false, err
 		}
 		defer rc.Close()
 
 		dest, err := os.Create(destPath)
 		if err != nil {
-			return err
+			return false, err
 		}
 		defer dest.Close()
 
 		_, err = io.Copy(dest, rc)
-		return err
+		return true, err
 	}
-	return fmt.Errorf("file %s not found in zip", fileName)
+	return false, nil
 }
 
 // extractDirFromZip extracts all files with a given prefix from a zip archive

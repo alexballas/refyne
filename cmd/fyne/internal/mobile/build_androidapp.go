@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/mobile/binres"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
@@ -34,16 +35,67 @@ type manifestTmplData struct {
 	Version      string
 	Build        int
 	AdaptiveIcon bool
+	LegacyIcon   bool
 
 	// ShareMimeTypes, when non-empty, adds ACTION_SEND and ACTION_VIEW intent
 	// filters for those types and switches the activity to singleTask so a share
 	// re-uses the running instance instead of creating a second one.
 	ShareMimeTypes []string
+
+	// BackgroundService declares FyneForegroundService and the permissions for
+	// its configured use case. MulticastDiscovery and
+	// BatteryOptimizationExemption each add the single permission they name. An
+	// app that configures none of them gets the manifest it always got.
+	BackgroundService            *backgroundServiceTmplData
+	MulticastDiscovery           bool
+	BatteryOptimizationExemption bool
+}
+
+type backgroundServiceTmplData struct {
+	Type                    string
+	Permission              string
+	PrerequisitePermission  string
+	KeepCPUAwake            bool
+	KeepWiFiAwake           bool
+	NeedsWakeLockPermission bool
+}
+
+func backgroundServiceManifestData(androidMeta *metadata.Android) (*backgroundServiceTmplData, error) {
+	if androidMeta == nil || androidMeta.BackgroundService == nil {
+		return nil, nil
+	}
+
+	config := androidMeta.BackgroundService
+	data := &backgroundServiceTmplData{
+		Type:                    string(config.Type),
+		KeepCPUAwake:            config.KeepCPUAwake,
+		KeepWiFiAwake:           config.KeepWiFiAwake,
+		NeedsWakeLockPermission: config.KeepCPUAwake || config.KeepWiFiAwake,
+	}
+
+	switch config.Type {
+	case metadata.AndroidBackgroundServiceMediaPlayback:
+		data.Permission = "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+	case metadata.AndroidBackgroundServiceConnectedDevice:
+		data.Permission = "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
+		// Android requires a connected-device service to hold at least one
+		// transport permission. CHANGE_NETWORK_STATE is a normal permission and
+		// avoids imposing a runtime-granted Bluetooth or UWB permission.
+		data.PrerequisitePermission = "android.permission.CHANGE_NETWORK_STATE"
+	default:
+		return nil, fmt.Errorf("unsupported Android.BackgroundService.Type %q", config.Type)
+	}
+
+	return data, nil
+}
+
+func requiresAAPT2(adaptiveIcon bool, backgroundService *backgroundServiceTmplData) bool {
+	return adaptiveIcon || backgroundService != nil
 }
 
 func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []string,
 	iconPath, appName, version string, build, target int, distribution bool, iconFG, iconBG, iconMono string,
-	shareMimeTypes []string,
+	androidMeta *metadata.Android,
 ) (map[string]bool, error) {
 	// Every Android build needs 16 KB ELF alignment, not just the ones headed for
 	// the Play Store: a 4 KB aligned library makes Android 15+ devices with 16 KB
@@ -66,6 +118,14 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 	// Fix this to work with other Go tools.
 	dir := filepath.Dir(pkg.GoFiles[0])
 
+	backgroundService, err := backgroundServiceManifestData(androidMeta)
+	if err != nil {
+		return nil, err
+	}
+	foreground, _, _ := detectAdaptiveIcons(dir, iconFG, iconBG, iconMono)
+	adaptive := foreground != "" && util.Exists(foreground)
+	useAAPT2 := requiresAAPT2(adaptive, backgroundService)
+
 	manifestPath := filepath.Join(dir, "AndroidManifest.xml")
 	manifestData, err := os.ReadFile(filepath.Clean(manifestPath))
 	if err != nil {
@@ -73,24 +133,29 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 			return nil, err
 		}
 
-		foreground, _, _ := detectAdaptiveIcons(dir, iconFG, iconBG, iconMono)
-		adaptive := foreground != "" && util.Exists(foreground)
-
-		buf := new(bytes.Buffer)
-		buf.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
-		err := templates.ManifestAndroid.Execute(buf, manifestTmplData{
+		tmplData := manifestTmplData{
 			JavaPkgPath: bundleID,
 			Name:        strings.Title(appName), //lint:ignore SA1019 It is fine for our uses.
 			// -release is what asks for debug support to be stripped out. Tying
 			// this to -distribution instead would make every APK debuggable,
 			// since that flag emits an .aab.
-			Debug:          !buildRelease && !buildDistribution,
-			LibName:        libName,
-			Version:        version,
-			Build:          build,
-			AdaptiveIcon:   adaptive,
-			ShareMimeTypes: shareMimeTypes,
-		})
+			Debug:             !buildRelease && !buildDistribution,
+			LibName:           libName,
+			Version:           version,
+			Build:             build,
+			AdaptiveIcon:      adaptive,
+			LegacyIcon:        useAAPT2 && !adaptive && resolveLegacyIconPath(dir, iconPath) != "",
+			BackgroundService: backgroundService,
+		}
+		if androidMeta != nil {
+			tmplData.ShareMimeTypes = androidMeta.ShareMimeTypes
+			tmplData.MulticastDiscovery = androidMeta.MulticastDiscovery
+			tmplData.BatteryOptimizationExemption = androidMeta.BatteryOptimizationExemption
+		}
+
+		buf := new(bytes.Buffer)
+		buf.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
+		err := templates.ManifestAndroid.Execute(buf, tmplData)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +229,7 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 	if err != nil {
 		return nil, err
 	}
-	err = addAssets(apkw, manifestData, dir, iconPath, target, build, version, iconFG, iconBG, iconMono)
+	err = addAssets(apkw, manifestData, dir, iconPath, target, build, version, iconFG, iconBG, iconMono, useAAPT2)
 	if err != nil {
 		return nil, err
 	}
@@ -222,14 +287,19 @@ func detectAdaptiveIcons(dir, foreground, background, monochrome string) (string
 	return fg, bg, mono
 }
 
+func resolveLegacyIconPath(dir, iconPath string) string {
+	assetIcon := filepath.Join(dir, "assets", "icon.png")
+	if util.Exists(assetIcon) {
+		return assetIcon
+	}
+	return iconPath
+}
+
 func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target int, versionCode int,
-	versionName, iconFG, iconBG, iconMono string,
+	versionName, iconFG, iconBG, iconMono string, forceAAPT2 bool,
 ) error {
 	// Add any assets.
-	var arsc struct {
-		iconPath string
-	}
-	arsc.iconPath = iconPath
+	legacyIconPath := resolveLegacyIconPath(dir, iconPath)
 	assetsDir := filepath.Join(dir, "assets")
 	assetsDirExists := true
 	fi, err := os.Stat(assetsDir)
@@ -261,7 +331,6 @@ func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target i
 			}
 
 			if rel, err := filepath.Rel(assetsDir, path); rel == "icon.png" && err == nil {
-				arsc.iconPath = path
 				// TODO returning here does not write the assets/icon.png to the final assets output,
 				// making it unavailable via the assets API. Should the file be duplicated into assets
 				// or should assets API be able to retrieve files from the generated resource table?
@@ -278,20 +347,18 @@ func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target i
 
 	iconForeground, iconBackground, iconMonochrome := detectAdaptiveIcons(dir, iconFG, iconBG, iconMono)
 
-	// No adaptive icons, use legacy build
-	if iconForeground == "" {
-		return legacyAddAssets(apkw, manifestData, arsc.iconPath, target)
+	if iconForeground == "" && !forceAAPT2 {
+		return legacyAddAssets(apkw, manifestData, legacyIconPath, target)
 	}
 
-	// Use iconForeground as background if no separate background provided
-	if iconBackground == "" {
+	if iconForeground != "" && iconBackground == "" {
 		iconBackground = iconForeground
 	}
 
-	// Compile adaptive icon resources with aapt2
 	arscPath, resDir, compiledManifestPath, err := compileAndroidResources(
 		tmpdir,
 		manifestData,
+		legacyIconPath,
 		iconForeground,
 		iconBackground,
 		iconMonochrome,
@@ -300,19 +367,21 @@ func addAssets(apkw *Writer, manifestData []byte, dir, iconPath string, target i
 		versionName,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to compile adaptive icon resources: %w", err)
+		return fmt.Errorf("failed to compile Android resources: %w", err)
 	}
 
-	w, err := apkwCreate("resources.arsc", apkw)
-	if err != nil {
-		return err
-	}
-	arscData, err := os.ReadFile(arscPath)
-	if err != nil {
-		return err
-	}
-	if _, err := w.Write(arscData); err != nil {
-		return err
+	if arscPath != "" {
+		w, err := apkwCreate("resources.arsc", apkw)
+		if err != nil {
+			return err
+		}
+		arscData, err := os.ReadFile(arscPath)
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write(arscData); err != nil {
+			return err
+		}
 	}
 
 	err = filepath.Walk(resDir, func(path string, info os.FileInfo, err error) error {

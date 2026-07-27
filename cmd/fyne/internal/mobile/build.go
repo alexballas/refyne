@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 	"github.com/alexballas/refyne/v2/cmd/fyne/internal/util"
 
 	"golang.org/x/tools/go/packages"
@@ -113,7 +114,7 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 			target = 29 // TODO once we have gomobile debug signing working for v2 android signs
 		}
 		nmpkgs, err = goAndroidBuild(pkg, buildBundleID, targetArchs, cmd.IconPath, cmd.AppName, cmd.Version, cmd.Build,
-			target, buildDistribution, cmd.iconFG, cmd.iconBG, cmd.iconMono, cmd.shareMimeTypes)
+			target, buildDistribution, cmd.iconFG, cmd.iconBG, cmd.iconMono, cmd.androidMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +238,7 @@ var (
 
 // RunNewBuild executes a new mobile build for the specified configuration
 func RunNewBuild(target, appID, icon, name, version string, build int, release, distribution bool, cert, profile string,
-	tags []string, iconFG, iconBG, iconMono string, shareMimeTypes []string,
+	tags []string, iconFG, iconBG, iconMono string, androidMeta *metadata.Android,
 ) error {
 	buildTarget = target
 	buildBundleID = appID
@@ -261,7 +262,7 @@ func RunNewBuild(target, appID, icon, name, version string, build int, release, 
 	cmd.iconFG = iconFG
 	cmd.iconBG = iconBG
 	cmd.iconMono = iconMono
-	cmd.shareMimeTypes = shareMimeTypes
+	cmd.androidMeta = androidMeta
 	return runBuild(cmd)
 }
 

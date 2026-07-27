@@ -6,6 +6,8 @@ package mobile
 
 import (
 	"flag"
+
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/metadata"
 )
 
 type command struct {
@@ -19,7 +21,9 @@ type command struct {
 
 	iconFG, iconBG, iconMono string
 
-	// shareMimeTypes registers Android share / open-with intent filters, see
-	// metadata.Android.ShareMimeTypes. Empty for apps that do not opt in.
-	shareMimeTypes []string
+	// androidMeta carries the [Android] section of FyneApp.toml, which gates the
+	// optional manifest entries: share / open-with intent filters, the
+	// foreground service and the permissions each of them needs. Nil for apps
+	// that declare no [Android] section, and ignored on other platforms.
+	androidMeta *metadata.Android
 }

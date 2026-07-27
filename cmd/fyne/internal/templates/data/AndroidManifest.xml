@@ -5,7 +5,7 @@
 	android:versionName="{{.Version}}">
 
 	<application android:label="{{.Name}}" android:debuggable="{{.Debug}}"
-				 {{if .AdaptiveIcon}}android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"{{end}}>
+				 {{if .AdaptiveIcon}}android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"{{else if .LegacyIcon}}android:icon="@mipmap/icon"{{end}}>
 	<activity android:name="org.golang.app.GoNativeActivity"
 		android:label="{{.Name}}"
 		android:configChanges="orientation|keyboardHidden|uiMode"
@@ -39,9 +39,38 @@
 	</activity>
 	<receiver android:name="org.golang.app.FyneNotificationReceiver"
 		android:exported="false" />
+{{- with .BackgroundService}}
+	<service android:name="org.golang.app.FyneForegroundService"
+		android:foregroundServiceType="{{.Type}}"
+		android:exported="false">
+{{- if .KeepCPUAwake}}
+		<meta-data android:name="org.fyne.background.KEEP_CPU_AWAKE" android:value="true" />
+{{- end}}
+{{- if .KeepWiFiAwake}}
+		<meta-data android:name="org.fyne.background.KEEP_WIFI_AWAKE" android:value="true" />
+{{- end}}
+	</service>
+{{- end}}
 	</application>
 
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.INTERNET" />
+{{- with .BackgroundService}}
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="{{.Permission}}" />
+{{- if .PrerequisitePermission}}
+	<uses-permission android:name="{{.PrerequisitePermission}}" />
+{{- end}}
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+{{- if .NeedsWakeLockPermission}}
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+{{- end}}
+{{- end}}
+{{- if .MulticastDiscovery}}
+	<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+{{- end}}
+{{- if .BatteryOptimizationExemption}}
+	<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+{{- end}}
 </manifest>

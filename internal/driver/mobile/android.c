@@ -608,6 +608,129 @@ char* listURI(uintptr_t jni_env, uintptr_t ctx, char* uriCstr) {
 	return "ERROR: Unrecognized scheme";
 }
 
+// The helpers below call static methods on GoNativeActivity. JNI's FindClass
+// uses the system class loader on a Go-spawned thread, which cannot see
+// APK-bundled classes, so the class comes from GetObjectClass on the running
+// activity instead. Every one of them depends on a manifest entry that only an
+// opted-in app has, so a missing method is logged and ignored rather than
+// treated as fatal.
+static jclass activity_class(JNIEnv *env, uintptr_t ctx) {
+	// The context is only set once the activity has been created, so a call that
+	// races app startup has nothing to reach yet.
+	if (ctx == 0) {
+		return NULL;
+	}
+	return (*env)->GetObjectClass(env, (jobject)ctx);
+}
+
+void startBackgroundSession(uintptr_t jni_env, uintptr_t ctx, char *title, char *text,
+		void *icon, int iconLen) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return;
+	}
+	jmethodID mid = find_static_method(env, cls, "startBackgroundSession",
+		"(Ljava/lang/String;Ljava/lang/String;[B)V");
+	if (mid == 0) {
+		return;
+	}
+
+	jstring titleStr = (*env)->NewStringUTF(env, title);
+	jstring textStr = (*env)->NewStringUTF(env, text);
+
+	// A null array is a valid argument: the Java side falls back to the launcher
+	// icon when the app supplies no stencil of its own.
+	jbyteArray iconArr = NULL;
+	if (icon != NULL && iconLen > 0) {
+		iconArr = (*env)->NewByteArray(env, iconLen);
+		if (iconArr != NULL) {
+			(*env)->SetByteArrayRegion(env, iconArr, 0, iconLen, (const jbyte*)icon);
+		}
+	}
+
+	(*env)->CallStaticVoidMethod(env, cls, mid, titleStr, textStr, iconArr);
+}
+
+void stopBackgroundSession(uintptr_t jni_env, uintptr_t ctx) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return;
+	}
+	jmethodID mid = find_static_method(env, cls, "stopBackgroundSession", "()V");
+	if (mid == 0) {
+		return;
+	}
+	(*env)->CallStaticVoidMethod(env, cls, mid);
+}
+
+void acquireMulticastLock(uintptr_t jni_env, uintptr_t ctx) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return;
+	}
+	jmethodID mid = find_static_method(env, cls, "acquireMulticastLock", "()V");
+	if (mid == 0) {
+		return;
+	}
+	(*env)->CallStaticVoidMethod(env, cls, mid);
+}
+
+void releaseMulticastLock(uintptr_t jni_env, uintptr_t ctx) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return;
+	}
+	jmethodID mid = find_static_method(env, cls, "releaseMulticastLock", "()V");
+	if (mid == 0) {
+		return;
+	}
+	(*env)->CallStaticVoidMethod(env, cls, mid);
+}
+
+bool isIgnoringBatteryOptimizations(uintptr_t jni_env, uintptr_t ctx) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return true;
+	}
+	jmethodID mid = find_static_method(env, cls, "isIgnoringBatteryOptimizations", "()Z");
+	if (mid == 0) {
+		// Cannot ask, so do not invite the app to prompt about it.
+		return true;
+	}
+	return (bool)(*env)->CallStaticBooleanMethod(env, cls, mid);
+}
+
+void requestIgnoreBatteryOptimizations(uintptr_t jni_env, uintptr_t ctx) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return;
+	}
+	jmethodID mid = find_static_method(env, cls, "requestIgnoreBatteryOptimizations", "()V");
+	if (mid == 0) {
+		return;
+	}
+	(*env)->CallStaticVoidMethod(env, cls, mid);
+}
+
+void requestNotificationPermission(uintptr_t jni_env, uintptr_t ctx) {
+	JNIEnv *env = (JNIEnv*)jni_env;
+	jclass cls = activity_class(env, ctx);
+	if (cls == NULL) {
+		return;
+	}
+	jmethodID mid = find_static_method(env, cls, "requestNotificationPermission", "()V");
+	if (mid == 0) {
+		return;
+	}
+	(*env)->CallStaticVoidMethod(env, cls, mid);
+}
+
 void keepScreenOn(uintptr_t jni_env, uintptr_t ctx, bool disabled) {
 	JNIEnv *env = (JNIEnv*)jni_env;
 	jclass activityClass = find_class(env, "android/app/Activity");

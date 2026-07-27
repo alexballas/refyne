@@ -13,9 +13,12 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -42,6 +45,7 @@ public class GoNativeActivity extends NativeActivity {
 	private static GoNativeActivity goNativeActivity;
 	private static final int FILE_OPEN_CODE = 1;
 	private static final int FILE_SAVE_CODE = 2;
+	private static final int NOTIFICATION_PERMISSION_CODE = 3;
 
 	private static final int DEFAULT_INPUT_TYPE = InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
 
@@ -308,6 +312,201 @@ public class GoNativeActivity extends NativeActivity {
         if (mgr != null) {
             mgr.cancel(id.hashCode());
         }
+    }
+
+    // Background session, Wi-Fi multicast and battery-optimisation bridges.
+    //
+    // Each of these depends on a manifest entry the packaging tool only writes
+    // when FyneApp.toml opts in, so every one of them has to degrade quietly when
+    // the entry is absent: an app that never asked to run in the background must
+    // not crash the first time a library calls one of these.
+
+    static void startBackgroundSession(String title, String text, byte[] icon) {
+        if (goNativeActivity == null) {
+            return;
+        }
+        // Handed over before the service starts rather than as an intent extra:
+        // both live in this process, so there is no reason to push the image
+        // through Binder on every state change.
+        FyneForegroundService.setSmallIcon(icon);
+        goNativeActivity.doStartBackgroundSession(title, text);
+    }
+
+    void doStartBackgroundSession(String title, String text) {
+        ComponentName service = new ComponentName(this, FyneForegroundService.class);
+        try {
+            getPackageManager().getServiceInfo(service, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e("Fyne", "FyneForegroundService is not declared in AndroidManifest.xml");
+            return;
+        }
+
+        Intent intent = new Intent(this, FyneForegroundService.class);
+        intent.setAction(FyneForegroundService.ACTION_START);
+        intent.putExtra(FyneForegroundService.EXTRA_TITLE, title);
+        intent.putExtra(FyneForegroundService.EXTRA_TEXT, text);
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+        } catch (RuntimeException e) {
+            // Android 12+ throws when a foreground service is started from the
+            // background. The caller cannot always know it lost the foreground
+            // between deciding to start and getting here.
+            Log.e("Fyne", "could not start the background session", e);
+        }
+    }
+
+    static void stopBackgroundSession() {
+        if (goNativeActivity == null) {
+            return;
+        }
+        goNativeActivity.doStopBackgroundSession();
+    }
+
+    void doStopBackgroundSession() {
+        Intent intent = new Intent(this, FyneForegroundService.class);
+        try {
+            stopService(intent);
+        } catch (RuntimeException e) {
+            Log.e("Fyne", "could not stop the background session", e);
+        }
+    }
+
+    // Wi-Fi drops multicast and broadcast frames that are not addressed to the
+    // device unless a multicast lock is held, which is what SSDP and mDNS
+    // discovery rely on. The lock is process-scoped rather than tied to the
+    // background service, because discovery also runs with the app in front.
+    private static WifiManager.MulticastLock multicastLock;
+
+    static synchronized void acquireMulticastLock() {
+        if (goNativeActivity == null) {
+            return;
+        }
+        goNativeActivity.doAcquireMulticastLock();
+    }
+
+    void doAcquireMulticastLock() {
+        if (multicastLock == null) {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi == null) {
+                return;
+            }
+            multicastLock = wifi.createMulticastLock("fyne:discovery");
+            // Reference counted: overlapping discovery runs are normal, and the
+            // lock has to survive until the last one finishes.
+            multicastLock.setReferenceCounted(true);
+        }
+
+        try {
+            multicastLock.acquire();
+        } catch (RuntimeException e) {
+            // Missing CHANGE_WIFI_MULTICAST_STATE. Discovery still works on
+            // networks that do not filter, so this is not fatal.
+            Log.e("Fyne", "could not acquire the multicast lock", e);
+        }
+    }
+
+    static synchronized void releaseMulticastLock() {
+        if (multicastLock == null || !multicastLock.isHeld()) {
+            return;
+        }
+        try {
+            multicastLock.release();
+        } catch (RuntimeException e) {
+            Log.e("Fyne", "could not release the multicast lock", e);
+        }
+    }
+
+    static boolean isIgnoringBatteryOptimizations() {
+        if (goNativeActivity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            // Before Marshmallow there is no doze to be exempt from.
+            return true;
+        }
+        return goNativeActivity.doIsIgnoringBatteryOptimizations();
+    }
+
+    boolean doIsIgnoringBatteryOptimizations() {
+        PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (power == null) {
+            return true;
+        }
+        return power.isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    static void requestIgnoreBatteryOptimizations() {
+        if (goNativeActivity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return;
+        }
+        goNativeActivity.doRequestIgnoreBatteryOptimizations();
+    }
+
+    void doRequestIgnoreBatteryOptimizations() {
+        // Go calls in on a JNI thread, and starting an activity belongs on the UI
+        // thread.
+        runOnUiThread(new Runnable() {
+            public void run() {
+                // The one-tap dialog needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                // which Google Play restricts to a few app categories. Apps that
+                // cannot declare it get the settings list instead, where the user
+                // picks the app by hand.
+                if (checkSelfPermission("android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
+                        == PackageManager.PERMISSION_GRANTED) {
+                    Intent direct = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + getPackageName()));
+                    if (startIfResolvable(direct)) {
+                        return;
+                    }
+                }
+
+                startIfResolvable(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            }
+        });
+    }
+
+    private boolean startIfResolvable(Intent intent) {
+        // Not every device ships the battery-optimisation screens, and an OEM that
+        // renamed them would otherwise take the app down with ActivityNotFound.
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            return false;
+        }
+        try {
+            startActivity(intent);
+            return true;
+        } catch (RuntimeException e) {
+            Log.e("Fyne", "could not open the battery optimisation settings", e);
+            return false;
+        }
+    }
+
+    // requestNotificationPermission asks for POST_NOTIFICATIONS, which Android 13
+    // requires before any notification is shown - including the one that a
+    // foreground service is built around. The result is not awaited: a denied
+    // permission costs the notification, not the service.
+    static void requestNotificationPermission() {
+        if (goNativeActivity == null || Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+        goNativeActivity.doRequestNotificationPermission();
+    }
+
+    void doRequestNotificationPermission() {
+        final String perm = "android.permission.POST_NOTIFICATIONS";
+        if (checkSelfPermission(perm) == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        runOnUiThread(new Runnable() {
+            public void run() {
+                try {
+                    requestPermissions(new String[]{perm}, NOTIFICATION_PERMISSION_CODE);
+                } catch (RuntimeException e) {
+                    Log.e("Fyne", "could not request the notification permission", e);
+                }
+            }
+        });
     }
 
 	static int getRune(int deviceId, int keyCode, int metaState) {

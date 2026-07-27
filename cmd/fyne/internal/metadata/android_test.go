@@ -16,6 +16,11 @@ ID = "io.fyne.fyne"
 
 [Android]
 ShareMimeTypes = ["video/*", "audio/*", "image/*"]
+
+[Android.BackgroundService]
+Type = "connectedDevice"
+KeepCPUAwake = true
+KeepWiFiAwake = true
 `
 
 func TestLoadAndroidMetadata(t *testing.T) {
@@ -23,6 +28,10 @@ func TestLoadAndroidMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, data.Android)
 	assert.Equal(t, []string{"video/*", "audio/*", "image/*"}, data.Android.ShareMimeTypes)
+	assert.NotNil(t, data.Android.BackgroundService)
+	assert.Equal(t, AndroidBackgroundServiceConnectedDevice, data.Android.BackgroundService.Type)
+	assert.True(t, data.Android.BackgroundService.KeepCPUAwake)
+	assert.True(t, data.Android.BackgroundService.KeepWiFiAwake)
 }
 
 func TestSaveAndroidMetadata(t *testing.T) {
@@ -36,6 +45,7 @@ func TestSaveAndroidMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, data2.Android)
 	assert.Equal(t, data.Android.ShareMimeTypes, data2.Android.ShareMimeTypes)
+	assert.Equal(t, data.Android.BackgroundService, data2.Android.BackgroundService)
 }
 
 // An app that does not opt in must not gain an empty [Android] section.
