@@ -18,7 +18,7 @@ func renderManifest(t *testing.T, data manifestTmplData) string {
 	if err := templates.ManifestAndroid.Execute(buf, data); err != nil {
 		t.Fatalf("rendering manifest: %v", err)
 	}
-	return buf.String()
+	return strings.ReplaceAll(buf.String(), "\r\n", "\n")
 }
 
 // An app that does not set Android.ShareMimeTypes must get exactly the manifest it

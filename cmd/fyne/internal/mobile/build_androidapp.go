@@ -93,6 +93,32 @@ func requiresAAPT2(adaptiveIcon bool, backgroundService *backgroundServiceTmplDa
 	return adaptiveIcon || backgroundService != nil
 }
 
+func loadOrCreateAndroidManifest(dir string, tmplData manifestTmplData) ([]byte, string, error) {
+	manifestPath := filepath.Join(dir, "AndroidManifest.xml")
+	manifestData, err := os.ReadFile(filepath.Clean(manifestPath))
+	if err == nil {
+		libName, err := manifestLibName(manifestData)
+		if err != nil {
+			return nil, "", fmt.Errorf("error parsing %s: %v", manifestPath, err)
+		}
+		return manifestData, libName, nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, "", err
+	}
+
+	buf := new(bytes.Buffer)
+	buf.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
+	if err := templates.ManifestAndroid.Execute(buf, tmplData); err != nil {
+		return nil, "", err
+	}
+	manifestData = buf.Bytes()
+	if buildV {
+		fmt.Fprintf(os.Stderr, "generated AndroidManifest.xml:\n%s\n", manifestData)
+	}
+	return manifestData, tmplData.LibName, nil
+}
+
 func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []string,
 	iconPath, appName, version string, build, target int, distribution bool, iconFG, iconBG, iconMono string,
 	androidMeta *metadata.Android,
@@ -126,48 +152,29 @@ func goAndroidBuild(pkg *packages.Package, bundleID string, androidArchs []strin
 	adaptive := foreground != "" && util.Exists(foreground)
 	useAAPT2 := requiresAAPT2(adaptive, backgroundService)
 
-	manifestPath := filepath.Join(dir, "AndroidManifest.xml")
-	manifestData, err := os.ReadFile(filepath.Clean(manifestPath))
+	tmplData := manifestTmplData{
+		JavaPkgPath: bundleID,
+		Name:        strings.Title(appName), //lint:ignore SA1019 It is fine for our uses.
+		// -release is what asks for debug support to be stripped out. Tying
+		// this to -distribution instead would make every APK debuggable,
+		// since that flag emits an .aab.
+		Debug:             !buildRelease && !buildDistribution,
+		LibName:           libName,
+		Version:           version,
+		Build:             build,
+		AdaptiveIcon:      adaptive,
+		LegacyIcon:        useAAPT2 && !adaptive && resolveLegacyIconPath(dir, iconPath) != "",
+		BackgroundService: backgroundService,
+	}
+	if androidMeta != nil {
+		tmplData.ShareMimeTypes = androidMeta.ShareMimeTypes
+		tmplData.MulticastDiscovery = androidMeta.MulticastDiscovery
+		tmplData.BatteryOptimizationExemption = androidMeta.BatteryOptimizationExemption
+	}
+
+	manifestData, libName, err := loadOrCreateAndroidManifest(dir, tmplData)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
-
-		tmplData := manifestTmplData{
-			JavaPkgPath: bundleID,
-			Name:        strings.Title(appName), //lint:ignore SA1019 It is fine for our uses.
-			// -release is what asks for debug support to be stripped out. Tying
-			// this to -distribution instead would make every APK debuggable,
-			// since that flag emits an .aab.
-			Debug:             !buildRelease && !buildDistribution,
-			LibName:           libName,
-			Version:           version,
-			Build:             build,
-			AdaptiveIcon:      adaptive,
-			LegacyIcon:        useAAPT2 && !adaptive && resolveLegacyIconPath(dir, iconPath) != "",
-			BackgroundService: backgroundService,
-		}
-		if androidMeta != nil {
-			tmplData.ShareMimeTypes = androidMeta.ShareMimeTypes
-			tmplData.MulticastDiscovery = androidMeta.MulticastDiscovery
-			tmplData.BatteryOptimizationExemption = androidMeta.BatteryOptimizationExemption
-		}
-
-		buf := new(bytes.Buffer)
-		buf.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
-		err := templates.ManifestAndroid.Execute(buf, tmplData)
-		if err != nil {
-			return nil, err
-		}
-		manifestData = buf.Bytes()
-		if buildV {
-			fmt.Fprintf(os.Stderr, "generated AndroidManifest.xml:\n%s\n", manifestData)
-		}
-	} else {
-		libName, err = manifestLibName(manifestData)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing %s: %v", manifestPath, err)
-		}
+		return nil, err
 	}
 
 	libFiles := []string{}

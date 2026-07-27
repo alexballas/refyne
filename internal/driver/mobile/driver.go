@@ -62,7 +62,8 @@ type driver struct {
 	painting        bool
 	running         bool
 	queuedFuncs     *async.UnboundedChan[func()]
-	intents         uriIntentMailbox
+	//lint:ignore U1000 used only in Android builds; driver struct is shared across build tags
+	intents uriIntentMailbox
 }
 
 // Declare conformity with Driver
