@@ -50,6 +50,8 @@ public class FyneForegroundService extends Service {
     private static final int NOTIFICATION_ID = 0x60F0;
     private static final int UNKNOWN_APP_ICON = 17629184; // android.R.drawable.sym_def_app_icon
 
+    private static final ForegroundServiceLifecycle lifecycle = new ForegroundServiceLifecycle();
+
     private int foregroundServiceType;
     private boolean keepCPUAwake;
     private boolean keepWiFiAwake;
@@ -73,6 +75,18 @@ public class FyneForegroundService extends Service {
             Log.e("Fyne", "could not decode the background session icon", e);
             smallIcon = null;
         }
+    }
+
+    static long startRequested() {
+        return lifecycle.startRequested();
+    }
+
+    static void startFailed(long startGeneration) {
+        lifecycle.startFailed(startGeneration);
+    }
+
+    static boolean deferStopIfStarting() {
+        return lifecycle.deferStopIfStarting();
     }
 
     @Override
@@ -116,6 +130,16 @@ public class FyneForegroundService extends Service {
             // is worth taking the app down for: the caller keeps working, it just
             // loses the guarantee that it survives being backgrounded.
             Log.e("Fyne", "could not enter the foreground", e);
+            lifecycle.stopped();
+            stopSession();
+            return START_NOT_STICKY;
+        }
+
+        // A stop can race the asynchronous delivery of onStartCommand(). Calling
+        // Context.stopService() during that window makes Android crash the app
+        // because this service has not entered the foreground yet. Satisfy the
+        // contract above, then honor the deferred stop from inside the service.
+        if (lifecycle.foregroundStarted()) {
             stopSession();
             return START_NOT_STICKY;
         }
@@ -126,6 +150,7 @@ public class FyneForegroundService extends Service {
 
     @Override
     public void onDestroy() {
+        lifecycle.stopped();
         releaseLocks();
         super.onDestroy();
     }

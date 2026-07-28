@@ -346,6 +346,7 @@ public class GoNativeActivity extends NativeActivity {
         intent.putExtra(FyneForegroundService.EXTRA_TITLE, title);
         intent.putExtra(FyneForegroundService.EXTRA_TEXT, text);
 
+        long startGeneration = FyneForegroundService.startRequested();
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent);
@@ -357,6 +358,7 @@ public class GoNativeActivity extends NativeActivity {
             // background. The caller cannot always know it lost the foreground
             // between deciding to start and getting here.
             Log.e("Fyne", "could not start the background session", e);
+            FyneForegroundService.startFailed(startGeneration);
         }
     }
 
@@ -368,6 +370,14 @@ public class GoNativeActivity extends NativeActivity {
     }
 
     void doStopBackgroundSession() {
+        // startForegroundService() and Service.startForeground() are separate
+        // operations. Do not cancel the service between them: Android treats
+        // that as a failed promotion and crashes the app. The service consumes
+        // this deferred stop immediately after entering the foreground.
+        if (FyneForegroundService.deferStopIfStarting()) {
+            return;
+        }
+
         Intent intent = new Intent(this, FyneForegroundService.class);
         try {
             stopService(intent);
