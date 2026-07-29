@@ -156,3 +156,18 @@ func TestInnerRect_Original(t *testing.T) {
 	assert.Equal(t, innerSize2, innerSize1)
 	assert.Equal(t, innerPos2, innerPos1)
 }
+
+func TestKernelToRGBAKeepsFullWeight(t *testing.T) {
+	// Weights that do not add up to 255 shift the brightness of anything drawn
+	// under a blur, twice over because the blur runs in two passes.
+	for _, radius := range []float32{1, 5, 10, 25, maxKernelRadius} {
+		data := kernelToRGBA(createKernel(radius))
+
+		total := 0
+		for i := 0; i < len(data); i += 4 {
+			total += int(data[i])
+		}
+
+		assert.Equal(t, 255, total, "kernel weights for radius %v must total 255", radius)
+	}
+}

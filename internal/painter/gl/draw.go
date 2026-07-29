@@ -1213,10 +1213,22 @@ func createKernel(radius float32) []float32 {
 // kernelToRGBA packs normalised kernel weights into an 8-bit RGBA row. Each
 // weight is written to all four channels (the shader reads .r; the rest is
 // padding so the upload works on every GL backend).
+//
+// Weights are quantised from the running total rather than one at a time, so
+// they still add up to exactly 255 and a blurred flat area keeps its original
+// brightness. Rounding each weight on its own drifts the total by a few units
+// either way - at radius 50 it lands on 250, darkening the region by about 4%
+// over the two passes.
 func kernelToRGBA(values []float32) []uint8 {
 	data := make([]uint8, len(values)*4)
+	total := 0.0
+	quantised := 0
 	for i, v := range values {
-		b := uint8(v*255.0 + 0.5)
+		total += float64(v)
+		scaled := int(total*255.0 + 0.5)
+		b := uint8(scaled - quantised)
+		quantised = scaled
+
 		off := i * 4
 		data[off+0] = b
 		data[off+1] = b

@@ -30,14 +30,17 @@ func drawBlur(c fyne.Canvas, blurObj *canvas.Blur, pos fyne.Position, base *imag
 	scaledWidth := scale.ToScreenCoordinate(c, blurObj.Size().Width)
 	scaledHeight := scale.ToScreenCoordinate(c, blurObj.Size().Height)
 	scaledX, scaledY := scale.ToScreenCoordinate(c, pos.X), scale.ToScreenCoordinate(c, pos.Y)
-	bounds := clip.Intersect(image.Rect(scaledX, scaledY, scaledX+scaledWidth, scaledY+scaledHeight))
+	rect := image.Rect(scaledX, scaledY, scaledX+scaledWidth, scaledY+scaledHeight)
+	bounds := clip.Intersect(rect)
 
 	crop := base.SubImage(bounds)
 	blurred := blur.Gaussian(crop, float64(blurObj.Radius*c.Scale()))
 
 	cornerRadius := fyne.Min(painter.GetMaximumRadius(blurObj.Size()), blurObj.CornerRadius)
 	if cornerRadius > 0.5 {
-		applyRoundedCorners(blurred, cornerRadius*c.Scale())
+		// Round against the whole blur rectangle, not the clipped part of it,
+		// so a clipped edge does not pick up corners of its own.
+		applyRoundedCorners(blurred, rect, cornerRadius*c.Scale())
 	}
 
 	draw.Draw(base, base.Bounds(), blurred, image.Point{}, draw.Over)
@@ -176,7 +179,7 @@ func drawPixels(x, y, width, height int, mode canvas.ImageScale, base *image.NRG
 	}
 
 	if radius > 0.5 {
-		applyRoundedCorners(scaledImg, radius)
+		applyRoundedCorners(scaledImg, scaledImg.Bounds(), radius)
 	}
 
 	drawTex(x, y, width, height, base, scaledImg, clip, alpha)
@@ -590,15 +593,19 @@ func drawShadow(c fyne.Canvas, obj fyne.CanvasObject, objSize fyne.Size, shadow 
 	draw.Draw(base, shadowBounds, blurred, srcPt, draw.Over)
 }
 
-// applyRoundedCorners rounds the corners of the image in-place
-func applyRoundedCorners(img image.Image, radius float32) {
+// applyRoundedCorners rounds the corners of rect within img, in-place. rect is
+// the rectangle being rounded and may extend past img, which happens when the
+// drawing was clipped: the arcs stay anchored to rect's corners and only the
+// pixels img actually holds are touched.
+func applyRoundedCorners(img image.Image, rect image.Rectangle, radius float32) {
 	aaWidth := float32(0.5)
 	outerR2 := (radius + aaWidth) * (radius + aaWidth)
 	innerR2 := (radius - aaWidth) * (radius - aaWidth)
 
-	applyCorner := func(startX, endX, startY, endY int, cx, cy float32) {
-		for y := startY; y < endY; y++ {
-			for x := startX; x < endX; x++ {
+	applyCorner := func(area image.Rectangle, cx, cy float32) {
+		area = area.Intersect(img.Bounds())
+		for y := area.Min.Y; y < area.Max.Y; y++ {
+			for x := area.Min.X; x < area.Max.X; x++ {
 				dx := float32(x) - cx
 				dy := float32(y) - cy
 				dist2 := dx*dx + dy*dy
@@ -635,24 +642,23 @@ func applyRoundedCorners(img image.Image, radius float32) {
 		}
 	}
 
-	bounds := img.Bounds()
-	w, h := bounds.Dx(), bounds.Dy()
+	w, h := rect.Dx(), rect.Dy()
 	rInt := int(math.Ceil(float64(radius)))
 	r := minInt(rInt, minInt(w, h))
-	minX, minY := bounds.Min.X, bounds.Min.Y
-	maxX, maxY := bounds.Max.X, bounds.Max.Y
+	minX, minY := rect.Min.X, rect.Min.Y
+	maxX, maxY := rect.Max.X, rect.Max.Y
 
 	// Top-left
-	applyCorner(minX, minX+r, minY, minY+r, float32(minX)+radius, float32(minY)+radius)
+	applyCorner(image.Rect(minX, minY, minX+r, minY+r), float32(minX)+radius, float32(minY)+radius)
 
 	// Top-right
-	applyCorner(maxX-r, maxX, minY, minY+r, float32(maxX)-radius, float32(minY)+radius)
+	applyCorner(image.Rect(maxX-r, minY, maxX, minY+r), float32(maxX)-radius, float32(minY)+radius)
 
 	// Bottom-left
-	applyCorner(minX, minX+r, maxY-r, maxY, float32(minX)+radius, float32(maxY)-radius)
+	applyCorner(image.Rect(minX, maxY-r, minX+r, maxY), float32(minX)+radius, float32(maxY)-radius)
 
 	// Bottom-right
-	applyCorner(maxX-r, maxX, maxY-r, maxY, float32(maxX)-radius, float32(maxY)-radius)
+	applyCorner(image.Rect(maxX-r, maxY-r, maxX, maxY), float32(maxX)-radius, float32(maxY)-radius)
 }
 
 func minInt(x, y int) int {
