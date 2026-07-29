@@ -24,11 +24,14 @@ const (
 	oneMinusSrcAlpha = gl.OneMinusSrcAlpha
 	scissorTest      = gl.ScissorTest
 	srcAlpha         = gl.SrcAlpha
+	zero             = gl.Zero
 	staticDraw       = gl.StaticDraw
 	texture0         = gl.Texture0
+	texture1         = gl.Texture1
 	texture2D        = gl.Texture2D
 	textureMinFilter = gl.TextureMinFilter
 	textureMagFilter = gl.TextureMagFilter
+	textureNearest   = gl.Nearest
 	textureWrapS     = gl.TextureWrapS
 	textureWrapT     = gl.TextureWrapT
 	triangles        = gl.Triangles
@@ -52,6 +55,7 @@ type (
 
 var (
 	compiled          []ProgramState // avoid multiple compilations with the re-used mobile GUI context
+	compiledNoBlur    bool           // blur failed to link on this driver, remembered alongside compiled
 	noProgram         = Program{}
 	noShader          = Shader{}
 	textureFilterToGL = [...]int32{gl.Linear, gl.Nearest, gl.Linear}
@@ -75,14 +79,7 @@ func (p *painter) Init() {
 		p.getUniformLocations(p.program, "text", "alpha", "cornerRadius", "size", "inset")
 		p.enableAttribArrays(p.program, "vert", "vertTexCoord")
 
-		p.blurProgram = ProgramState{
-			ref:        p.createProgram("blur_es"),
-			buff:       p.createBuffer(20),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(p.blurProgram, "radius", "size")
-		p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
+		p.initBlurProgram("blur_es")
 
 		p.lineProgram = ProgramState{
 			ref:        p.createProgram("line_es"),
@@ -207,10 +204,12 @@ func (p *painter) Init() {
 			p.arbitraryPolygonProgram,
 			p.ellipseProgram,
 		}
+		compiledNoBlur = p.blurUnsupported
 	}
 
 	p.program = compiled[0]
 	p.blurProgram = compiled[1]
+	p.blurUnsupported = compiledNoBlur
 	p.lineProgram = compiled[2]
 	p.rectangleProgram = compiled[3]
 	p.roundRectangleProgram = compiled[4]

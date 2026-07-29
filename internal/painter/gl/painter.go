@@ -74,6 +74,9 @@ type painter struct {
 	blurSnapTex             Texture
 	blurSnapTexValid        bool
 	blurSnapW, blurSnapH    int
+	blurKernelTex           Texture
+	blurKernelTexValid      bool
+	blurKernelRadius        float32
 	fbHeight                int
 
 	// uniforms and attributes resolved once in resolveUniforms, so per-draw
@@ -108,8 +111,8 @@ type resolvedUniforms struct {
 		vert, vertTexCoord               Attribute
 	}
 	blur struct {
-		radius, size       *UniformState
-		vert, vertTexCoord Attribute
+		radius, size, direction, sampleScale, cornerRadius, tex, kernelTex *UniformState
+		vert, vertTexCoord                                                 Attribute
 	}
 	line struct {
 		color, lineWidth, feather *UniformState
@@ -162,6 +165,11 @@ func (p *painter) resolveUniforms() {
 	bl := &p.blurProgram
 	u.blur.radius = bl.uniforms["radius"]
 	u.blur.size = bl.uniforms["size"]
+	u.blur.direction = bl.uniforms["direction"]
+	u.blur.sampleScale = bl.uniforms["sampleScale"]
+	u.blur.cornerRadius = bl.uniforms["cornerRadius"]
+	u.blur.tex = bl.uniforms["tex"]
+	u.blur.kernelTex = bl.uniforms["kernelTex"]
 	u.blur.vert = bl.attributes["vert"]
 	u.blur.vertTexCoord = bl.attributes["vertTexCoord"]
 
@@ -544,7 +552,7 @@ func (p *painter) initBlurProgram(shaderFilename string) {
 
 	p.blurProgram.ref = prog
 	p.blurProgram.buff = p.createBuffer(20)
-	p.getUniformLocations(p.blurProgram, "radius", "size")
+	p.getUniformLocations(p.blurProgram, "radius", "size", "direction", "sampleScale", "cornerRadius", "tex", "kernelTex")
 	p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
 }
 

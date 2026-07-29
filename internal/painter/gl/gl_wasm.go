@@ -24,11 +24,14 @@ const (
 	oneMinusSrcAlpha = gl.ONE_MINUS_SRC_ALPHA
 	scissorTest      = gl.SCISSOR_TEST
 	srcAlpha         = gl.SRC_ALPHA
+	zero             = gl.ZERO
 	staticDraw       = gl.STATIC_DRAW
 	texture0         = gl.TEXTURE0
+	texture1         = gl.TEXTURE1
 	texture2D        = gl.TEXTURE_2D
 	textureMinFilter = gl.TEXTURE_MIN_FILTER
 	textureMagFilter = gl.TEXTURE_MAG_FILTER
+	textureNearest   = gl.NEAREST
 	textureWrapS     = gl.TEXTURE_WRAP_S
 	textureWrapT     = gl.TEXTURE_WRAP_T
 	triangles        = gl.TRIANGLES

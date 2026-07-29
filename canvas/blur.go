@@ -15,6 +15,9 @@ type Blur struct {
 	// Radius refers to how far from a point should be used to calculate the blur.
 	// It must be greater than 0 but no more than 50.
 	Radius float32
+
+	// CornerRadius is used to round the corners of the blur region.
+	CornerRadius float32
 }
 
 // Hide will set this blur to not be visible

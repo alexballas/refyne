@@ -34,6 +34,12 @@ func drawBlur(c fyne.Canvas, blurObj *canvas.Blur, pos fyne.Position, base *imag
 
 	crop := base.SubImage(bounds)
 	blurred := blur.Gaussian(crop, float64(blurObj.Radius*c.Scale()))
+
+	cornerRadius := fyne.Min(painter.GetMaximumRadius(blurObj.Size()), blurObj.CornerRadius)
+	if cornerRadius > 0.5 {
+		applyRoundedCorners(blurred, cornerRadius*c.Scale())
+	}
+
 	draw.Draw(base, base.Bounds(), blurred, image.Point{}, draw.Over)
 }
 
@@ -170,7 +176,7 @@ func drawPixels(x, y, width, height int, mode canvas.ImageScale, base *image.NRG
 	}
 
 	if radius > 0.5 {
-		applyRoundedCorners(scaledImg, width, height, radius)
+		applyRoundedCorners(scaledImg, radius)
 	}
 
 	drawTex(x, y, width, height, base, scaledImg, clip, alpha)
@@ -585,9 +591,7 @@ func drawShadow(c fyne.Canvas, obj fyne.CanvasObject, objSize fyne.Size, shadow 
 }
 
 // applyRoundedCorners rounds the corners of the image in-place
-func applyRoundedCorners(img *image.NRGBA, w, h int, radius float32) {
-	rInt := int(math.Ceil(float64(radius)))
-
+func applyRoundedCorners(img image.Image, radius float32) {
 	aaWidth := float32(0.5)
 	outerR2 := (radius + aaWidth) * (radius + aaWidth)
 	innerR2 := (radius - aaWidth) * (radius - aaWidth)
@@ -599,34 +603,56 @@ func applyRoundedCorners(img *image.NRGBA, w, h int, radius float32) {
 				dy := float32(y) - cy
 				dist2 := dx*dx + dy*dy
 
-				i := img.PixOffset(x, y)
-				alpha := img.Pix[i+3]
-
-				switch {
-				case dist2 >= outerR2:
-					img.Pix[i+3] = 0 // Fully transparent
-				case dist2 > innerR2:
-					// Linear falloff based on squared distance
-					t := (outerR2 - dist2) / (outerR2 - innerR2) // t ranges from 0 to 1
-					newAlpha := uint8(float32(alpha) * t)
-					img.Pix[i+3] = newAlpha
+				switch i := img.(type) {
+				case *image.NRGBA:
+					off := i.PixOffset(x, y)
+					switch {
+					case dist2 >= outerR2:
+						i.Pix[off+3] = 0 // Fully transparent
+					case dist2 > innerR2:
+						// Linear falloff based on squared distance
+						t := (outerR2 - dist2) / (outerR2 - innerR2) // t ranges from 0 to 1
+						i.Pix[off+3] = uint8(float32(i.Pix[off+3]) * t)
+					}
+				case *image.RGBA:
+					// Premultiplied, so the colour channels scale with alpha.
+					off := i.PixOffset(x, y)
+					switch {
+					case dist2 >= outerR2:
+						i.Pix[off+0] = 0
+						i.Pix[off+1] = 0
+						i.Pix[off+2] = 0
+						i.Pix[off+3] = 0
+					case dist2 > innerR2:
+						t := (outerR2 - dist2) / (outerR2 - innerR2)
+						i.Pix[off+0] = uint8(float32(i.Pix[off+0]) * t)
+						i.Pix[off+1] = uint8(float32(i.Pix[off+1]) * t)
+						i.Pix[off+2] = uint8(float32(i.Pix[off+2]) * t)
+						i.Pix[off+3] = uint8(float32(i.Pix[off+3]) * t)
+					}
 				}
 			}
 		}
 	}
 
-	// Top-left
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	rInt := int(math.Ceil(float64(radius)))
 	r := minInt(rInt, minInt(w, h))
-	applyCorner(0, r, 0, r, radius, radius)
+	minX, minY := bounds.Min.X, bounds.Min.Y
+	maxX, maxY := bounds.Max.X, bounds.Max.Y
+
+	// Top-left
+	applyCorner(minX, minX+r, minY, minY+r, float32(minX)+radius, float32(minY)+radius)
 
 	// Top-right
-	applyCorner(w-r, w, 0, r, float32(w)-radius, radius)
+	applyCorner(maxX-r, maxX, minY, minY+r, float32(maxX)-radius, float32(minY)+radius)
 
 	// Bottom-left
-	applyCorner(0, r, h-r, h, radius, float32(h)-radius)
+	applyCorner(minX, minX+r, maxY-r, maxY, float32(minX)+radius, float32(maxY)-radius)
 
 	// Bottom-right
-	applyCorner(w-r, w, h-r, h, float32(w)-radius, float32(h)-radius)
+	applyCorner(maxX-r, maxX, maxY-r, maxY, float32(maxX)-radius, float32(maxY)-radius)
 }
 
 func minInt(x, y int) int {

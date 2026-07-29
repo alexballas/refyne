@@ -24,20 +24,16 @@ func (p *painter) createBuffer(size int) Buffer {
 	return vbo
 }
 
-// maxBlurRadius is the largest radius the blur shader kernel supports
-// (kernel[2*maxBlurRadius+1]). The scaled radius is clamped to it so the
-// uniform upload never exceeds the array and the kernel weights stay
-// normalised over the taps the shader actually samples.
-const maxBlurRadius = 50
+// maxKernelRadius caps the samples taken per blur pass at 2*50+1. Larger radii
+// stretch those samples over the wider area instead (see sampleScale), which
+// keeps the shader cheap and its kernel lookup within one texture row.
+const maxKernelRadius = 50
 
 func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
 	if b.Radius == 0 || p.blurUnsupported {
 		return
 	}
 	radius := b.Radius * p.pixScale
-	if radius > maxBlurRadius {
-		radius = maxBlurRadius
-	}
 
 	x := roundToPixel(pos.X*p.pixScale, 1.0)
 	y := roundToPixel(pos.Y*p.pixScale, 1.0)
@@ -47,23 +43,60 @@ func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
 		return
 	}
 
+	// Ensure blurSnapTex exists at the correct size; reallocate only when dimensions change.
+	// ImageScaleSmooth gives bilinear filtering, so stretched samples stay smooth.
 	if !p.blurSnapTexValid || p.blurSnapW != bw || p.blurSnapH != bh {
 		if p.blurSnapTexValid {
 			p.ctx.DeleteTexture(p.blurSnapTex)
 		}
-		p.blurSnapTex = p.newTexture(canvas.ImageScaleFastest)
+		p.blurSnapTex = p.newTexture(canvas.ImageScaleSmooth)
 		p.ctx.TexImage2D(texture2D, 0, bw, bh, colorFormatRGBA, unsignedByte, nil)
 		p.blurSnapTexValid = true
 		p.blurSnapW = bw
 		p.blurSnapH = bh
 	}
 
+	kernelRadius := radius
+	var sampleScale float32 = 1.0
+	if kernelRadius > maxKernelRadius {
+		sampleScale = kernelRadius / maxKernelRadius
+		kernelRadius = maxKernelRadius
+	}
+
+	values, ok := cache.GetBlurKernel(kernelRadius)
+	if !ok {
+		values = createKernel(kernelRadius)
+		cache.SetBlurKernel(kernelRadius, values)
+	}
+
+	// The kernel travels as a 1D texture rather than a uniform array: a large
+	// array blows GL_MAX_FRAGMENT_UNIFORM_VECTORS on GLES drivers and the
+	// program then fails to link.
+	if !p.blurKernelTexValid || p.blurKernelRadius != kernelRadius {
+		if !p.blurKernelTexValid {
+			p.blurKernelTex = p.ctx.CreateTexture()
+		}
+		p.ctx.ActiveTexture(texture1)
+		p.ctx.BindTexture(texture2D, p.blurKernelTex)
+		p.ctx.TexParameteri(texture2D, textureMinFilter, textureNearest)
+		p.ctx.TexParameteri(texture2D, textureMagFilter, textureNearest)
+		p.ctx.TexParameteri(texture2D, textureWrapS, clampToEdge)
+		p.ctx.TexParameteri(texture2D, textureWrapT, clampToEdge)
+		p.ctx.TexImage2D(texture2D, 0, len(values), 1, colorFormatRGBA, unsignedByte, kernelToRGBA(values))
+		p.blurKernelTexValid = true
+		p.blurKernelRadius = kernelRadius
+	}
+
+	// Copy the blur region from the framebuffer directly to the texture on the GPU.
+	// glCopyTexSubImage2D uses GL coordinates (y=0 at bottom), so convert the canvas-top y.
 	fbY := p.fbHeight - int(y) - bh
 	p.ctx.ActiveTexture(texture0)
 	p.ctx.BindTexture(texture2D, p.blurSnapTex)
 	p.ctx.CopyTexSubImage2D(texture2D, 0, 0, 0, int(x), fbY, bw, bh)
 	p.logError()
 
+	// Build quad vertices. CopyTexSubImage2D places the framebuffer bottom at texture v=0,
+	// but rectCoords maps v=0 to the canvas top. Swap the v coordinates to correct orientation.
 	points, _ := p.rectCoords(b.Size(), pos, frame, canvas.ImageFillStretch, 1.0, 0)
 	points[4], points[9] = points[9], points[4]
 	points[14], points[19] = points[19], points[14]
@@ -74,19 +107,32 @@ func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
 	p.UpdateVertexArray(uniforms.vert, 3, 5, 0)
 	p.UpdateVertexArray(uniforms.vertTexCoord, 2, 5, 3)
 
-	p.blendFunc(one, oneMinusSrcAlpha)
-	p.logError()
-
-	p.SetUniform1f(uniforms.radius, radius)
+	cornerRadius := fyne.Min(paint.GetMaximumRadius(b.Size()), b.CornerRadius)
+	p.SetUniform1f(uniforms.cornerRadius, roundToPixel(cornerRadius*p.pixScale, 1.0))
 	p.SetUniform2f(uniforms.size, float32(bw), float32(bh))
+	p.SetUniform1f(uniforms.radius, kernelRadius)
+	p.SetUniform1f(uniforms.sampleScale, sampleScale)
 
-	values, ok := cache.GetBlurKernel(radius)
-	if !ok {
-		values = createKernel(radius)
-		cache.SetBlurKernel(radius, values)
-	}
-	p.SetUniform1fv(p.getUniformLocation(p.blurProgram, "kernel"), values)
+	p.ctx.ActiveTexture(texture1)
+	p.ctx.BindTexture(texture2D, p.blurKernelTex)
 
+	p.ctx.ActiveTexture(texture0)
+	p.ctx.BindTexture(texture2D, p.blurSnapTex)
+
+	p.SetUniform1i(uniforms.tex, 0)
+	p.SetUniform1i(uniforms.kernelTex, 1)
+
+	// Both passes overwrite the exact region they just sampled, so blend straight
+	// over it rather than through the alpha-preserving blendFunc wrapper.
+	p.ctx.BlendFunc(one, zero)
+	p.SetUniform2f(uniforms.direction, 1.0/float32(bw), 0.0)
+	p.ctx.DrawArrays(triangleStrip, 0, 4)
+
+	// Capture the horizontally blurred result back into blurSnapTex for the second pass.
+	p.ctx.CopyTexSubImage2D(texture2D, 0, 0, 0, int(x), fbY, bw, bh)
+
+	p.ctx.BlendFunc(one, zero)
+	p.SetUniform2f(uniforms.direction, 0.0, 1.0/float32(bh))
 	p.ctx.DrawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
@@ -1162,4 +1208,21 @@ func createKernel(radius float32) []float32 {
 	}
 
 	return values
+}
+
+// kernelToRGBA packs normalised kernel weights into an 8-bit RGBA row. Each
+// weight is written to all four channels (the shader reads .r; the rest is
+// padding so the upload works on every GL backend).
+func kernelToRGBA(values []float32) []uint8 {
+	data := make([]uint8, len(values)*4)
+	for i, v := range values {
+		b := uint8(v*255.0 + 0.5)
+		off := i * 4
+		data[off+0] = b
+		data[off+1] = b
+		data[off+2] = b
+		data[off+3] = 255
+	}
+
+	return data
 }

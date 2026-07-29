@@ -35,6 +35,7 @@ format, which is covered by the license:
 const (
 	False            = 0
 	True             = 1
+	Zero             = 0
 	One              = 1
 	Triangles        = 0x0004
 	TriangleStrip    = 0x0005
@@ -62,6 +63,7 @@ const (
 	OneMinusConstantAlpha    = 0x8004
 	ClampToEdge              = 0x812F
 	Texture0                 = 0x84C0
+	Texture1                 = 0x84C1
 	StaticDraw               = 0x88E4
 	DynamicDraw              = 0x88E8
 	FragmentShader           = 0x8B30
