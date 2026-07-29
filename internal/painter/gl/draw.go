@@ -24,11 +24,20 @@ func (p *painter) createBuffer(size int) Buffer {
 	return vbo
 }
 
+// maxBlurRadius is the largest radius the blur shader kernel supports
+// (kernel[2*maxBlurRadius+1]). The scaled radius is clamped to it so the
+// uniform upload never exceeds the array and the kernel weights stay
+// normalised over the taps the shader actually samples.
+const maxBlurRadius = 50
+
 func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
-	if b.Radius == 0 {
+	if b.Radius == 0 || p.blurUnsupported {
 		return
 	}
 	radius := b.Radius * p.pixScale
+	if radius > maxBlurRadius {
+		radius = maxBlurRadius
+	}
 
 	x := roundToPixel(pos.X*p.pixScale, 1.0)
 	y := roundToPixel(pos.Y*p.pixScale, 1.0)

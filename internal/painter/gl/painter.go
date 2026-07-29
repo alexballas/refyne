@@ -57,6 +57,7 @@ type painter struct {
 	contextProvider         driver.WithContext
 	program                 ProgramState
 	blurProgram             ProgramState
+	blurUnsupported         bool
 	lineProgram             ProgramState
 	rectangleProgram        ProgramState
 	roundRectangleProgram   ProgramState
@@ -517,6 +518,34 @@ func (p *painter) createProgram(shaderFilename string) Program {
 	}
 
 	return prog
+}
+
+// initBlurProgram sets up the blur program without treating failure as fatal.
+// Blur is an optional effect, so a driver that cannot compile or link the
+// kernel-heavy shader (e.g. a low GL_MAX_FRAGMENT_UNIFORM_VECTORS limit)
+// disables blur instead of crashing the app.
+func (p *painter) initBlurProgram(shaderFilename string) {
+	p.blurProgram = ProgramState{
+		uniforms:   make(map[string]*UniformState),
+		attributes: make(map[string]Attribute),
+	}
+
+	vertexSrc, fragmentSrc := shaderSourceNamed(shaderFilename)
+	if vertexSrc == nil {
+		panic("shader not found: " + shaderFilename)
+	}
+
+	prog, err := p.createProgramFromSource(vertexSrc, fragmentSrc)
+	if err != nil {
+		p.blurUnsupported = true
+		fyne.LogError("blur disabled, shader unsupported by this driver", err)
+		return
+	}
+
+	p.blurProgram.ref = prog
+	p.blurProgram.buff = p.createBuffer(20)
+	p.getUniformLocations(p.blurProgram, "radius", "size")
+	p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
 }
 
 // createProgramFromSource compiles and links the given vertex and fragment shader sources

@@ -80,14 +80,7 @@ func (p *painter) Init() {
 	p.getUniformLocations(p.program, "text", "alpha", "cornerRadius", "size", "inset")
 	p.enableAttribArrays(p.program, "vert", "vertTexCoord")
 
-	p.blurProgram = ProgramState{
-		ref:        p.createProgram("blur"),
-		buff:       p.createBuffer(20),
-		uniforms:   make(map[string]*UniformState),
-		attributes: make(map[string]Attribute),
-	}
-	p.getUniformLocations(p.blurProgram, "radius", "size")
-	p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
+	p.initBlurProgram("blur")
 
 	p.lineProgram = ProgramState{
 		ref:        p.createProgram("line"),

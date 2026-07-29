@@ -16,8 +16,10 @@ varying vec2 fragTexCoord;
 uniform float radius;
 uniform vec2 size;
 
-// 50 on either side, scaled up to 4x pixel density plus 1
-uniform float kernel[401];
+// 50 taps on either side plus 1; the draw code clamps the scaled radius to 50.
+// Keep this small: GLES packs one float per uniform vector, and exceeding
+// GL_MAX_FRAGMENT_UNIFORM_VECTORS (min 224) makes linking fail.
+uniform float kernel[101];
 
 void main() {
     const int MAX_LENGTH = 101;

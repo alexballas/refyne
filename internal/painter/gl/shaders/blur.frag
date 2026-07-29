@@ -6,8 +6,8 @@ varying vec2 fragTexCoord;
 uniform float radius;
 uniform vec2 size;
 
-// 50 on either side, scaled up to 4x pixel density plus 1
-uniform float kernel[401];
+// 50 taps on either side plus 1; the draw code clamps the scaled radius to 50.
+uniform float kernel[101];
 
 void main() {
     vec2 inverseSize = vec2(1.0/size.x, 1.0/size.y);
