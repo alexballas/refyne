@@ -47,6 +47,7 @@ const (
 	glfnCreateShader
 	glfnDeleteBuffer
 	glfnDeleteProgram
+	glfnDeleteShader
 	glfnDeleteTexture
 	glfnDisable
 	glfnDrawArrays

@@ -53,6 +53,7 @@ typedef enum {
 	glfnCreateShader,
 	glfnDeleteBuffer,
 	glfnDeleteProgram,
+	glfnDeleteShader,
 	glfnDeleteTexture,
 	glfnDisable,
 	glfnDrawArrays,

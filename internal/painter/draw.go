@@ -14,7 +14,7 @@ import (
 
 const (
 	quarterCircleControl            = 1 - 0.55228
-	ArbitraryPolygonVerticesMaximum = 32
+	ArbitraryPolygonVerticesMaximum = 16
 )
 
 // DrawArc rasterizes the given arc object into an image.

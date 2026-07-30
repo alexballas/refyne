@@ -169,32 +169,8 @@ func (p *painter) Init() {
 	)
 	p.enableAttribArrays(p.bezierCurveProgram, "vert", "normal")
 
-	p.arbitraryPolygonProgram = ProgramState{
-		ref:        p.createProgram("arbitrary_polygon_es"),
-		buff:       p.createBuffer(16),
-		uniforms:   make(map[string]*UniformState),
-		attributes: make(map[string]Attribute),
-	}
-	p.getUniformLocations(
-		p.arbitraryPolygonProgram,
-		"frame_size", "rect_coords", "edge_softness", "vertex_count",
-		"vertices", "corner_radii", "fill_color", "stroke_color", "stroke_width",
-	)
-	p.enableAttribArrays(p.arbitraryPolygonProgram, "vert", "normal")
-
-	p.ellipseProgram = ProgramState{
-		ref:        p.createProgram("ellipse_es"),
-		buff:       p.createBuffer(16),
-		uniforms:   make(map[string]*UniformState),
-		attributes: make(map[string]Attribute),
-	}
-	p.getUniformLocations(
-		p.ellipseProgram,
-		"frame_size", "rect_coords", "stroke_width", "radius", "angle",
-		"fill_color", "stroke_color", "edge_softness",
-		"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
-	)
-	p.enableAttribArrays(p.ellipseProgram, "vert", "normal")
+	p.initArbitraryPolygonProgram("arbitrary_polygon_es")
+	p.initEllipseProgram("ellipse_es")
 
 	p.resolveUniforms()
 }
@@ -288,6 +264,14 @@ func (c *esContext) CreateTexture() (texture Texture) {
 
 func (c *esContext) DeleteBuffer(buffer Buffer) {
 	gl.DeleteBuffers(1, (*uint32)(&buffer))
+}
+
+func (c *esContext) DeleteProgram(program Program) {
+	gl.DeleteProgram(uint32(program))
+}
+
+func (c *esContext) DeleteShader(shader Shader) {
+	gl.DeleteShader(uint32(shader))
 }
 
 func (c *esContext) DeleteTexture(texture Texture) {

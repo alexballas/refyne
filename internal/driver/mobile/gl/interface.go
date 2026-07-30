@@ -111,6 +111,11 @@ type Context interface {
 	// http://www.khronos.org/opengles/sdk/docs/man3/html/glDeleteProgram.xhtml
 	DeleteProgram(p Program)
 
+	// DeleteShader deletes the given shader object.
+	//
+	// http://www.khronos.org/opengles/sdk/docs/man3/html/glDeleteShader.xhtml
+	DeleteShader(s Shader)
+
 	// DeleteTexture deletes the given texture object.
 	//
 	// http://www.khronos.org/opengles/sdk/docs/man3/html/glDeleteTextures.xhtml

@@ -48,6 +48,88 @@ func (r *clearRecorder) GetError() uint32 {
 	return 0
 }
 
+type linkFailureContext struct {
+	context
+	linkCalls       int
+	deletedPrograms int
+	deletedShaders  int
+}
+
+func (c *linkFailureContext) AttachShader(Program, Shader) {}
+
+func (c *linkFailureContext) CompileShader(Shader) {}
+
+func (c *linkFailureContext) CreateProgram() Program {
+	return noProgram
+}
+
+func (c *linkFailureContext) CreateShader(uint32) Shader {
+	return noShader
+}
+
+func (c *linkFailureContext) DeleteProgram(Program) {
+	c.deletedPrograms++
+}
+
+func (c *linkFailureContext) DeleteShader(Shader) {
+	c.deletedShaders++
+}
+
+func (c *linkFailureContext) GetError() uint32 {
+	return 0
+}
+
+func (c *linkFailureContext) GetProgrami(Program, uint32) int {
+	return int(glFalse) // linking always fails
+}
+
+func (c *linkFailureContext) GetProgramInfoLog(Program) string {
+	return ""
+}
+
+func (c *linkFailureContext) GetShaderi(Shader, uint32) int {
+	return 1
+}
+
+func (c *linkFailureContext) GetShaderInfoLog(Shader) string {
+	return ""
+}
+
+func (c *linkFailureContext) LinkProgram(Program) {
+	c.linkCalls++
+}
+
+func (c *linkFailureContext) ShaderSource(Shader, string) {}
+
+type compileFailureContext struct {
+	context
+	deletedShaders int
+}
+
+func (c *compileFailureContext) CompileShader(Shader) {}
+
+func (c *compileFailureContext) CreateShader(uint32) Shader {
+	return noShader
+}
+
+func (c *compileFailureContext) DeleteShader(Shader) {
+	c.deletedShaders++
+}
+
+func (c *compileFailureContext) GetError() uint32 {
+	return 0
+}
+
+func (c *compileFailureContext) GetShaderi(Shader, uint32) int {
+	return int(glFalse)
+}
+
+func (c *compileFailureContext) GetShaderInfoLog(Shader) string {
+	return ""
+}
+
+func (c *compileFailureContext) ShaderSource(Shader, string) {}
+
 func TestPainter_blendFuncPreservesAlpha(t *testing.T) {
 	rec := &blendRecorder{}
 	p := &painter{ctx: rec}
@@ -69,6 +151,58 @@ func TestPainter_blendFuncPreservesAlpha(t *testing.T) {
 	p.blendFunc(one, oneMinusSrcAlpha)
 	assert.True(t, rec.separate)
 	assert.Equal(t, [4]uint32{one, oneMinusSrcAlpha, one, oneMinusSrcAlpha}, rec.args)
+}
+
+func arbitraryPolygonShaderName(t *testing.T) string {
+	t.Helper()
+
+	for _, name := range []string{"arbitrary_polygon", "arbitrary_polygon_es"} {
+		vertex, fragment := shaderSourceNamed(name)
+		if vertex != nil && fragment != nil {
+			return name
+		}
+	}
+	t.Fatal("arbitrary polygon shader not embedded for this build")
+	return ""
+}
+
+func TestOptionalProgramLinkFailure(t *testing.T) {
+	ctx := &linkFailureContext{}
+	p := &painter{ctx: ctx}
+
+	state := p.initOptionalProgram(arbitraryPolygonShaderName(t), 16, nil, nil)
+	assert.True(t, state.unsupported, "an optional shader link failure must disable only that program")
+	assert.Equal(t, 1, ctx.linkCalls, "test must exercise the linker failure path")
+	assert.Equal(t, 1, ctx.deletedPrograms)
+	assert.Equal(t, 2, ctx.deletedShaders)
+}
+
+func TestOptionalProgramMissingSourcePanics(t *testing.T) {
+	p := &painter{ctx: &linkFailureContext{}}
+
+	assert.PanicsWithValue(t, "shader not found: missing", func() {
+		p.initOptionalProgram("missing", 16, nil, nil)
+	})
+}
+
+func TestProgramCompileFailureCleansShader(t *testing.T) {
+	ctx := &compileFailureContext{}
+	p := &painter{ctx: ctx}
+
+	_, err := p.createProgramFromSource("broken", []byte("vertex"), []byte("fragment"))
+	assert.ErrorContains(t, err, `OpenGL program "broken": failed to compile OpenGL shader`)
+	assert.Equal(t, 1, ctx.deletedShaders)
+}
+
+func TestProgramLinkFailureIncludesNameAndCleansResources(t *testing.T) {
+	ctx := &linkFailureContext{}
+	p := &painter{ctx: ctx}
+
+	_, err := p.createProgramFromSource("arbitrary_polygon_es", []byte("vertex"), []byte("fragment"))
+	assert.ErrorContains(t, err, `failed to link OpenGL program "arbitrary_polygon_es"`)
+	assert.Equal(t, 1, ctx.linkCalls)
+	assert.Equal(t, 1, ctx.deletedPrograms)
+	assert.Equal(t, 2, ctx.deletedShaders)
 }
 
 func TestPainter_ClearTransparentBackgroundUsesPremultipliedAlpha(t *testing.T) {

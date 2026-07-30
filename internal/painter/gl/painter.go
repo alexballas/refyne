@@ -57,7 +57,6 @@ type painter struct {
 	contextProvider         driver.WithContext
 	program                 ProgramState
 	blurProgram             ProgramState
-	blurUnsupported         bool
 	lineProgram             ProgramState
 	rectangleProgram        ProgramState
 	roundRectangleProgram   ProgramState
@@ -289,10 +288,11 @@ func (p *painter) resolveUniforms() {
 }
 
 type ProgramState struct {
-	ref        Program
-	buff       Buffer
-	uniforms   map[string]*UniformState
-	attributes map[string]Attribute
+	ref         Program
+	buff        Buffer
+	uniforms    map[string]*UniformState
+	attributes  map[string]Attribute
+	unsupported bool
 }
 
 type UniformState struct {
@@ -499,6 +499,7 @@ func (p *painter) compileShader(source string, shaderType uint32) (Shader, error
 
 	info := p.ctx.GetShaderInfoLog(shader)
 	if p.ctx.GetShaderi(shader, compileStatus) == glFalse {
+		p.ctx.DeleteShader(shader)
 		return noShader, fmt.Errorf("failed to compile OpenGL shader:\n%s\n>>> SHADER SOURCE\n%s\n<<< SHADER SOURCE", info, source)
 	}
 
@@ -520,7 +521,7 @@ func (p *painter) createProgram(shaderFilename string) Program {
 		panic("shader not found: " + shaderFilename)
 	}
 
-	prog, err := p.createProgramFromSource(vertexSrc, fragmentSrc)
+	prog, err := p.createProgramFromSource(shaderFilename, vertexSrc, fragmentSrc)
 	if err != nil {
 		panic(err)
 	}
@@ -528,12 +529,10 @@ func (p *painter) createProgram(shaderFilename string) Program {
 	return prog
 }
 
-// initBlurProgram sets up the blur program without treating failure as fatal.
-// Blur is an optional effect, so a driver that cannot compile or link the
-// kernel-heavy shader (e.g. a low GL_MAX_FRAGMENT_UNIFORM_VECTORS limit)
-// disables blur instead of crashing the app.
-func (p *painter) initBlurProgram(shaderFilename string) {
-	p.blurProgram = ProgramState{
+// initOptionalProgram compiles a program whose canvas primitive can be skipped
+// when unsupported by the current driver.
+func (p *painter) initOptionalProgram(shaderFilename string, bufferSize int, uniformNames, attributeNames []string) ProgramState {
+	state := ProgramState{
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
@@ -543,40 +542,78 @@ func (p *painter) initBlurProgram(shaderFilename string) {
 		panic("shader not found: " + shaderFilename)
 	}
 
-	prog, err := p.createProgramFromSource(vertexSrc, fragmentSrc)
+	prog, err := p.createProgramFromSource(shaderFilename, vertexSrc, fragmentSrc)
 	if err != nil {
-		p.blurUnsupported = true
-		fyne.LogError("blur disabled, shader unsupported by this driver", err)
-		return
+		state.unsupported = true
+		fyne.LogError("optional OpenGL shader disabled", err)
+		return state
 	}
 
-	p.blurProgram.ref = prog
-	p.blurProgram.buff = p.createBuffer(20)
-	p.getUniformLocations(p.blurProgram, "radius", "size", "direction", "sampleScale", "cornerRadius", "tex", "kernelTex")
-	p.enableAttribArrays(p.blurProgram, "vert", "vertTexCoord")
+	state.ref = prog
+	state.buff = p.createBuffer(bufferSize)
+	p.getUniformLocations(state, uniformNames...)
+	p.enableAttribArrays(state, attributeNames...)
+	return state
+}
+
+func (p *painter) initBlurProgram(shaderFilename string) {
+	p.blurProgram = p.initOptionalProgram(
+		shaderFilename,
+		20,
+		[]string{"radius", "size", "direction", "sampleScale", "cornerRadius", "tex", "kernelTex"},
+		[]string{"vert", "vertTexCoord"},
+	)
+}
+
+func (p *painter) initArbitraryPolygonProgram(shaderFilename string) {
+	p.arbitraryPolygonProgram = p.initOptionalProgram(
+		shaderFilename,
+		16,
+		[]string{"frame_size", "rect_coords", "edge_softness", "vertex_count", "vertices", "corner_radii", "fill_color", "stroke_color", "stroke_width"},
+		[]string{"vert", "normal"},
+	)
+}
+
+func (p *painter) initEllipseProgram(shaderFilename string) {
+	p.ellipseProgram = p.initOptionalProgram(
+		shaderFilename,
+		16,
+		[]string{"frame_size", "rect_coords", "stroke_width", "radius", "angle", "fill_color", "stroke_color", "edge_softness", "add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type"},
+		[]string{"vert", "normal"},
+	)
 }
 
 // createProgramFromSource compiles and links the given vertex and fragment shader sources
 // into a program. Unlike createProgram it returns an error rather than panicking, so it is
 // safe to use with application supplied shader source that may fail to compile.
-func (p *painter) createProgramFromSource(vertexSrc, fragmentSrc []byte) (Program, error) {
+func (p *painter) createProgramFromSource(shaderName string, vertexSrc, fragmentSrc []byte) (Program, error) {
 	vertShader, err := p.compileShader(string(vertexSrc), vertexShader)
 	if err != nil {
-		return noProgram, err
+		return noProgram, fmt.Errorf("OpenGL program %q: %w", shaderName, err)
 	}
+	defer p.ctx.DeleteShader(vertShader)
+
 	fragShader, err := p.compileShader(string(fragmentSrc), fragmentShader)
 	if err != nil {
-		return noProgram, err
+		return noProgram, fmt.Errorf("OpenGL program %q: %w", shaderName, err)
 	}
+	defer p.ctx.DeleteShader(fragShader)
 
 	prog := p.ctx.CreateProgram()
+	programValid := false
+	defer func() {
+		if !programValid {
+			p.ctx.DeleteProgram(prog)
+		}
+	}()
+
 	p.ctx.AttachShader(prog, vertShader)
 	p.ctx.AttachShader(prog, fragShader)
 	p.ctx.LinkProgram(prog)
 
 	info := p.ctx.GetProgramInfoLog(prog)
 	if p.ctx.GetProgrami(prog, linkStatus) == glFalse {
-		return noProgram, fmt.Errorf("failed to link OpenGL program:\n%s", info)
+		return noProgram, fmt.Errorf("failed to link OpenGL program %q:\n%s", shaderName, info)
 	}
 
 	// The info is probably a null terminated string.
@@ -586,10 +623,11 @@ func (p *painter) createProgramFromSource(vertexSrc, fragmentSrc []byte) (Progra
 	}
 
 	if glErr := p.ctx.GetError(); glErr != 0 {
-		return noProgram, fmt.Errorf("failed to link OpenGL program; error code: %x", glErr)
+		return noProgram, fmt.Errorf("failed to link OpenGL program %q; error code: %x", shaderName, glErr)
 	}
 
 	p.ctx.UseProgram(prog)
+	programValid = true
 
 	return prog, nil
 }

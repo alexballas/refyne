@@ -30,7 +30,7 @@ func (p *painter) createBuffer(size int) Buffer {
 const maxKernelRadius = 50
 
 func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
-	if b.Radius == 0 || p.blurUnsupported {
+	if b.Radius == 0 || p.blurProgram.unsupported {
 		return
 	}
 	radius := b.Radius * p.pixScale
@@ -345,7 +345,7 @@ func (p *painter) shaderProgram(shader *canvas.Shader) (*shaderState, bool) {
 		return state, state.valid
 	}
 
-	ref, err := p.createProgramFromSource(rectangleVertexSource(), userShaderFragment(shader))
+	ref, err := p.createProgramFromSource(shader.Name, rectangleVertexSource(), userShaderFragment(shader))
 	if err != nil {
 		fyne.LogError("Failed to compile shader "+shader.Name, err)
 		p.shaderPrograms[shader.Name] = &shaderState{}
@@ -625,7 +625,7 @@ func (p *painter) drawRegularPolygon(polygon *canvas.RegularPolygon, pos fyne.Po
 }
 
 func (p *painter) drawArbitraryPolygon(polygon *canvas.ArbitraryPolygon, pos fyne.Position, frame fyne.Size) {
-	if len(polygon.Points) < 3 || ((polygon.FillColor == color.Transparent || polygon.FillColor == nil) && (polygon.StrokeColor == color.Transparent || polygon.StrokeColor == nil || polygon.StrokeWidth == 0)) {
+	if p.arbitraryPolygonProgram.unsupported || len(polygon.Points) < 3 || ((polygon.FillColor == color.Transparent || polygon.FillColor == nil) && (polygon.StrokeColor == color.Transparent || polygon.StrokeColor == nil || polygon.StrokeWidth == 0)) {
 		return
 	}
 
@@ -775,6 +775,10 @@ func (p *painter) drawArc(arc *canvas.Arc, pos fyne.Position, frame fyne.Size) {
 }
 
 func (p *painter) drawEllipse(ellipse *canvas.Ellipse, pos fyne.Position, frame fyne.Size) {
+	if p.ellipseProgram.unsupported {
+		return
+	}
+
 	size := ellipse.Size()
 	radiusX := size.Width / 2
 	radiusY := size.Height / 2

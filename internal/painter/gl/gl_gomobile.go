@@ -55,7 +55,6 @@ type (
 
 var (
 	compiled          []ProgramState // avoid multiple compilations with the re-used mobile GUI context
-	compiledNoBlur    bool           // blur failed to link on this driver, remembered alongside compiled
 	noProgram         = Program{}
 	noShader          = Shader{}
 	textureFilterToGL = [...]int32{gl.Linear, gl.Nearest, gl.Linear}
@@ -166,32 +165,8 @@ func (p *painter) Init() {
 		)
 		p.enableAttribArrays(p.bezierCurveProgram, "vert", "normal")
 
-		p.arbitraryPolygonProgram = ProgramState{
-			ref:        p.createProgram("arbitrary_polygon_es"),
-			buff:       p.createBuffer(16),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(
-			p.arbitraryPolygonProgram,
-			"frame_size", "rect_coords", "edge_softness", "vertex_count",
-			"vertices", "corner_radii", "fill_color", "stroke_color", "stroke_width",
-		)
-		p.enableAttribArrays(p.arbitraryPolygonProgram, "vert", "normal")
-
-		p.ellipseProgram = ProgramState{
-			ref:        p.createProgram("ellipse_es"),
-			buff:       p.createBuffer(16),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(
-			p.ellipseProgram,
-			"frame_size", "rect_coords", "stroke_width", "radius", "angle",
-			"fill_color", "stroke_color", "edge_softness",
-			"add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type",
-		)
-		p.enableAttribArrays(p.ellipseProgram, "vert", "normal")
+		p.initArbitraryPolygonProgram("arbitrary_polygon_es")
+		p.initEllipseProgram("ellipse_es")
 		compiled = []ProgramState{
 			p.program,
 			p.blurProgram,
@@ -204,12 +179,10 @@ func (p *painter) Init() {
 			p.arbitraryPolygonProgram,
 			p.ellipseProgram,
 		}
-		compiledNoBlur = p.blurUnsupported
 	}
 
 	p.program = compiled[0]
 	p.blurProgram = compiled[1]
-	p.blurUnsupported = compiledNoBlur
 	p.lineProgram = compiled[2]
 	p.rectangleProgram = compiled[3]
 	p.roundRectangleProgram = compiled[4]
@@ -315,6 +288,14 @@ func (c *mobileContext) CreateTexture() (texture Texture) {
 
 func (c *mobileContext) DeleteBuffer(buffer Buffer) {
 	c.glContext.DeleteBuffer(gl.Buffer(buffer))
+}
+
+func (c *mobileContext) DeleteProgram(program Program) {
+	c.glContext.DeleteProgram(gl.Program(program))
+}
+
+func (c *mobileContext) DeleteShader(shader Shader) {
+	c.glContext.DeleteShader(gl.Shader(shader))
 }
 
 func (c *mobileContext) DeleteTexture(texture Texture) {

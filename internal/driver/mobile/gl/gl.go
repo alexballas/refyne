@@ -217,6 +217,15 @@ func (ctx *context) DeleteProgram(p Program) {
 	})
 }
 
+func (ctx *context) DeleteShader(s Shader) {
+	ctx.enqueue(call{
+		args: fnargs{
+			fn: glfnDeleteShader,
+			a0: s.c(),
+		},
+	})
+}
+
 func (ctx *context) DeleteTexture(v Texture) {
 	ctx.enqueue(call{
 		args: fnargs{

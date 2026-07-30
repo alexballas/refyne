@@ -73,6 +73,9 @@ uintptr_t processFn(struct fnargs* args, char* parg) {
 	case glfnDeleteProgram:
 		glDeleteProgram((GLuint)args->a0);
 		break;
+	case glfnDeleteShader:
+		glDeleteShader((GLuint)args->a0);
+		break;
 	case glfnDeleteTexture:
 		glDeleteTextures(1, (const GLuint*)(&args->a0));
 		break;
