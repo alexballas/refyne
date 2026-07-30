@@ -190,3 +190,67 @@ func Test_NormaliseVersion(t *testing.T) {
 	assert.Equal(t, "2.3.6.0-dev", normaliseVersion("v2.3.6-0.20230711180435-d4b95e1cb1eb"))
 	assert.Equal(t, "2.4.1.0-dev", normaliseVersion("v2.4.1-rc7.0.20230711180435-d4b95e1cb1eb"))
 }
+
+// A metadata injection that fails partway has already created the generated
+// file, so the cleanup must still run. Leaving a zero byte fyne_metadata_init.go
+// in the source directory breaks every later build there with a parse error,
+// and the only cure is deleting it by hand.
+func Test_BuildRemovesMetadataFileWhenInjectionFails(t *testing.T) {
+	srcdir := t.TempDir()
+
+	expected := []mockRunner{
+		{
+			expectedValue: expectedValue{args: []string{"mod", "edit", "-json"}},
+			mockReturn: mockReturn{
+				ret: []byte("{ \"Module\": { \"Path\": \"github.com/alexballas/refyne/v2\"} }"),
+			},
+		},
+		{
+			expectedValue: expectedValue{
+				args:  []string{"build"},
+				env:   []string{"GOARCH=wasm", "GOOS=js", "CGO_ENABLED=0"},
+				osEnv: true,
+				dir:   srcdir,
+			},
+			mockReturn: mockReturn{ret: []byte("")},
+		},
+	}
+
+	run := &metadataFileWatcher{
+		testCommandRuns: &testCommandRuns{runs: expected, t: t},
+		path:            filepath.Join(srcdir, "fyne_metadata_init.go"),
+	}
+	// A missing icon fails createMetadataInitFile after it has created the file.
+	b := &Builder{
+		appData: &appData{icon: filepath.Join(srcdir, "no-such-icon.png")},
+		os:      "wasm",
+		srcdir:  srcdir,
+		runner:  run,
+	}
+
+	assert.Nil(t, b.build(), "losing metadata must not fail the build")
+	run.verifyExpectation()
+
+	assert.True(t, run.sawBuild, "test must reach the compile step to be meaningful")
+	assert.False(t, run.presentAtBuild,
+		"the partial file must be gone before the compiler runs, not merely cleaned up afterwards")
+	assert.NoFileExists(t, run.path)
+}
+
+// metadataFileWatcher records whether the generated metadata file was still on
+// disk at the moment the compiler was invoked.
+type metadataFileWatcher struct {
+	*testCommandRuns
+	path           string
+	sawBuild       bool
+	presentAtBuild bool
+}
+
+func (w *metadataFileWatcher) runOutput(args ...string) ([]byte, error) {
+	if len(args) > 0 && args[0] == "build" {
+		w.sawBuild = true
+		_, err := os.Stat(w.path)
+		w.presentAtBuild = err == nil
+	}
+	return w.testCommandRuns.runOutput(args...)
+}

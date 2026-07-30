@@ -205,8 +205,12 @@ func (p *Packager) doPackage(runner runner) error {
 		}
 	}
 	if util.IsMobile(p.os) { // we don't use the normal build command for mobile so inject before gomobile...
+		// A partial file is dropped immediately, not on return, see build.go.
 		close, err := injectMetadataIfPossible(newCommand("go"), p.dir, p.appData, createMetadataInitFile)
 		if err != nil {
+			if close != nil {
+				close()
+			}
 			fyne.LogError("Failed to inject metadata init file, omitting metadata", err)
 		} else if close != nil {
 			defer close()

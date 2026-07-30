@@ -158,14 +158,26 @@ func (b *Builder) build() error {
 	if b.pprof {
 		close, err := injectPprofFile(srcdir, b.pprofPort)
 		if err != nil {
+			if close != nil {
+				close()
+			}
 			fyne.LogError("Failed to inject pprof file, omitting pprof", err)
 		} else if close != nil {
 			defer close()
 		}
 	}
 
+	// A failed injection can still have created the file, and the build below
+	// cannot parse a partial one. Drop it now rather than on return, otherwise
+	// "omitting metadata" fails the build it claims to be recovering, and the
+	// leftover breaks every later build in that directory too. The file is
+	// already closed by the time it is handed back, so removing it here is
+	// safe on Windows as well.
 	close, err := injectMetadataIfPossible(fyneGoModRunner, srcdir, b.appData, createMetadataInitFile)
 	if err != nil {
+		if close != nil {
+			close()
+		}
 		fyne.LogError("Failed to inject metadata init file, omitting metadata", err)
 	} else if close != nil {
 		defer close()
