@@ -5,8 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"text/template"
 
+	"github.com/alexballas/refyne/v2/cmd/fyne/internal/templates"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_BuildWasmVersion(t *testing.T) {
@@ -189,6 +192,25 @@ func Test_NormaliseVersion(t *testing.T) {
 	assert.Equal(t, "2.4.0.0", normaliseVersion("v2.4.0"))
 	assert.Equal(t, "2.3.6.0-dev", normaliseVersion("v2.3.6-0.20230711180435-d4b95e1cb1eb"))
 	assert.Equal(t, "2.4.1.0-dev", normaliseVersion("v2.4.1-rc7.0.20230711180435-d4b95e1cb1eb"))
+}
+
+func Test_InjectPprofFileReturnsCleanupWhenInjectionFails(t *testing.T) {
+	original := templates.FynePprofInit
+	templates.FynePprofInit = template.Must(template.New("failing").Parse("{{.Missing}}"))
+	t.Cleanup(func() {
+		templates.FynePprofInit = original
+	})
+
+	srcdir := t.TempDir()
+	path := filepath.Join(srcdir, "fyne_pprof.go")
+
+	cleanup, err := injectPprofFile(srcdir, 6060)
+	require.Error(t, err)
+	require.NotNil(t, cleanup)
+	assert.FileExists(t, path, "the caller must own cleanup after injection returns")
+
+	cleanup()
+	assert.NoFileExists(t, path)
 }
 
 // A metadata injection that fails partway has already created the generated

@@ -284,12 +284,7 @@ func injectPprofFile(srcdir string, port int) (func(), error) {
 	}
 
 	err = templates.FynePprofInit.Execute(pprofInitFile, pprofInfo)
-	if err != nil {
-		os.Remove(pprofInitFilePath)
-		return func() {}, err
-	}
-
-	return func() { os.Remove(pprofInitFilePath) }, nil
+	return func() { os.Remove(pprofInitFilePath) }, err
 }
 
 func (b *Builder) updateAndGetGoExecutable() runner {
