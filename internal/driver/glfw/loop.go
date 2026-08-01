@@ -216,7 +216,9 @@ func (d *gLDriver) runGL() {
 
 		if d.needsFrameTick() {
 			if wait := time.Until(nextFrame); wait > 0 {
+				traced := d.traceBeginWait(wait)
 				d.waitEventsTimeout(wait)
+				d.traceEndWait(traced)
 				if d.processQueuedFuncsOrDone() {
 					return
 				}
@@ -237,7 +239,9 @@ func (d *gLDriver) runGL() {
 			continue
 		}
 
+		traced := d.traceBeginWait(0)
 		d.waitEvents()
+		d.traceEndWait(traced)
 		if d.processQueuedFuncsOrDone() {
 			return
 		}

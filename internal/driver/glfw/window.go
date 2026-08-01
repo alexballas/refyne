@@ -304,6 +304,8 @@ func (w *window) processMoved(x, y int) {
 }
 
 func (w *window) processResized(width, height int) {
+	w.traceResize(width, height)
+
 	canvasSize := w.computeCanvasSize(width, height)
 	if !w.fullScreen {
 		w.width = scale.ToScreenCoordinate(w.canvas, canvasSize.Width)

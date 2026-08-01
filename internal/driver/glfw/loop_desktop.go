@@ -75,6 +75,7 @@ func (d *gLDriver) Terminate() {
 
 func wakeEventLoop() {
 	if eventLoopReady.Load() {
+		traceWakePosted()
 		glfw.PostEmptyEvent()
 	}
 }

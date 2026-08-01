@@ -8,6 +8,7 @@ More detailed release notes can be found on the [releases page](https://github.c
 ### Added
 
 * `storage.ReaderSeeker` and the `fyne.URIReadSeekCloser` / `repository.SeekableReadableRepository` types, providing seekable reads for backends that support them (local files, Android `content://`, and iOS `file://`) so resources can be passed directly to `http.ServeContent` without copying. Returns `repository.ErrOperationNotSupported` when seeking is unavailable.
+* `FYNE_TRACE_LOOP`: opt-in tracing of the desktop run loop, for diagnosing reports of a window that stops responding to the mouse after an interactive resize. Reads the environment once at startup, so it is inert unless set and needs no rebuild by the reporter. See [docs/run-loop-tracing.md](docs/run-loop-tracing.md).
 * Wayland: themed client-side window decorations (rounded title bar with app icon, centered title, minimize/maximize/close controls, cached external drop shadow with a forgiving resize area, drag-to-move, right-click system window menu, double-click-to-maximize and edge/corner resize) when the compositor does not provide server-side decorations (e.g. GNOME/Mutter). Server-side decorations are still used where available (KDE/wlroots). The window/title-bar icon now shows the application icon via the `app_id` and the `xdg-toplevel-icon-v1` protocol.
 
 ### Fixed
