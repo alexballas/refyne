@@ -29,28 +29,34 @@ const traceEnvKey = "FYNE_TRACE_LOOP"
 // when the loop looked healthy going to sleep.
 const traceLongWait = 250 * time.Millisecond
 
-var (
-	traceEnabled           = os.Getenv(traceEnvKey) != ""
-	traceStart             = time.Now()
-	traceOutput  io.Writer = os.Stderr
-	traceLock    sync.Mutex
+// loopTrace is the tracer the driver reports to. It is configured once, at
+// startup, and never replaced: tests build their own tracer rather than
+// reconfiguring this one, which would race with a running event loop.
+var loopTrace = newTracer(os.Getenv(traceEnvKey) != "", os.Stderr)
 
-	// traceStaleWaits counts waits entered with a mouse update still pending.
+type tracer struct {
+	enabled bool
+	start   time.Time
+
+	lock sync.Mutex
+	out  io.Writer
+
+	// staleWaits counts waits entered with a mouse update still pending.
 	// This on its own is harmless and happens in normal use: an event is
 	// usually already queued and the loop wakes again in microseconds.
-	traceStaleWaits atomic.Uint64
+	staleWaits atomic.Uint64
 
-	// traceStaleStalls counts the waits above that then blocked for longer
-	// than traceLongWait, which is the case that is actually visible as a
-	// stuck cursor and dead hover. A report that comes with a non-zero count
-	// here is this bug; one that comes with a zero count is not.
-	traceStaleStalls atomic.Uint64
+	// staleStalls counts the waits above that then blocked for longer than
+	// traceLongWait, which is the case that is actually visible as a stuck
+	// cursor and dead hover. A report that comes with a non-zero count here
+	// is this bug; one that comes with a zero count is not.
+	staleStalls atomic.Uint64
 
-	// traceWakes counts wakeEventLoop calls, i.e. how often something asked
-	// the loop to stop sleeping. Reported alongside the waits rather than
-	// logged on its own, which would drown the log during animation.
-	traceWakes atomic.Uint64
-)
+	// wakes counts wakeEventLoop calls, i.e. how often something asked the
+	// loop to stop sleeping. Reported alongside the waits rather than logged
+	// on its own, which would drown the log during animation.
+	wakes atomic.Uint64
+}
 
 // traceWait is the state a run loop sleep began in.
 type traceWait struct {
@@ -58,49 +64,48 @@ type traceWait struct {
 	stale   bool
 }
 
-// tracef writes one timestamped line to stderr. It is safe to call from any
-// goroutine; the lock only keeps lines from interleaving.
-func tracef(format string, args ...any) {
-	if !traceEnabled {
-		return
-	}
-
-	traceLock.Lock()
-	defer traceLock.Unlock()
-
-	fmt.Fprintf(traceOutput, "[loop %12s] %s\n",
-		time.Since(traceStart).Round(time.Microsecond), fmt.Sprintf(format, args...))
+func newTracer(enabled bool, out io.Writer) *tracer {
+	return &tracer{enabled: enabled, start: time.Now(), out: out}
 }
 
-// traceBeginWait records the state the run loop is about to block in and
-// reports the stale case immediately, since the loop may not wake again for a
-// long time. A zero timeout means the wait is indefinite.
-func (d *gLDriver) traceBeginWait(timeout time.Duration) traceWait {
-	if !traceEnabled {
+// logf writes one timestamped line. It is safe to call from any goroutine; the
+// lock only keeps lines from interleaving.
+func (t *tracer) logf(format string, args ...any) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	fmt.Fprintf(t.out, "[loop %12s] %s\n",
+		time.Since(t.start).Round(time.Microsecond), fmt.Sprintf(format, args...))
+}
+
+// beginWait records the state a run loop sleep is starting in and reports the
+// stale case immediately, since the loop may not wake again for a long time. A
+// zero timeout means the wait is indefinite.
+func (t *tracer) beginWait(stale bool, timeout time.Duration) traceWait {
+	if !t.enabled {
 		return traceWait{}
 	}
 
-	wait := traceWait{started: time.Now(), stale: d.hasPendingMouseUpdate()}
-	if wait.stale {
-		tracef("sleeping with a pending mouse update (stale waits: %d, timeout: %s)"+
+	if stale {
+		t.logf("sleeping with a pending mouse update (stale waits: %d, timeout: %s)"+
 			" - hover and cursor stay stale until the next event",
-			traceStaleWaits.Add(1), traceTimeout(timeout))
+			t.staleWaits.Add(1), traceTimeout(timeout))
 	}
-	return wait
+	return traceWait{started: time.Now(), stale: stale}
 }
 
-// traceEndWait reports how long the run loop was blocked. Ordinary short
-// sleeps are not logged, or every mouse move would produce a line.
-func (d *gLDriver) traceEndWait(wait traceWait) {
-	if !traceEnabled || wait.started.IsZero() {
+// endWait reports how long the run loop was blocked. Ordinary short sleeps are
+// not logged, or every mouse move would produce a line.
+func (t *tracer) endWait(wait traceWait) {
+	if !t.enabled || wait.started.IsZero() {
 		return
 	}
 
 	slept := time.Since(wait.started)
 	if wait.stale && slept >= traceLongWait {
-		tracef("STALLED for %s with a mouse update still pending"+
+		t.logf("STALLED for %s with a mouse update still pending"+
 			" (stalls: %d, wakes posted: %d) - this is the stuck cursor and dead hover case",
-			slept.Round(time.Millisecond), traceStaleStalls.Add(1), traceWakes.Load())
+			slept.Round(time.Millisecond), t.staleStalls.Add(1), t.wakes.Load())
 		return
 	}
 
@@ -108,27 +113,60 @@ func (d *gLDriver) traceEndWait(wait traceWait) {
 		return
 	}
 
-	tracef("woke after %s (stale: %t, wakes posted: %d)",
-		slept.Round(time.Microsecond), wait.stale, traceWakes.Load())
+	t.logf("woke after %s (stale: %t, wakes posted: %d)",
+		slept.Round(time.Microsecond), wait.stale, t.wakes.Load())
 }
 
-// traceWakePosted counts a request for the loop to stop sleeping.
-func traceWakePosted() {
-	if traceEnabled {
-		traceWakes.Add(1)
-	}
-}
-
-// traceResize reports a resize reaching the driver. During an interactive
-// resize these are the only sign of life on platforms where the OS modal loop
-// owns the thread, so they give the timeline a drag can be read against.
-func (w *window) traceResize(width, height int) {
-	if !traceEnabled {
+// resize reports a resize reaching the driver. During an interactive resize
+// these are the only sign of life on platforms where the OS modal loop owns
+// the thread, so they give the timeline a drag can be read against.
+func (t *tracer) resize(width, height int, pendingMouse bool) {
+	if !t.enabled {
 		return
 	}
 
-	tracef("resize to %dx%d (pending mouse update: %t)",
-		width, height, !w.mousePosUpdateProcessed)
+	t.logf("resize to %dx%d (pending mouse update: %t)", width, height, pendingMouse)
+}
+
+// wakePosted counts a request for the loop to stop sleeping.
+func (t *tracer) wakePosted() {
+	if t.enabled {
+		t.wakes.Add(1)
+	}
+}
+
+// The driver side of the tracer. Each of these repeats the enabled check so
+// that tracing costs a single bool test when it is off, rather than the work
+// of gathering what would be reported.
+
+func (d *gLDriver) traceBeginWait(timeout time.Duration) traceWait {
+	if !loopTrace.enabled {
+		return traceWait{}
+	}
+
+	return loopTrace.beginWait(d.hasPendingMouseUpdate(), timeout)
+}
+
+func (d *gLDriver) traceEndWait(wait traceWait) {
+	if !loopTrace.enabled {
+		return
+	}
+
+	loopTrace.endWait(wait)
+}
+
+func (w *window) traceResize(width, height int) {
+	if !loopTrace.enabled {
+		return
+	}
+
+	loopTrace.resize(width, height, !w.mousePosUpdateProcessed)
+}
+
+func traceWakePosted() {
+	if loopTrace.enabled {
+		loopTrace.wakePosted()
+	}
 }
 
 // hasPendingMouseUpdate reports whether any window has a mouse position that
