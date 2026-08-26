@@ -3,6 +3,7 @@ package repository
 import (
 	"bufio"
 	"mime"
+	"net/url"
 	"path"
 	"strings"
 	"unicode/utf8"
@@ -21,30 +22,24 @@ func EqualURI(t1, t2 fyne.URI) bool {
 	u1, ok1 := t1.(*uri)
 	u2, ok2 := t2.(*uri)
 	if ok1 && ok2 {
-		// Knowing the type, pointers are either the same or fields are the same.
 		return u1 == u2 || *u1 == *u2
 	}
 
 	return t1 == t2 || t1.String() == t2.String()
 }
 
-// Declare conformance with fyne.URI interface.
 var _ fyne.URI = &uri{}
 
 type uri struct {
-	scheme    string
-	authority string
-	path      string
-	query     string
-	fragment  string
+	url.URL
 }
 
 func (u *uri) Extension() string {
-	return path.Ext(u.path)
+	return path.Ext(u.Path())
 }
 
 func (u *uri) Name() string {
-	return path.Base(u.path)
+	return path.Base(u.Path())
 }
 
 func (u *uri) MimeType() string {
@@ -72,43 +67,29 @@ func (u *uri) MimeType() string {
 }
 
 func (u *uri) Scheme() string {
-	return u.scheme
-}
-
-func (u *uri) String() string {
-	// NOTE: this string reconstruction is mandated by IETF RFC3986,
-	// section 5.3, pp. 35.
-	s := strings.Builder{}
-	s.Grow(len(u.scheme) + len(u.authority) + len(u.path) + len(u.query) + len(u.fragment) + len("://?#"))
-
-	s.WriteString(u.scheme)
-	s.WriteString("://")
-	s.WriteString(u.authority)
-	s.WriteString(u.path)
-
-	if len(u.query) > 0 {
-		s.WriteByte('?')
-		s.WriteString(u.query)
-	}
-	if len(u.fragment) > 0 {
-		s.WriteByte('#')
-		s.WriteString(u.fragment)
-	}
-	return s.String()
+	return u.URL.Scheme
 }
 
 func (u *uri) Authority() string {
-	return u.authority
+	if u.User != nil {
+		if user := u.User.String(); user != "" {
+			return user + "@" + u.Host
+		}
+	}
+	return u.Host
 }
 
 func (u *uri) Path() string {
-	return u.path
+	if u.URL.Opaque != "" {
+		return u.URL.Opaque
+	}
+	return u.URL.Path
 }
 
 func (u *uri) Query() string {
-	return u.query
+	return u.RawQuery
 }
 
 func (u *uri) Fragment() string {
-	return u.fragment
+	return u.URL.Fragment
 }
