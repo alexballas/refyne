@@ -11,6 +11,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/lang"
 	"github.com/alexballas/refyne/v2/storage"
 	"github.com/alexballas/refyne/v2/storage/repository"
@@ -698,7 +699,7 @@ func showFile(file *FileDialog) *fileDialog {
 	itemMin := d.newFileItem(storage.NewFileURI("filename.txt"), false, false).MinSize()
 	size := ui.MinSize().Add(itemMin.AddWidthHeight(itemMin.Width+pad*4, pad*2))
 
-	d.win = widget.NewModalPopUp(ui, file.parent.Canvas())
+	d.win = widget.NewModalPopUp(container.NewPadded(ui), file.parent.Canvas())
 	d.win.Resize(size)
 
 	d.setLocation(file.effectiveStartingDir())
@@ -752,11 +753,12 @@ func (f *FileDialog) Refresh() {
 // Resize dialog to the requested size, if there is sufficient space.
 // If the parent window is not large enough then the size will be reduced to fit.
 func (f *FileDialog) Resize(size fyne.Size) {
-	f.desiredSize = size
 	if f.dialog == nil {
+		f.desiredSize = size
 		return
 	}
-	f.dialog.win.Resize(size)
+	f.desiredSize = internal.MaxSizes(size, f.MinSize())
+	f.dialog.win.Resize(f.desiredSize)
 }
 
 // Hide hides the file dialog.

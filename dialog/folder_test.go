@@ -32,7 +32,7 @@ func TestShowFolderOpen(t *testing.T) {
 	defer win.Canvas().Overlays().Remove(popup)
 	assert.NotNil(t, popup)
 
-	ui := popup.Content.(*fyne.Container)
+	ui := popup.Content.(*fyne.Container).Objects[0].(*fyne.Container)
 	title := ui.Objects[1].(*fyne.Container).Objects[0].(*widget.Label)
 	assert.Equal(t, lang.L("Open")+" "+lang.L("Folder"), title.Text)
 
