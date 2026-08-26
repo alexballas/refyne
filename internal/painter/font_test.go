@@ -3,6 +3,7 @@ package painter_test
 import (
 	"image"
 	"image/color"
+	"image/draw"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,7 @@ import (
 	"github.com/alexballas/refyne/v2/internal/painter"
 	intTest "github.com/alexballas/refyne/v2/internal/test"
 	"github.com/alexballas/refyne/v2/test"
+	"github.com/alexballas/refyne/v2/theme"
 )
 
 func TestCachedFontFace(t *testing.T) {
@@ -82,6 +84,28 @@ func TestDrawString(t *testing.T) {
 			fontMap := &intTest.FontMap{f.Fonts.ResolveFace(' ')} // first (ascii) font
 			painter.DrawString(img, tt.string, tt.color, fontMap, tt.size, 1, fyne.TextStyle{TabWidth: tt.tabWidth})
 			test.AssertImageMatches(t, "font/"+tt.want, img)
+		})
+	}
+}
+
+func TestDrawStringMixedFontsGoldens(t *testing.T) {
+	if theme.DefaultEmojiFont() == nil {
+		t.Skip("emoji font disabled")
+	}
+	faces := painter.CachedFontFace(fyne.TextStyle{}, nil, nil).Fonts
+	for _, scale := range []struct {
+		name          string
+		value         float32
+		width, height int
+	}{
+		{name: "scale_1", value: 1, width: 360, height: 80},
+		{name: "scale_2", value: 2, width: 720, height: 160},
+	} {
+		t.Run(scale.name, func(t *testing.T) {
+			img := image.NewNRGBA(image.Rect(0, 0, scale.width, scale.height))
+			draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+			painter.DrawString(img, "Latin ⌘ emoji 1️⃣ 日本語", color.Black, faces, 28, scale.value, fyne.TextStyle{})
+			test.AssertImageMatches(t, "font/mixed_fonts_"+scale.name+".png", img)
 		})
 	}
 }
