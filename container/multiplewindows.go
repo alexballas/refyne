@@ -2,6 +2,7 @@ package container
 
 import (
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
 	intWidget "github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/widget"
 )
@@ -105,7 +106,7 @@ func (m *MultipleWindows) setupChild(w *InnerWindow) {
 	}
 	w.OnResized = func(ev *fyne.DragEvent) {
 		size := w.Size().Add(ev.Dragged)
-		w.Resize(size.Max(w.MinSize()))
+		w.Resize(internal.MaxSizes(size, w.MinSize()))
 	}
 	w.OnTappedBar = func() {
 		m.RaiseToTop(w)
@@ -116,7 +117,7 @@ type multiWinLayout struct{}
 
 func (m *multiWinLayout) Layout(objects []fyne.CanvasObject, _ fyne.Size) {
 	for _, w := range objects { // update the windows so they have real size
-		w.Resize(w.MinSize().Max(w.Size()))
+		w.Resize(internal.MaxSizes(w.MinSize(), w.Size()))
 	}
 }
 

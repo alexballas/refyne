@@ -7,6 +7,7 @@ import (
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/data/binding"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/widget"
@@ -566,11 +567,11 @@ type treeRenderer struct {
 	scroller *widget.Scroll
 }
 
-func (r *treeRenderer) MinSize() (min fyne.Size) {
-	min = r.scroller.MinSize()
-	min = min.Max(r.tree.branchMinSize)
-	min = min.Max(r.tree.leafMinSize)
-	return min
+func (r *treeRenderer) MinSize() fyne.Size {
+	minSize := r.scroller.MinSize()
+	minSize = internal.MaxSizes(minSize, r.tree.branchMinSize)
+	minSize = internal.MaxSizes(minSize, r.tree.leafMinSize)
+	return minSize
 }
 
 func (r *treeRenderer) Layout(size fyne.Size) {
@@ -841,7 +842,7 @@ func (r *treeContentRenderer) Refresh() {
 func (r *treeContentRenderer) refreshForID(toDraw TreeNodeID) {
 	s := r.treeContent.Size()
 	if s.IsZero() {
-		r.treeContent.Resize(r.treeContent.MinSize().Max(r.treeContent.tree.Size()))
+		r.treeContent.Resize(internal.MaxSizes(r.treeContent.MinSize(), r.treeContent.tree.Size()))
 	} else {
 		r.Layout(s)
 	}

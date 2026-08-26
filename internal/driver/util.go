@@ -152,17 +152,21 @@ func walkObjectTree(
 	}
 	pos := obj.Position().Add(offset)
 
+	// A walk touches each widget several times per frame. Keep the renderer
+	// lookup local to this visit so clipping does not repeat the cache lookup.
 	var children []fyne.CanvasObject
+	var renderer fyne.WidgetRenderer
 	switch co := obj.(type) {
 	case *fyne.Container:
 		children = co.Objects
 	case fyne.Widget:
 		if requireVisible || cache.IsRendered(co) {
-			children = cache.Renderer(co).Objects()
+			renderer = cache.Renderer(co)
+			children = renderer.Objects()
 		}
 	}
 
-	if IsClip(obj) {
+	if isClipWithRenderer(obj, renderer) {
 		clipPos = pos
 		clipSize = obj.Size()
 	}
@@ -202,19 +206,32 @@ func walkObjectTree(
 }
 
 func IsClip(o fyne.CanvasObject) bool {
-	_, scroll := o.(fyne.Scrollable)
-	if scroll {
+	if _, scroll := o.(fyne.Scrollable); scroll {
 		return true
 	}
 
-	if _, isWid := o.(fyne.Widget); !isWid {
+	wid, isWid := o.(fyne.Widget)
+	if !isWid {
 		return false
 	}
-	r, rendered := cache.CachedRenderer(o.(fyne.Widget))
+	r, rendered := cache.CachedRenderer(wid)
 	if !rendered {
 		return false
 	}
 
 	_, clip := r.(interface{ IsClip() })
+	return clip
+}
+
+// isClipWithRenderer is IsClip for callers that already looked up a renderer.
+func isClipWithRenderer(o fyne.CanvasObject, renderer fyne.WidgetRenderer) bool {
+	if _, scroll := o.(fyne.Scrollable); scroll {
+		return true
+	}
+	if renderer == nil {
+		return false
+	}
+
+	_, clip := renderer.(interface{ IsClip() })
 	return clip
 }

@@ -25,7 +25,8 @@ type WidgetRenderer interface {
 	Layout(Size)
 	// MinSize returns the minimum size of the widget that is rendered by this renderer.
 	MinSize() Size
-	// Objects returns all objects that should be drawn.
+	// Objects returns all objects that should be drawn. The driver does not
+	// modify the returned slice, so renderers may cache and reuse it.
 	Objects() []CanvasObject
 	// Refresh is a hook that is called if the widget has updated and needs to be redrawn.
 	// This might trigger a [Layout].

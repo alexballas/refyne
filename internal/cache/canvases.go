@@ -39,8 +39,8 @@ func AttachCanvas(obj fyne.CanvasObject, c fyne.Canvas) bool {
 	cinfo := &canvasInfo{canvas: c}
 	cinfo.setAlive()
 
-	old, found := canvases.LoadOrStore(obj, cinfo)
-	return !found || old.canvas != c
+	canvases.Store(obj, cinfo)
+	return true
 }
 
 type canvasInfo struct {

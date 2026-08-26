@@ -3,6 +3,7 @@ package widget
 import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/theme"
 )
@@ -214,7 +215,7 @@ type popUpRenderer struct {
 }
 
 func (r *popUpRenderer) Layout(_ fyne.Size) {
-	innerSize := r.popUp.innerSize.Max(r.popUp.MinSize())
+	innerSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.MinSize())
 	r.popUp.Content.Resize(innerSize.Subtract(r.padding()))
 
 	innerPos := r.popUp.innerPos
@@ -247,7 +248,7 @@ func (r *popUpRenderer) Refresh() {
 	th := r.popUp.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 	r.background.FillColor = th.Color(theme.ColorNameOverlayBackground, v)
-	expectedContentSize := r.popUp.innerSize.Max(r.popUp.MinSize()).Subtract(r.padding())
+	expectedContentSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.MinSize()).Subtract(r.padding())
 	shouldRelayout := r.popUp.Content.Size() != expectedContentSize
 
 	if r.background.Size() != r.popUp.innerSize || r.background.Position() != r.popUp.innerPos || shouldRelayout {
@@ -268,11 +269,11 @@ func (r *modalPopUpRenderer) Layout(canvasSize fyne.Size) {
 	r.underlay.Resize(canvasSize)
 
 	padding := r.padding()
-	innerSize := r.popUp.innerSize.Max(r.popUp.Content.MinSize().Add(padding))
+	innerSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.Content.MinSize().Add(padding))
 
 	requestedSize := innerSize.Subtract(padding)
-	size := r.popUp.Content.MinSize().Max(requestedSize)
-	size = size.Min(canvasSize.Subtract(padding))
+	size := internal.MaxSizes(r.popUp.Content.MinSize(), requestedSize)
+	size = internal.MinSizes(size, canvasSize.Subtract(padding))
 	pos := fyne.NewPos((canvasSize.Width-size.Width)/2, (canvasSize.Height-size.Height)/2)
 	r.popUp.Content.Move(pos)
 	r.popUp.Content.Resize(size)
@@ -294,7 +295,7 @@ func (r *modalPopUpRenderer) Refresh() {
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 	r.underlay.FillColor = th.Color(theme.ColorNameShadow, v)
 	r.background.FillColor = th.Color(theme.ColorNameOverlayBackground, v)
-	expectedContentSize := r.popUp.innerSize.Max(r.popUp.MinSize()).Subtract(r.padding())
+	expectedContentSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.MinSize()).Subtract(r.padding())
 	shouldLayout := r.popUp.Content.Size() != expectedContentSize
 
 	if r.background.Size() != r.popUp.innerSize || shouldLayout {

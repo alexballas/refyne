@@ -8,6 +8,7 @@ import (
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/driver/mobile"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/theme"
@@ -821,7 +822,7 @@ func (t *Table) templateSize() fyne.Size {
 		if !t.ShowHeaderRow && !t.ShowHeaderColumn {
 			return template.MinSize()
 		}
-		return template.MinSize().Max(t.createHeader().MinSize())
+		return internal.MaxSizes(template.MinSize(), t.createHeader().MinSize())
 	}
 
 	fyne.LogError("Missing CreateCell callback required for Table", nil)
@@ -1089,7 +1090,7 @@ func (t *tableRenderer) Layout(s fyne.Size) {
 
 func (t *tableRenderer) MinSize() fyne.Size {
 	sep := t.t.Theme().Size(theme.SizeNamePadding)
-	min := t.t.content.MinSize().Max(t.t.cellSize)
+	min := internal.MaxSizes(t.t.content.MinSize(), t.t.cellSize)
 	if t.t.ShowHeaderRow {
 		min.Height += t.t.headerSize.Height + sep
 	}

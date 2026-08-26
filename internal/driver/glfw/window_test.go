@@ -1198,6 +1198,24 @@ func TestWindow_Tapped(t *testing.T) {
 	})
 }
 
+func TestWindow_TouchScreenTappedWithMouseMovePending(t *testing.T) {
+	w := createWindow("Test")
+	left := &tappableObject{Rectangle: canvas.NewRectangle(color.White)}
+	right := &tappableObject{Rectangle: canvas.NewRectangle(color.White)}
+	w.SetContent(container.NewGridWithColumns(2, left, right))
+	w.Resize(fyne.NewSize(200, 100))
+
+	runOnMain(func() {
+		w.moveMouse(20, 50)
+		w.mouseMoved(w.viewport, 150, 50)
+		w.mouseClicked(w.viewport, glfw.MouseButton1, glfw.Press, 0)
+		w.mouseClicked(w.viewport, glfw.MouseButton1, glfw.Release, 0)
+
+		assert.Nil(t, left.popTapEvent())
+		assert.NotNil(t, right.popTapEvent())
+	})
+}
+
 func TestWindow_TappedSecondary(t *testing.T) {
 	w := createWindow("Test")
 	prop := canvas.NewRectangle(color.White)
@@ -1617,6 +1635,49 @@ func TestWindow_Focus(t *testing.T) {
 
 	assert.Equal(t, "abcd", e1.Text)
 	assert.Equal(t, "ef", e2.Text)
+}
+
+func TestWindow_CollectionEmptyAreaUnfocus(t *testing.T) {
+	newWidgets := map[string]func() fyne.CanvasObject{
+		"List": func() fyne.CanvasObject {
+			return widget.NewList(func() int { return 1 },
+				func() fyne.CanvasObject { return widget.NewLabel("Item") },
+				func(widget.ListItemID, fyne.CanvasObject) {})
+		},
+		"GridWrap": func() fyne.CanvasObject {
+			return widget.NewGridWrap(func() int { return 1 },
+				func() fyne.CanvasObject { return widget.NewLabel("Item") },
+				func(widget.GridWrapItemID, fyne.CanvasObject) {})
+		},
+		"Table": func() fyne.CanvasObject {
+			return widget.NewTable(func() (int, int) { return 1, 1 },
+				func() fyne.CanvasObject { return widget.NewLabel("Item") },
+				func(widget.TableCellID, fyne.CanvasObject) {})
+		},
+		"Tree": func() fyne.CanvasObject {
+			return widget.NewTreeWithStrings(map[string][]string{"": {"leaf1"}})
+		},
+	}
+
+	for name, newWidget := range newWidgets {
+		t.Run(name, func(t *testing.T) {
+			w := createWindow("Test")
+			entry := widget.NewEntry()
+			collection := newWidget()
+			w.SetContent(container.NewBorder(entry, nil, nil, nil, collection))
+			w.Resize(fyne.NewSize(200, 200))
+			repaintWindow(w)
+
+			w.Canvas().Focus(entry)
+			require.Equal(t, entry, w.Canvas().Focused())
+			runOnMain(func() {
+				w.moveMouse(20, 150)
+				w.mouseClicked(w.viewport, glfw.MouseButton1, glfw.Press, 0)
+				w.mouseClicked(w.viewport, glfw.MouseButton1, glfw.Release, 0)
+			})
+			assert.Nil(t, w.Canvas().Focused())
+		})
+	}
 }
 
 func TestWindow_CaptureTypedShortcut(t *testing.T) {

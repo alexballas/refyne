@@ -181,3 +181,13 @@ func TestKeyCodeToKeyName(t *testing.T) {
 	invalid = keyCodeToKeyName("invalid")
 	assert.Equal(t, fyne.KeyUnknown, invalid)
 }
+
+func TestSafelyReadKeyName(t *testing.T) {
+	assert.Equal(t, "a", safelyReadKeyName(func() string { return "a" }))
+	assert.Empty(t, safelyReadKeyName(func() string {
+		panic(&glfw.Error{Code: glfw.NoError, Desc: "unknown scancode"})
+	}))
+	assert.PanicsWithValue(t, "programmer error", func() {
+		safelyReadKeyName(func() string { panic("programmer error") })
+	})
+}

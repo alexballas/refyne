@@ -6,6 +6,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	internalwidget "github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
@@ -100,7 +101,7 @@ func (r *colorButtonRenderer) Layout(size fyne.Size) {
 }
 
 func (r *colorButtonRenderer) MinSize() fyne.Size {
-	return r.rectangle.MinSize().Max(fyne.NewSize(32, 32))
+	return internal.MaxSizes(r.rectangle.MinSize(), fyne.NewSize(32, 32)) //revive:disable-line:add-constant
 }
 
 func (r *colorButtonRenderer) Refresh() {

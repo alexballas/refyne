@@ -10,6 +10,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/painter/gl"
 	"github.com/alexballas/refyne/v2/internal/scale"
@@ -663,7 +664,7 @@ func (w *wrapInner) doCenter() {
 	multi := c.webExtraWindows
 
 	min := w.inner.MinSize()
-	min = min.Max(w.inner.Size())
+	min = internal.MaxSizes(min, w.inner.Size())
 
 	x := (multi.Size().Width - min.Width) / 2
 	y := (multi.Size().Height - min.Height) / 2

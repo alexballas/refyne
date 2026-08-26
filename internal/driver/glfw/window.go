@@ -12,6 +12,7 @@ import (
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/cache"
@@ -55,7 +56,7 @@ func (w *window) screenSize(canvasSize fyne.Size) (int, int) {
 func (w *window) Resize(size fyne.Size) {
 	w.canvas.size = size
 	// we cannot perform this until window is prepared as we don't know its scale!
-	bigEnough := size.Max(w.canvas.canvasSize(w.canvas.Content().MinSize()))
+	bigEnough := internal.MaxSizes(size, w.canvas.canvasSize(w.canvas.Content().MinSize()))
 	w.runOnMainWhenCreated(func() {
 		width, height := scale.ToScreenCoordinate(w.canvas, bigEnough.Width), scale.ToScreenCoordinate(w.canvas, bigEnough.Height)
 		if w.fixedSize || !w.visible { // fixed size ignores future `resized` and if not visible we may not get the event
@@ -498,6 +499,11 @@ func (w *window) mouseOut() {
 }
 
 func (w *window) processMouseClicked(button desktop.MouseButton, action action, modifiers fyne.KeyModifier) {
+	if !w.mousePosUpdateProcessed {
+		w.processMouseMoved(w.newMousePosX, w.newMousePosY)
+		w.mousePosUpdateProcessed = true
+	}
+
 	w.mouseDragPos = w.mousePos
 	mousePos := w.mousePos
 	mouseDragStarted := w.mouseDragStarted
@@ -535,19 +541,17 @@ func (w *window) processMouseClicked(button desktop.MouseButton, action action, 
 		w.mouseClickedHandleMouseable(mev, action, wid)
 	}
 
-	if wid, ok := co.(fyne.Focusable); !ok || wid != w.canvas.Focused() {
+	focused := w.canvas.Focused()
+	if wid, ok := co.(fyne.Focusable); !ok || wid != focused {
 		ignore := false
-		_, _, _ = w.findObjectAtPositionMatching(w.canvas, mousePos, func(object fyne.CanvasObject) bool {
-			switch object.(type) {
-			case fyne.Focusable:
-				ignore = true
-				return true
-			}
+		if focusedObject, ok := focused.(fyne.CanvasObject); ok {
+			found, _, _ := w.findObjectAtPositionMatching(w.canvas, mousePos, func(object fyne.CanvasObject) bool {
+				return object == focusedObject
+			})
+			ignore = found != nil
+		}
 
-			return false
-		})
-
-		if !ignore { // if a parent item under the mouse has focus then ignore this tap unfocus
+		if !ignore {
 			w.canvas.Unfocus()
 		}
 	}
@@ -1009,7 +1013,7 @@ func (d *gLDriver) createWindow(title string, decorate bool) fyne.Window {
 
 	d.init()
 
-	ret = &window{title: title, decorate: decorate, driver: d, frame: newPresentGate()}
+	ret = &window{title: title, decorate: decorate, driver: d, frame: newPresentGate(), mousePosUpdateProcessed: true}
 	ret.canvas = newCanvas()
 	ret.canvas.context = ret
 	ret.SetIcon(ret.icon)

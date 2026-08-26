@@ -3,6 +3,7 @@ package widget
 import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/layout"
 	"github.com/alexballas/refyne/v2/theme"
@@ -228,7 +229,7 @@ func (r *menuRenderer) Layout(s fyne.Size) {
 	minSize := r.MinSize()
 	var boxSize fyne.Size
 	if r.m.customSized {
-		boxSize = minSize.Max(s)
+		boxSize = internal.MaxSizes(minSize, s)
 	} else {
 		boxSize = minSize
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/painter"
@@ -222,6 +223,9 @@ func (w *window) doCenterOnScreen() {
 	// get window dimensions in pixels
 	monitor := w.getMonitorForWindow()
 	monMode := monitor.GetVideoMode()
+	if monMode == nil {
+		return
+	}
 
 	// these come into play when dealing with multiple monitors
 	monX, monY := monitor.GetPos()
@@ -331,13 +335,19 @@ func getMonitorScale(monitor *glfw.Monitor) float32 {
 	if runtime.GOOS == "linux" && widthMm == 60 && heightMm == 60 { // Steam Deck incorrectly reports 6cm square!
 		return 1.0
 	}
-	widthPx := monitor.GetVideoMode().Width
-	return calculateDetectedScale(widthMm, widthPx)
+	videoMode := monitor.GetVideoMode()
+	if videoMode == nil {
+		return 1.0
+	}
+	return calculateDetectedScale(widthMm, videoMode.Width)
 }
 
 // getScaledMonitorSize returns the monitor dimensions adjusted for scaling
 func getScaledMonitorSize(monitor *glfw.Monitor) fyne.Size {
 	videoMode := monitor.GetVideoMode()
+	if videoMode == nil {
+		return fyne.Size{}
+	}
 	scale := getMonitorScale(monitor)
 
 	scaledWidth := float32(videoMode.Width) / scale
@@ -714,8 +724,26 @@ func keyToName(code glfw.Key, scancode int) fyne.KeyName {
 		return ret
 	}
 
-	keyName := glfw.GetKeyName(code, scancode)
+	keyName := safeGetKeyName(code, scancode)
 	return keyCodeToKeyName(keyName)
+}
+
+func safeGetKeyName(key glfw.Key, scancode int) string {
+	return safelyReadKeyName(func() string { return glfw.GetKeyName(key, scancode) })
+}
+
+func safelyReadKeyName(read func() string) (name string) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if err, ok := recovered.(*glfw.Error); ok {
+				fyne.LogError("Failed to get GLFW key name", err)
+				name = ""
+				return
+			}
+			panic(recovered)
+		}
+	}()
+	return read()
 }
 
 func convertAction(action glfw.Action) action {
@@ -831,7 +859,7 @@ func (w *window) RescaleContext() {
 		return
 	}
 
-	size := w.canvas.size.Max(w.canvas.MinSize())
+	size := internal.MaxSizes(w.canvas.size, w.canvas.MinSize())
 	newWidth, newHeight := w.screenSize(size)
 	w.viewport.SetSize(newWidth, newHeight)
 
@@ -892,11 +920,12 @@ func (w *window) create() {
 	// default new windows onto the same monitor as a visible sibling when no position was set.
 	if runtime.GOOS == "darwin" && !w.positionRequested {
 		if siblingMonitor := w.findSiblingMonitor(); siblingMonitor != nil {
-			monitorX, monitorY := siblingMonitor.GetPos()
-			mode := siblingMonitor.GetVideoMode()
-			w.xpos = monitorX + (mode.Width-pixWidth)/2
-			w.ypos = monitorY + (mode.Height-pixHeight)/2
-			shouldSetPosition = true
+			if mode := siblingMonitor.GetVideoMode(); mode != nil {
+				monitorX, monitorY := siblingMonitor.GetPos()
+				w.xpos = monitorX + (mode.Width-pixWidth)/2
+				w.ypos = monitorY + (mode.Height-pixHeight)/2
+				shouldSetPosition = true
+			}
 		}
 	}
 

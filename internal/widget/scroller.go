@@ -388,7 +388,8 @@ func (r *scrollContainerRenderer) layoutBars(size fyne.Size) {
 
 func (r *scrollContainerRenderer) Layout(size fyne.Size) {
 	c := r.scroll.Content
-	c.Resize(c.MinSize().Max(size))
+	contentMin := c.MinSize()
+	c.Resize(fyne.NewSize(fyne.Max(contentMin.Width, size.Width), fyne.Max(contentMin.Height, size.Height)))
 
 	r.layoutBars(size)
 }
@@ -528,7 +529,7 @@ func (s *Scroll) ScrollToTop() {
 
 // MinSize returns the smallest size this widget can shrink to
 func (s *Scroll) MinSize() fyne.Size {
-	min := fyne.NewSize(scrollContainerMinSize, scrollContainerMinSize).Max(s.minSize)
+	min := fyne.NewSize(fyne.Max(scrollContainerMinSize, s.minSize.Width), fyne.Max(scrollContainerMinSize, s.minSize.Height))
 	switch s.Direction {
 	case ScrollHorizontalOnly:
 		min.Height = fyne.Max(min.Height, s.Content.MinSize().Height)

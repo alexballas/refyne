@@ -64,6 +64,10 @@ func TestContainer_MinSize(t *testing.T) {
 func TestContainer_Move(t *testing.T) {
 	box := new(dummyObject)
 	container := NewContainerWithoutLayout(box)
+	dirty := &dirtyCanvas{}
+	oldApp := CurrentApp()
+	SetCurrentApp(&repaintTestApp{driver: &repaintTestDriver{canvas: dirty}})
+	defer SetCurrentApp(oldApp)
 
 	size := NewSize(100, 100)
 	pos := NewPos(0, 0)
@@ -74,9 +78,40 @@ func TestContainer_Move(t *testing.T) {
 	container.Move(pos)
 	assert.Equal(t, pos, container.Position())
 	assert.Equal(t, NewPos(0, 0), box.Position())
+	assert.Equal(t, 1, dirty.count, "a real move repaints")
+
+	container.Move(pos)
+	assert.Equal(t, 1, dirty.count, "a no-op move does not repaint")
 
 	box.Move(pos)
 	assert.Equal(t, pos, box.Position())
+}
+
+type dirtyCanvas struct {
+	Canvas
+	count int
+}
+
+func (c *dirtyCanvas) SetDirty() {
+	c.count++
+}
+
+type repaintTestDriver struct {
+	Driver
+	canvas Canvas
+}
+
+func (d *repaintTestDriver) CanvasForObject(CanvasObject) Canvas {
+	return d.canvas
+}
+
+type repaintTestApp struct {
+	dummyApp
+	driver Driver
+}
+
+func (a *repaintTestApp) Driver() Driver {
+	return a.driver
 }
 
 func TestContainer_NilLayout(t *testing.T) {

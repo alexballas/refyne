@@ -10,6 +10,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	internalwidget "github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
@@ -192,7 +193,7 @@ func (r *colorWheelRenderer) Layout(size fyne.Size) {
 }
 
 func (r *colorWheelRenderer) MinSize() fyne.Size {
-	return r.raster.MinSize().Max(fyne.NewSize(128, 128))
+	return internal.MaxSizes(r.raster.MinSize(), fyne.NewSize(128, 128)) //revive:disable-line:add-constant
 }
 
 func (r *colorWheelRenderer) Refresh() {

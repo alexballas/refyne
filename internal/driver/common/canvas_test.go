@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/driver"
 	"github.com/alexballas/refyne/v2/internal/painter/gl"
 	"github.com/alexballas/refyne/v2/test"
@@ -419,6 +421,31 @@ func Prepend(c *fyne.Container, object fyne.CanvasObject) {
 
 type dummyCanvas struct {
 	fyne.Canvas
+}
+
+func TestAttachCanvasImageSetupOnlyOnCanvasChange(t *testing.T) {
+	oldCanvas := &dummyCanvas{}
+	newCanvas := &dummyCanvas{}
+	defer cache.CleanCanvas(oldCanvas)
+	defer cache.CleanCanvas(newCanvas)
+
+	img := canvas.NewImageFromImage(image.NewNRGBA(image.Rect(0, 0, 2, 2)))
+	setups := 0
+	attach := func(target *dummyCanvas) {
+		if cache.AttachCanvas(img, target) {
+			setups++
+			img.Refresh()
+		}
+	}
+
+	attach(oldCanvas)
+	assert.Equal(t, 1, setups)
+	attach(oldCanvas)
+	assert.Equal(t, 1, setups, "a same-canvas revisit must not repeat image setup")
+	attach(newCanvas)
+	assert.Equal(t, 2, setups, "moving to a different canvas must repeat image setup once")
+	attach(newCanvas)
+	assert.Equal(t, 2, setups)
 }
 
 func (dummyCanvas) Scale() float32 {

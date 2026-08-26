@@ -6,6 +6,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	intdriver "github.com/alexballas/refyne/v2/internal/driver"
 )
@@ -16,7 +17,7 @@ import (
 func RenderObjectToMarkup(o fyne.CanvasObject) string {
 	c := NewCanvas()
 	c.SetPadded(false)
-	size := o.MinSize().Max(o.Size())
+	size := internal.MaxSizes(o.MinSize(), o.Size())
 	c.SetContent(o)
 	c.Resize(size) // ensure we are large enough for current size
 
@@ -70,7 +71,7 @@ func FocusPrevious(c fyne.Canvas) {
 // LaidOutObjects returns all fyne.CanvasObject starting at the given fyne.CanvasObject which is laid out previously.
 func LaidOutObjects(o fyne.CanvasObject) (objects []fyne.CanvasObject) {
 	if o != nil {
-		objects = layoutAndCollect(objects, o, o.MinSize().Max(o.Size()))
+		objects = layoutAndCollect(objects, o, internal.MaxSizes(o.MinSize(), o.Size()))
 	}
 	return objects
 }

@@ -2,6 +2,7 @@ package layout
 
 import (
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/theme"
 )
 
@@ -76,7 +77,7 @@ func (b *borderLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 		}
 
 		if child != b.top && child != b.bottom && child != b.left && child != b.right {
-			minSize = minSize.Max(child.MinSize())
+			minSize = internal.MaxSizes(minSize, child.MinSize())
 		}
 	}
 

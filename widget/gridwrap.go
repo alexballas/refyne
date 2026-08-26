@@ -9,6 +9,7 @@ import (
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/data/binding"
 	"github.com/alexballas/refyne/v2/driver/desktop"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/widget"
 	"github.com/alexballas/refyne/v2/theme"
@@ -478,7 +479,7 @@ func (l *gridWrapRenderer) Layout(size fyne.Size) {
 }
 
 func (l *gridWrapRenderer) MinSize() fyne.Size {
-	return l.scroller.MinSize().Max(l.list.itemMin)
+	return internal.MaxSizes(l.scroller.MinSize(), l.list.itemMin)
 }
 
 func (l *gridWrapRenderer) Refresh() {

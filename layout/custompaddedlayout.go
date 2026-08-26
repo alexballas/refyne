@@ -1,6 +1,9 @@
 package layout
 
-import fyne "github.com/alexballas/refyne/v2"
+import (
+	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
+)
 
 // Declare conformity with Layout interface
 var _ fyne.Layout = (*CustomPaddedLayout)(nil)
@@ -51,7 +54,7 @@ func (c CustomPaddedLayout) MinSize(objects []fyne.CanvasObject) (min fyne.Size)
 			continue
 		}
 
-		min = min.Max(child.MinSize())
+		min = internal.MaxSizes(min, child.MinSize())
 	}
 	min.Width += c.LeftPadding + c.RightPadding
 	min.Height += c.TopPadding + c.BottomPadding

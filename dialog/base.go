@@ -7,6 +7,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/container"
+	"github.com/alexballas/refyne/v2/internal"
 	col "github.com/alexballas/refyne/v2/internal/color"
 	"github.com/alexballas/refyne/v2/layout"
 	"github.com/alexballas/refyne/v2/theme"
@@ -87,10 +88,12 @@ func (d *dialog) Refresh() {
 
 // Resize dialog, call this function after dialog show
 func (d *dialog) Resize(size fyne.Size) {
-	d.desiredSize = size
-	if d.win != nil { // could be called before popup is created!
-		d.win.Resize(size)
+	if d.win == nil { // could be called before popup is created
+		d.desiredSize = size
+		return
 	}
+	d.desiredSize = internal.MaxSizes(size, d.MinSize())
+	d.win.Resize(d.desiredSize)
 }
 
 // SetDismissText allows custom text to be set in the dismiss button

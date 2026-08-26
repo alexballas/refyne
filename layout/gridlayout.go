@@ -4,6 +4,7 @@ import (
 	"math"
 
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/theme"
 )
 
@@ -136,7 +137,7 @@ func (g *gridLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 			continue
 		}
 
-		minSize = minSize.Max(child.MinSize())
+		minSize = internal.MaxSizes(minSize, child.MinSize())
 	}
 
 	padding := theme.Padding()
