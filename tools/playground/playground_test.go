@@ -1,8 +1,10 @@
 package playground
 
 import (
+	"bytes"
 	"encoding/base64"
 	"image/color"
+	"image/png"
 	"testing"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -12,6 +14,7 @@ import (
 	"github.com/alexballas/refyne/v2/theme"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRender(t *testing.T) {
@@ -22,10 +25,16 @@ func TestRender(t *testing.T) {
 	assert.NotNil(t, img)
 
 	enc, err := encodeImage(img)
-	assert.NoError(t, err)
-	assert.Equal(t, "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAFElEQVR4nGJiwAtGpbECQAAAAP//DogAFaNSFa8AAAAASUVORK5CYII=", enc)
+	require.NoError(t, err)
 
-	bytes, err := base64.StdEncoding.DecodeString(enc)
-	assert.NoError(t, err)
-	assert.Equal(t, "PNG", string(bytes)[1:4])
+	data, err := base64.StdEncoding.DecodeString(enc)
+	require.NoError(t, err)
+	decoded, err := png.Decode(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, img.Bounds(), decoded.Bounds())
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+			assert.Equal(t, color.RGBAModel.Convert(img.At(x, y)), color.RGBAModel.Convert(decoded.At(x, y)))
+		}
+	}
 }

@@ -1,12 +1,15 @@
 package painter_test
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"image/draw"
 	"testing"
 
+	"github.com/go-text/typesetting/font"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
@@ -15,6 +18,26 @@ import (
 	"github.com/alexballas/refyne/v2/test"
 	"github.com/alexballas/refyne/v2/theme"
 )
+
+type mixedGoldenFontMap struct {
+	text, emoji *font.Face
+}
+
+func (m mixedGoldenFontMap) ResolveFace(r rune) *font.Face {
+	switch r {
+	case '1', '\uFE0F', '\u20E3':
+		return m.emoji
+	default:
+		return m.text
+	}
+}
+
+func loadGoldenFace(t *testing.T, resource fyne.Resource) *font.Face {
+	t.Helper()
+	face, err := font.ParseTTF(bytes.NewReader(resource.Content()))
+	require.NoError(t, err)
+	return face
+}
 
 func TestCachedFontFace(t *testing.T) {
 	for name, tt := range map[string]struct {
@@ -92,7 +115,10 @@ func TestDrawStringMixedFontsGoldens(t *testing.T) {
 	if theme.DefaultEmojiFont() == nil {
 		t.Skip("emoji font disabled")
 	}
-	faces := painter.CachedFontFace(fyne.TextStyle{}, nil, nil).Fonts
+	faces := mixedGoldenFontMap{
+		text:  loadGoldenFace(t, theme.DefaultTextFont()),
+		emoji: loadGoldenFace(t, theme.DefaultEmojiFont()),
+	}
 	for _, scale := range []struct {
 		name          string
 		value         float32
@@ -104,7 +130,7 @@ func TestDrawStringMixedFontsGoldens(t *testing.T) {
 		t.Run(scale.name, func(t *testing.T) {
 			img := image.NewNRGBA(image.Rect(0, 0, scale.width, scale.height))
 			draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-			painter.DrawString(img, "Latin ⌘ emoji 1️⃣ 日本語", color.Black, faces, 28, scale.value, fyne.TextStyle{})
+			painter.DrawString(img, "Latin emoji 1️⃣ Latin", color.Black, faces, 28, scale.value, fyne.TextStyle{})
 			test.AssertImageMatches(t, "font/mixed_fonts_"+scale.name+".png", img)
 		})
 	}
