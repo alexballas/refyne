@@ -37,3 +37,9 @@ func TestGetSecondaryMonitorUsesPosition(t *testing.T) {
 	assert.Equal(t, wantX, gotX)
 	assert.Equal(t, wantY, gotY)
 }
+
+func TestApplyFullScreenWithoutMonitor(t *testing.T) {
+	assert.NotPanics(t, func() {
+		(&window{}).doApplyFullScreen(nil, true)
+	})
+}

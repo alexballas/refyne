@@ -335,6 +335,7 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 	buffer := shapedRunPool.Get()
 	runs := (*buffer)[:0]
 	defer func() {
+		clearShapedRuns(runs)
 		if cap(runs) <= maxPooledShapedRuns {
 			runs = runs[:0]
 			*buffer = runs
@@ -384,6 +385,12 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 	*advance = x
 	return fyne.NewSize(*advance, fixed266ToFloat32(out.LineBounds.LineThickness())),
 		fixed266ToFloat32(maxAscent)
+}
+
+func clearShapedRuns(runs shapedRunBuffer) {
+	for i := range runs {
+		runs[i] = shapedRun{}
+	}
 }
 
 func shapeCallback(shaper *shaping.HarfbuzzShaper, in shaping.Input, x, scale float32, cb func(shaping.Output, float32)) float32 {

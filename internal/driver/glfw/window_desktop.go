@@ -222,6 +222,9 @@ func (w *window) doCenterOnScreen() {
 
 	// get window dimensions in pixels
 	monitor := w.getMonitorForWindow()
+	if monitor == nil {
+		return
+	}
 	monMode := monitor.GetVideoMode()
 	if monMode == nil {
 		return
@@ -331,6 +334,9 @@ func (w *window) fitContent() {
 
 // getMonitorScale returns the scale factor for a given monitor, handling platform-specific cases
 func getMonitorScale(monitor *glfw.Monitor) float32 {
+	if monitor == nil {
+		return 1.0
+	}
 	widthMm, heightMm := monitor.GetPhysicalSize()
 	if runtime.GOOS == "linux" && widthMm == 60 && heightMm == 60 { // Steam Deck incorrectly reports 6cm square!
 		return 1.0
@@ -344,6 +350,9 @@ func getMonitorScale(monitor *glfw.Monitor) float32 {
 
 // getScaledMonitorSize returns the monitor dimensions adjusted for scaling
 func getScaledMonitorSize(monitor *glfw.Monitor) fyne.Size {
+	if monitor == nil {
+		return fyne.Size{}
+	}
 	videoMode := monitor.GetVideoMode()
 	if videoMode == nil {
 		return fyne.Size{}

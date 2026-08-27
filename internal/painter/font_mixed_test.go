@@ -118,9 +118,19 @@ func TestConcurrentMeasureAndDrawString(t *testing.T) {
 	wait.Wait()
 }
 
-func BenchmarkMeasureStringASCII(b *testing.B) {
+func TestClearShapedRunsReleasesGlyphs(t *testing.T) {
+	glyphs := make([]shaping.Glyph, 4096)
+	runs := shapedRunBuffer{{out: shaping.Output{Glyphs: glyphs}}}
+
+	clearShapedRuns(runs)
+
+	assert.Nil(t, runs[0].out.Glyphs)
+}
+
+func BenchmarkMeasureStringDynamicMapASCII(b *testing.B) {
 	faces := CachedFontFace(fyne.TextStyle{}, nil, nil).Fonts
 	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		MeasureString(faces, "The quick brown fox jumps over the lazy dog", 18, fyne.TextStyle{})
 	}
@@ -129,6 +139,7 @@ func BenchmarkMeasureStringASCII(b *testing.B) {
 func BenchmarkMeasureStringMixedFonts(b *testing.B) {
 	faces := CachedFontFace(fyne.TextStyle{}, nil, nil).Fonts
 	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		MeasureString(faces, "Latin ⌘ emoji 1️⃣", 18, fyne.TextStyle{})
 	}

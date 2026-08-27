@@ -10,16 +10,11 @@ import (
 )
 
 func getUserHost(authority string) (*url.Userinfo, string) {
-	info := strings.SplitN(authority, "@", 2)
-	if len(info) != 2 {
+	parsed, err := url.Parse("//" + authority)
+	if err != nil {
 		return nil, authority
 	}
-
-	user := strings.SplitN(info[0], ":", 2)
-	if len(user) == 2 {
-		return url.UserPassword(user[0], user[1]), info[1]
-	}
-	return url.User(user[0]), info[1]
+	return parsed.User, parsed.Host
 }
 
 // GenericParent can be used as a common-case implementation of

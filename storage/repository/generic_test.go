@@ -14,6 +14,7 @@ func TestGenericParent(t *testing.T) {
 		err    error
 	}{
 		{"foo://example.com:8042/over/there?name=ferret#nose", "foo://example.com:8042/over?name=ferret#nose", nil},
+		{"https://user:p%40ss@example.com/over/there", "https://user:p%40ss@example.com/over", nil},
 		{"file:///", "file:///", ErrURIRoot},
 		{"file:///foo", "file:///", nil},
 	}
@@ -44,6 +45,7 @@ func TestGenericChild(t *testing.T) {
 		err       error
 	}{
 		{"foo://example.com:8042/over/there?name=ferret#nose", "bar", "foo://example.com:8042/over/there/bar?name=ferret#nose", nil},
+		{"https://user:p%40ss@example.com/over/there", "child", "https://user:p%40ss@example.com/over/there/child", nil},
 		{"file:///", "quux", "file:///quux", nil},
 		{"file:///foo", "baz", "file:///foo/baz", nil},
 	}

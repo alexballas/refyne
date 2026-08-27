@@ -22,6 +22,9 @@ func (w *window) doSetFullScreen2(full bool) {
 
 func (w *window) doApplyFullScreen(monitor *monitor, full bool) {
 	if full {
+		if monitor == nil {
+			return
+		}
 		mode := monitor.GetVideoMode()
 		if mode == nil {
 			return

@@ -80,6 +80,15 @@ func TestParseURIMatrix(t *testing.T) {
 			query: "token=a%20b", fragment: "chapter-1",
 		},
 		{
+			name: "relative file path", input: "file://./testdata/media%20file.mp4?token=a%20b#chapter-1",
+			serialized: "file://./testdata/media%20file.mp4?token=a%20b#chapter-1", scheme: "file", path: "./testdata/media file.mp4",
+			query: "token=a%20b", fragment: "chapter-1",
+		},
+		{
+			name: "parent relative file path", input: "file://../media.mp4",
+			serialized: "file://../media.mp4", scheme: "file", path: "../media.mp4",
+		},
+		{
 			name: "UNC path", input: "file://server/share/movie.mp4",
 			serialized: "file://server/share/movie.mp4", scheme: "file", authority: "server", path: "/share/movie.mp4",
 		},

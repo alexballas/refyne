@@ -6,6 +6,9 @@ import "github.com/alexballas/refyne/v2/internal/glfw"
 
 func (w *window) getSecondaryMonitor() *monitor {
 	primary := glfw.GetPrimaryMonitor()
+	if primary == nil {
+		return nil
+	}
 	primaryX, primaryY := primary.GetPos()
 	for _, candidate := range glfw.GetMonitors() {
 		x, y := candidate.GetPos()

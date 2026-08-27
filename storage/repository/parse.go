@@ -67,6 +67,9 @@ func ParseURI(s string) (fyne.URI, error) {
 	}
 
 	if strings.EqualFold(scheme, "file") {
+		if uriPath == "//." || uriPath == "//.." || strings.HasPrefix(uriPath, "//./") || strings.HasPrefix(uriPath, "//../") {
+			s = scheme + ":" + strings.TrimPrefix(uriPath, "//")
+		}
 		parsed, err := url.Parse(s)
 		if err != nil {
 			return nil, err
@@ -74,7 +77,10 @@ func ParseURI(s string) (fyne.URI, error) {
 
 		filePath := parsed.Path
 		if parsed.Opaque != "" {
-			filePath = parsed.Opaque
+			filePath, err = url.PathUnescape(parsed.Opaque)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if len(parsed.Host) >= 2 && parsed.Host[1] == ':' {
 			filePath = parsed.Host + parsed.Path

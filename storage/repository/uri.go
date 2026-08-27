@@ -22,10 +22,26 @@ func EqualURI(t1, t2 fyne.URI) bool {
 	u1, ok1 := t1.(*uri)
 	u2, ok2 := t2.(*uri)
 	if ok1 && ok2 {
-		return u1 == u2 || *u1 == *u2
+		if u1 == u2 {
+			return true
+		}
+
+		first, second := u1.URL, u2.URL
+		if !equalUserinfo(first.User, second.User) {
+			return false
+		}
+		first.User, second.User = nil, nil
+		return first == second
 	}
 
 	return t1 == t2 || t1.String() == t2.String()
+}
+
+func equalUserinfo(first, second *url.Userinfo) bool {
+	if first == nil || second == nil {
+		return first == second
+	}
+	return first.String() == second.String()
 }
 
 var _ fyne.URI = &uri{}

@@ -41,6 +41,16 @@ func TestURIEqual(t *testing.T) {
 	assert.True(t, storage.EqualURI(otherURI, otherURI))
 	assert.False(t, storage.EqualURI(otherURI, first))
 	assert.True(t, storage.EqualURI(otherURI, storage.NewFileURI("/other")))
+
+	authenticated, err := storage.ParseURI("https://user:p%40ss@example.com/path")
+	assert.NoError(t, err)
+	authenticatedCopy, err := storage.ParseURI("https://user:p%40ss@example.com/path")
+	assert.NoError(t, err)
+	assert.True(t, storage.EqualURI(authenticated, authenticatedCopy))
+
+	differentCredentials, err := storage.ParseURI("https://user:other@example.com/path")
+	assert.NoError(t, err)
+	assert.False(t, storage.EqualURI(authenticated, differentCredentials))
 }
 
 var equalSink bool
