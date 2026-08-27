@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"runtime"
 	"testing"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -25,6 +26,16 @@ func TestParseURI(t *testing.T) {
 	uri, err = ParseURI("file://C:/tmp/foo.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "file://C:/tmp/foo.txt", uri.String())
+
+	if runtime.GOOS == "windows" {
+		uri, err = ParseURI(`file://C:\tmp\foo.txt`)
+		assert.NoError(t, err)
+		assert.Equal(t, "file://C:/tmp/foo.txt", uri.String())
+
+		uri, err = ParseURI(`C:\tmp\foo.txt`)
+		assert.NoError(t, err)
+		assert.Equal(t, "file://C:/tmp/foo.txt", uri.String())
+	}
 
 	IPv6url := "http://[2001:db8:4006:812::200e]:8080/path/page.html"
 	uri, err = ParseURI(IPv6url)

@@ -64,9 +64,14 @@ func ParseURI(s string) (fyne.URI, error) {
 	if runtime.GOOS == "windows" && len(scheme) == 1 {
 		uriPath = scheme + ":" + filepath.ToSlash(uriPath)
 		scheme = "file"
+		s = scheme + ":" + uriPath
 	}
 
 	if strings.EqualFold(scheme, "file") {
+		if runtime.GOOS == "windows" {
+			uriPath = filepath.ToSlash(uriPath)
+			s = scheme + ":" + uriPath
+		}
 		if uriPath == "//." || uriPath == "//.." || strings.HasPrefix(uriPath, "//./") || strings.HasPrefix(uriPath, "//../") {
 			s = scheme + ":" + strings.TrimPrefix(uriPath, "//")
 		}
