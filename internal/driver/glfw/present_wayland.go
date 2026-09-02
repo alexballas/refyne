@@ -47,7 +47,11 @@ static void frame_state_free(frame_state *s) {
 */
 import "C"
 
-import "unsafe"
+import (
+	"unsafe"
+
+	nativeglfw "github.com/alexballas/refyne/v2/internal/glfw"
+)
 
 type frameTracker struct{ state *C.frame_state }
 
@@ -78,12 +82,12 @@ func (t *frameTracker) free() {
 	t.state = nil
 }
 
-// windowSurface returns the window's *wl_surface as an opaque pointer. In the
-// default both-backends build this file is also compiled on X11, where there is
-// no wl_surface and GetWaylandWindow would error; the runtime guard returns nil
-// there so the present gate degrades to the always-ready no-op behaviour.
+// windowSurface returns the mapped window's *wl_surface as an opaque pointer.
+// A frame callback requested before native mapping would not be committed when
+// GLFW skips SwapBuffers, leaving the present gate blocked until input. The
+// runtime guards also avoid GetWaylandWindow on X11 in a both-backends build.
 func windowSurface(w *window) unsafe.Pointer {
-	if !runningWayland() || w.viewport == nil {
+	if !runningWayland() || w.viewport == nil || w.viewport.GetAttrib(nativeglfw.Visible) != nativeglfw.True {
 		return nil
 	}
 	return unsafe.Pointer(w.viewport.GetWaylandWindow())

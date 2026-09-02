@@ -181,9 +181,7 @@ func (w *window) Show() {
 
 		// show top canvas element
 		if content := w.canvas.Content(); content != nil {
-			w.RunWithContext(func() {
-				w.driver.repaintWindow(w)
-			})
+			w.repaintAfterShow()
 			// Update accessibility tree
 			w.updateAccessibility()
 		}
@@ -349,7 +347,21 @@ func (w *window) preserveContentSizeForChromeHeight(oldHeight float32) {
 }
 
 func (w *window) processFrameSized(width, height int) {
-	if width == 0 || height == 0 || runtime.GOOS != "darwin" {
+	if width == 0 || height == 0 {
+		return
+	}
+
+	if w.processFramebufferResize(width, height) {
+		// wl_egl_window_resize changes the target size, but some EGL WSIs attach
+		// one old-size back buffer on the first swap after the resize. Record the
+		// transition so repaintWindow can retire that buffer and paint the fresh
+		// one before arming the compositor frame gate.
+		w.frame.markReady()
+		w.canvas.SetDirty()
+		w.traceFramebufferResize(width, height)
+	}
+
+	if runtime.GOOS != "darwin" {
 		return
 	}
 
@@ -1044,6 +1056,15 @@ func (w *window) doShowAgain() {
 		w.pushWaylandIcon()
 	}
 
+	w.repaintAfterShow()
+}
+
+// repaintAfterShow applies a compositor configure delivered by Show before
+// painting the first content buffer. Wayland Show performs a display round-trip,
+// so its size callback can leave a coalesced resize pending here. Painting first
+// would let the compositor stretch the old-sized buffer until another event.
+func (w *window) repaintAfterShow() {
+	w.applyPendingResize()
 	w.RunWithContext(func() {
 		w.driver.repaintWindow(w)
 	})

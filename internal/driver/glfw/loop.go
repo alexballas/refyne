@@ -127,8 +127,8 @@ func (d *gLDriver) drawSingleFrame() {
 			continue
 		}
 
-		// Apply any coalesced interactive resize before deciding to repaint, so
-		// a burst of configure events costs a single canvas.Resize per frame.
+		// processWindowEvents normally applies this before handling a queued
+		// content expansion. Keep this here too for direct draw callers.
 		w.applyPendingResize()
 
 		// Repaint only when the window is visible AND the compositor is ready
@@ -330,6 +330,15 @@ func (d *gLDriver) processWindowEvents() {
 		// alternating sizes every frame — visible as the window trembling.
 		// shouldExpand stays set, so the min size is enforced when the grab ends.
 		if expand && !fullScreen && !w.interactiveResizing() {
+			// A compositor configure wins over an older client-side expansion. In
+			// particular, a tiled Wayland configure may arrive while shouldExpand
+			// still describes the pre-map requested size. Apply it first so fitContent
+			// cannot push those stale dimensions back into wl_egl_window.
+			w.applyPendingResize()
+
+			// Recompute from the current configured size. shouldExpand may have
+			// been queued for a superseded size before the window was mapped.
+			w.shouldExpand = false
 			w.fitContent()
 			shouldExpand := w.shouldExpand
 			w.shouldExpand = false
@@ -388,15 +397,20 @@ func (d *gLDriver) repaintWindow(w *window) bool {
 	}
 	freed = canvas.FreeDirtyTextures() > 0
 
+	view := w.viewport
+	visible := w.visible
+	if view != nil && visible && w.settleFramebufferResize(func() { view.SwapBuffers() }) {
+		w.traceFramebufferSettled()
+	}
+
 	updateGLContext(w)
 	canvas.paint(canvas.Size())
 
-	view := w.viewport
-	visible := w.visible
-
 	if view != nil && visible {
 		// Request a frame callback for the surface; the SwapBuffers commit
-		// below delivers the request. No-op off Wayland. After this, the gate
+		// below delivers the request. A resize-settling swap above intentionally
+		// has no callback: only the final, correctly sized buffer gates future
+		// frames. No-op off Wayland. After this, the gate
 		// reports not-ready until the compositor presents us again, so we will
 		// not issue another (potentially blocking) swap on a suspended surface.
 		w.frame.arm(windowSurface(w))

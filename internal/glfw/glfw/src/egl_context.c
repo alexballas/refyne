@@ -241,14 +241,11 @@ static void makeContextCurrentEGL(_GLFWwindow* window)
     if (window)
     {
 #if defined(_GLFW_WAYLAND)
-        // Deferred wl_egl_window resizes must straddle eglMakeCurrent: Mesa
-        // sizes the back buffer while validating the drawable INSIDE
-        // eglMakeCurrent (so the new size must be primed before it), while
-        // NVIDIA's EGL only honors a resize once the surface IS current (so
-        // it must be applied again after). Whichever call is redundant for
-        // the running driver is a same-size no-op. Getting only one side of
-        // this right makes every interactive-resize buffer lag its configure
-        // by one frame on the other driver (visible as trembling on Mutter).
+        // Deferred wl_egl_window resizes must straddle eglMakeCurrent because
+        // Mesa and NVIDIA observe them at different points. Whichever call is
+        // redundant for the running driver is a same-size no-op. This makes
+        // the new target visible to both drivers; the refyne GLFW driver also
+        // retires any back buffer acquired before the resize.
         if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
             _glfwPrimePendingEGLResizeWayland(window);
 #endif
@@ -309,9 +306,10 @@ static void swapBuffersEGL(_GLFWwindow* window)
 #if defined(_GLFW_WAYLAND)
     if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
     {
-        // This commit attached a content buffer matching the current size, so
-        // any staged size state (viewport destination, window geometry) is
-        // latched and bare wl_surface commits are safe again.
+        // This commit latched the staged size state. Some EGL WSIs may have
+        // attached one already-acquired old-size back buffer; refyne's driver
+        // retires that buffer and immediately paints and swaps the fresh one
+        // before processing more application-side Wayland state.
         window->wl.sizeCommitPending = GLFW_FALSE;
     }
 #endif
@@ -937,4 +935,3 @@ GLFWAPI EGLSurface glfwGetEGLSurface(GLFWwindow* handle)
 
     return window->context.egl.surface;
 }
-

@@ -29,6 +29,32 @@ import (
 
 var d = NewGLDriver()
 
+func TestWaylandRepaintBeforeNativeMapKeepsPresentGateReady(t *testing.T) {
+	if !runningWayland() {
+		t.Skip("requires Wayland")
+	}
+
+	w := createWindow("Test")
+	defer destroyTestWindow(w)
+	w.SetContent(canvas.NewRectangle(color.Black))
+
+	var nativeVisible, ready bool
+	runOnMain(func() {
+		win := w.window
+		win.visible = true // Fyne Show sets this before the native surface maps.
+		nativeVisible = win.viewport.GetAttrib(glfw.Visible) == glfw.True
+		win.frame.markReady()
+		win.RunWithContext(func() {
+			win.driver.repaintWindow(win)
+		})
+		ready = win.frame.ready()
+		win.visible = false
+	})
+
+	require.False(t, nativeVisible, "test window unexpectedly mapped")
+	assert.True(t, ready, "uncommitted frame callback blocked later repaint")
+}
+
 func init() {
 	runtime.LockOSThread()
 }

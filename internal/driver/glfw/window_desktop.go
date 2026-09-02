@@ -132,6 +132,10 @@ type window struct {
 	// Windows/macOS path resizes synchronously and leaves these unused.
 	pendingResize                           bool
 	pendingResizeWidth, pendingResizeHeight int
+	// framebufferResizePending records a Wayland framebuffer target change
+	// whose pre-resize EGL back buffer must be retired before the final paint.
+	framebufferWidth, framebufferHeight int
+	framebufferResizePending            bool
 
 	pending []func()
 
@@ -856,6 +860,10 @@ func (w *window) RescaleContext() {
 	if w.isClosing() {
 		return
 	}
+	// A Wayland output/scale event can share a dispatch batch with a configure.
+	// Consume that configure before deriving a platform size from the canvas,
+	// otherwise this path can restore the pre-configure dimensions.
+	w.applyPendingResize()
 	w.fitContent()
 
 	if w.fullScreen {
@@ -880,10 +888,10 @@ func (w *window) RescaleContext() {
 }
 
 func (w *window) create() {
-	if !runningWayland() {
-		// make the window hidden, we will set it up and then show it later
-		glfw.WindowHint(glfw.Visible, glfw.False)
-	}
+	// Create hidden and map from Show after callbacks are installed. On Wayland,
+	// creating visible performs the initial compositor configure inside
+	// CreateWindow, before the size callback exists, so a tiled size is lost.
+	glfw.WindowHint(glfw.Visible, glfw.False)
 	if w.decorate {
 		glfw.WindowHint(glfw.Decorated, glfw.True)
 	} else {
@@ -981,6 +989,7 @@ func (w *window) create() {
 	w.canvas.detectedScale = w.detectScale()
 	w.canvas.scale = w.calculatedScale()
 	w.canvas.texScale = w.detectTextureScale()
+	w.framebufferWidth, w.framebufferHeight = w.viewport.GetFramebufferSize()
 	// update window size now we have scaled detected
 	w.fitContent()
 

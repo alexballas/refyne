@@ -128,6 +128,21 @@ func (t *tracer) resize(width, height int, pendingMouse bool) {
 	t.logf("resize to %dx%d (pending mouse update: %t)", width, height, pendingMouse)
 }
 
+func (t *tracer) framebufferResize(width, height int, canvasWidth, canvasHeight, scale, textureScale float32) {
+	if !t.enabled {
+		return
+	}
+
+	t.logf("framebuffer resize to %dx%d (canvas: %.0fx%.0f, scale: %.2f, texture scale: %.2f)",
+		width, height, canvasWidth, canvasHeight, scale, textureScale)
+}
+
+func (t *tracer) framebufferSettled() {
+	if t.enabled {
+		t.logf("retired pre-resize EGL buffer; presenting repainted buffer")
+	}
+}
+
 // wakePosted counts a request for the loop to stop sleeping.
 func (t *tracer) wakePosted() {
 	if t.enabled {
@@ -161,6 +176,21 @@ func (w *window) traceResize(width, height int) {
 	}
 
 	loopTrace.resize(width, height, !w.mousePosUpdateProcessed)
+}
+
+func (w *window) traceFramebufferResize(width, height int) {
+	if !loopTrace.enabled {
+		return
+	}
+
+	size := w.canvas.Size()
+	loopTrace.framebufferResize(width, height, size.Width, size.Height, w.canvas.scale, w.canvas.texScale)
+}
+
+func (w *window) traceFramebufferSettled() {
+	if loopTrace.enabled {
+		loopTrace.framebufferSettled()
+	}
 }
 
 func traceWakePosted() {

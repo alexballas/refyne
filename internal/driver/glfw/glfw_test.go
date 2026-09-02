@@ -44,9 +44,24 @@ func waitForCanvasSize(t *testing.T, w *safeWindow, size fyne.Size, resizeIfNece
 	// loaded CI runners can take several seconds to deliver resize events
 	deadline := time.Now().Add(10 * time.Second)
 	lastResize := time.Now()
-	for w.Canvas().Size() != size {
+	stableSince := time.Time{}
+	for {
+		now := time.Now()
+		if w.Canvas().Size() == size {
+			if stableSince.IsZero() {
+				stableSince = now
+			}
+			// A native configure may arrive just after Resize returns. Require the
+			// requested size to survive event processing before accepting it.
+			if now.Sub(stableSince) >= 100*time.Millisecond {
+				return
+			}
+		} else {
+			stableSince = time.Time{}
+		}
+
 		if !assert.False(t, time.Now().After(deadline), "canvas did not get correct size in time") {
-			break
+			return
 		}
 		if resizeIfNecessary && time.Since(lastResize) >= 200*time.Millisecond {
 			// sometimes the resize does not seem to reach the actual window at all
