@@ -1229,7 +1229,9 @@ func TestWindow_TouchScreenTappedWithMouseMovePending(t *testing.T) {
 	left := &tappableObject{Rectangle: canvas.NewRectangle(color.White)}
 	right := &tappableObject{Rectangle: canvas.NewRectangle(color.White)}
 	w.SetContent(container.NewGridWithColumns(2, left, right))
-	w.Resize(fyne.NewSize(200, 100))
+	size := fyne.NewSize(200, 100)
+	w.Resize(size)
+	ensureCanvasSize(t, w, size)
 
 	runOnMain(func() {
 		w.moveMouse(20, 50)
