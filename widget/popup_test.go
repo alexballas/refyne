@@ -472,6 +472,22 @@ func TestModalPopUp_Resize_Constrained(t *testing.T) {
 	assert.Equal(t, float32(80), pop.Size().Height)
 }
 
+func TestModalPopUp_OversizedRefreshStaysConstrained(t *testing.T) {
+	win := test.NewTempWindow(t, NewLabel("OK"))
+	win.Resize(fyne.NewSize(560, 400))
+	pop := NewModalPopUp(NewLabel("content"), win.Canvas())
+	pop.Resize(fyne.NewSize(10000, 10000))
+	pop.Show()
+
+	pop.Refresh()
+
+	renderer := cache.Renderer(pop).(*modalPopUpRenderer)
+	padding := renderer.padding()
+	wantContent := pop.Size().Subtract(padding)
+	assert.Equal(t, wantContent, pop.Content.Size())
+	assert.Equal(t, pop.Size(), renderer.background.Size())
+}
+
 func TestModalPopUp_ApplyThemeOnShow(t *testing.T) {
 	test.NewTempApp(t)
 	w := test.NewTempWindow(t, canvas.NewRectangle(color.Transparent))

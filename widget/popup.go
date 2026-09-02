@@ -265,23 +265,30 @@ type modalPopUpRenderer struct {
 	underlay *canvas.Rectangle
 }
 
+func (r *modalPopUpRenderer) geometry(canvasSize fyne.Size) (fyne.Size, fyne.Position, fyne.Size, fyne.Position) {
+	padding := r.padding()
+	innerSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.Content.MinSize().Add(padding))
+	requestedSize := innerSize.Subtract(padding)
+	size := internal.MaxSizes(r.popUp.Content.MinSize(), requestedSize)
+	availableSize := internal.MaxSizes(fyne.Size{}, canvasSize.Subtract(padding))
+	size = internal.MinSizes(size, availableSize)
+	pos := fyne.NewPos((canvasSize.Width-size.Width)/2, (canvasSize.Height-size.Height)/2)
+	frameSize := size.Add(padding)
+	framePos := pos.Subtract(r.offset())
+	return size, pos, frameSize, framePos
+}
+
 func (r *modalPopUpRenderer) Layout(canvasSize fyne.Size) {
 	r.underlay.Resize(canvasSize)
 
-	padding := r.padding()
-	innerSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.Content.MinSize().Add(padding))
-
-	requestedSize := innerSize.Subtract(padding)
-	size := internal.MaxSizes(r.popUp.Content.MinSize(), requestedSize)
-	size = internal.MinSizes(size, canvasSize.Subtract(padding))
-	pos := fyne.NewPos((canvasSize.Width-size.Width)/2, (canvasSize.Height-size.Height)/2)
+	size, pos, frameSize, framePos := r.geometry(canvasSize)
+	requestedFrameSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.Content.MinSize().Add(r.padding()))
 	r.popUp.Content.Move(pos)
 	r.popUp.Content.Resize(size)
 
-	innerPos := pos.Subtract(r.offset())
-	r.background.Move(innerPos)
-	r.background.Resize(size.Add(padding))
-	r.LayoutShadow(innerSize, innerPos)
+	r.background.Move(framePos)
+	r.background.Resize(frameSize)
+	r.LayoutShadow(requestedFrameSize, framePos)
 }
 
 func (r *modalPopUpRenderer) MinSize() fyne.Size {
@@ -295,11 +302,14 @@ func (r *modalPopUpRenderer) Refresh() {
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 	r.underlay.FillColor = th.Color(theme.ColorNameShadow, v)
 	r.background.FillColor = th.Color(theme.ColorNameOverlayBackground, v)
-	expectedContentSize := internal.MaxSizes(r.popUp.innerSize, r.popUp.MinSize()).Subtract(r.padding())
-	shouldLayout := r.popUp.Content.Size() != expectedContentSize
+	canvasSize := r.popUp.Size()
+	contentSize, contentPos, frameSize, framePos := r.geometry(canvasSize)
+	shouldLayout := r.underlay.Size() != canvasSize ||
+		r.popUp.Content.Size() != contentSize || r.popUp.Content.Position() != contentPos ||
+		r.background.Size() != frameSize || r.background.Position() != framePos
 
-	if r.background.Size() != r.popUp.innerSize || shouldLayout {
-		r.Layout(r.popUp.Size())
+	if shouldLayout {
+		r.Layout(canvasSize)
 	}
 	r.popUp.Content.Refresh()
 	r.background.Refresh()
