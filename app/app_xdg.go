@@ -9,11 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/alexballas/portal/notification"
+	"github.com/alexballas/portal/openuri"
+	portalSettings "github.com/alexballas/portal/settings"
+	"github.com/alexballas/portal/settings/appearance"
 	"github.com/godbus/dbus/v5"
-	"github.com/rymdport/portal/notification"
-	"github.com/rymdport/portal/openuri"
-	portalSettings "github.com/rymdport/portal/settings"
-	"github.com/rymdport/portal/settings/appearance"
 
 	fyne "github.com/alexballas/refyne/v2"
 	internalapp "github.com/alexballas/refyne/v2/internal/app"

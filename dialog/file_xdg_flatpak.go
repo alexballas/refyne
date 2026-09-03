@@ -10,8 +10,8 @@ import (
 	"github.com/alexballas/refyne/v2/lang"
 	"github.com/alexballas/refyne/v2/storage"
 
-	"github.com/rymdport/portal"
-	"github.com/rymdport/portal/filechooser"
+	"github.com/alexballas/portal"
+	"github.com/alexballas/portal/filechooser"
 )
 
 func openFile(parentWindowHandle string, options *filechooser.OpenFileOptions) (fyne.URIReadCloser, error) {
