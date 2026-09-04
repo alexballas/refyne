@@ -145,6 +145,9 @@ func (w *window) Show() {
 
 		if !w.created {
 			w.created = true
+			// Arm before create drains queued Resize calls so a framebuffer target
+			// selected while still hidden is settled on the first mapped paint.
+			w.prepareFramebufferPresentation()
 			w.create()
 		}
 
@@ -352,10 +355,9 @@ func (w *window) processFrameSized(width, height int) {
 	}
 
 	if w.processFramebufferResize(width, height) {
-		// wl_egl_window_resize changes the target size, but some EGL WSIs attach
-		// one old-size back buffer on the first swap after the resize. Record the
-		// transition so repaintWindow can retire that buffer and paint the fresh
-		// one before arming the compositor frame gate.
+		// Some EGL WSIs acquired a buffer before the initial configure. Record the
+		// mapped-size transition so repaintWindow can retire that buffer once and
+		// paint the fresh one before arming the compositor frame gate.
 		w.frame.markReady()
 		w.canvas.SetDirty()
 		w.traceFramebufferResize(width, height)
@@ -1042,6 +1044,7 @@ func (w *window) doShowAgain() {
 	if !runningWayland() {
 		view.SetPos(w.xpos, w.ypos)
 	}
+	w.prepareFramebufferPresentation()
 	view.Show()
 	w.visible = true
 

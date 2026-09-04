@@ -132,10 +132,13 @@ type window struct {
 	// Windows/macOS path resizes synchronously and leaves these unused.
 	pendingResize                           bool
 	pendingResizeWidth, pendingResizeHeight int
-	// framebufferResizePending records a Wayland framebuffer target change
-	// whose pre-resize EGL back buffer must be retired before the final paint.
+	// framebufferResizePending records the initial mapped Wayland framebuffer
+	// target change whose pre-configure EGL back buffer must be retired before
+	// the final paint. framebufferSettleActive limits that extra swap to mapping;
+	// live resizes must never present an unpainted buffer.
 	framebufferWidth, framebufferHeight int
 	framebufferResizePending            bool
+	framebufferSettleActive             bool
 
 	pending []func()
 

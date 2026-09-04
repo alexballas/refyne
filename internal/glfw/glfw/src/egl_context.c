@@ -245,7 +245,7 @@ static void makeContextCurrentEGL(_GLFWwindow* window)
         // Mesa and NVIDIA observe them at different points. Whichever call is
         // redundant for the running driver is a same-size no-op. This makes
         // the new target visible to both drivers; the refyne GLFW driver also
-        // retires any back buffer acquired before the resize.
+        // retires a buffer acquired before the initial map.
         if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
             _glfwPrimePendingEGLResizeWayland(window);
 #endif
@@ -306,10 +306,10 @@ static void swapBuffersEGL(_GLFWwindow* window)
 #if defined(_GLFW_WAYLAND)
     if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
     {
-        // This commit latched the staged size state. Some EGL WSIs may have
-        // attached one already-acquired old-size back buffer; refyne's driver
-        // retires that buffer and immediately paints and swaps the fresh one
-        // before processing more application-side Wayland state.
+        // This commit latched the staged size state. Some EGL WSIs may attach a
+        // buffer acquired before the initial mapped size was known; refyne's
+        // driver retires that buffer once while mapping and immediately paints
+        // and swaps the fresh one.
         window->wl.sizeCommitPending = GLFW_FALSE;
     }
 #endif

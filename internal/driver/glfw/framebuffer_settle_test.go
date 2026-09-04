@@ -16,8 +16,9 @@ func TestFramebufferResizeSettlesStaleEGLBuffer(t *testing.T) {
 	var attached, painted []bufferSize
 
 	w := &window{framebufferWidth: oldSize.width, framebufferHeight: oldSize.height}
+	w.beginFramebufferPresentation(true)
 	if !w.recordFramebufferResize(configuredSize.width, configuredSize.height, true) {
-		t.Fatal("Wayland framebuffer size change did not request settling")
+		t.Fatal("initial Wayland framebuffer size change did not request settling")
 	}
 	paint := func() {
 		painted = append(painted, backBuffer)
@@ -43,5 +44,37 @@ func TestFramebufferResizeSettlesStaleEGLBuffer(t *testing.T) {
 	}
 	if w.framebufferResizePending {
 		t.Fatal("framebuffer resize remained pending after settling present")
+	}
+}
+
+func TestFramebufferResizeDoesNotSettleAfterFirstPresentation(t *testing.T) {
+	w := &window{framebufferWidth: 716, framebufferHeight: 873}
+	w.beginFramebufferPresentation(true)
+	w.completeFramebufferPresentation()
+
+	if !w.recordFramebufferResize(800, 900, true) {
+		t.Fatal("live Wayland framebuffer size change was not recorded")
+	}
+	if w.framebufferResizePending {
+		t.Fatal("live Wayland resize requested an unpainted settling present")
+	}
+
+	swaps := 0
+	if w.settleFramebufferResize(func() { swaps++ }) {
+		t.Fatal("live Wayland resize performed a settling present")
+	}
+	if swaps != 0 {
+		t.Fatalf("live Wayland resize swaps = %d, want 0", swaps)
+	}
+}
+
+func TestFramebufferResizeSettlesAgainAfterRemap(t *testing.T) {
+	w := &window{framebufferWidth: 716, framebufferHeight: 873}
+	w.beginFramebufferPresentation(true)
+	w.completeFramebufferPresentation()
+
+	w.beginFramebufferPresentation(true)
+	if !w.recordFramebufferResize(800, 900, true) {
+		t.Fatal("remapped Wayland framebuffer size change did not request settling")
 	}
 }

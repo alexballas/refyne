@@ -374,8 +374,8 @@ void _glfwApplyPendingEGLResizeWayland(_GLFWwindow* window)
 // Same as _glfwApplyPendingEGLResizeWayland but keeps the pending flag set so
 // the post-eglMakeCurrent apply runs again. Mesa and NVIDIA observe pending
 // wl_egl_window resizes at different points around eglMakeCurrent, so
-// makeContextCurrentEGL covers both. An EGL WSI may still keep one back buffer
-// acquired before the resize; refyne's driver retires it before the final paint.
+// makeContextCurrentEGL covers both. An EGL WSI may still keep a buffer acquired
+// before the initial map; refyne's driver retires it before the final paint.
 void _glfwPrimePendingEGLResizeWayland(_GLFWwindow* window)
 {
     if (window->wl.egl.resizePending && window->wl.egl.window)
