@@ -398,25 +398,27 @@ func (d *gLDriver) repaintWindow(w *window) bool {
 	freed = canvas.FreeDirtyTextures() > 0
 
 	view := w.viewport
-	visible := w.visible
-	if view != nil && visible && w.settleFramebufferResize(func() { view.SwapBuffers() }) {
+	surface := windowSurface(w)
+	// GLFW skips Wayland swaps before native mapping. Keep settling armed
+	// until a buffer can actually be presented, even if Fyne is already visible.
+	canSwap := view != nil && w.visible && (!runningWayland() || surface != nil)
+	if canSwap && w.settleFramebufferResize(func() { view.SwapBuffers() }) {
 		w.traceFramebufferSettled()
 	}
 
 	updateGLContext(w)
 	canvas.paint(canvas.Size())
 
-	if view != nil && visible {
+	if canSwap {
 		// Request a frame callback for the surface; the SwapBuffers commit
 		// below delivers the request. An initial mapping-settle swap above
 		// intentionally has no callback: only the final, correctly sized buffer
 		// gates future frames. No-op off Wayland. After this, the gate
 		// reports not-ready until the compositor presents us again, so we will
 		// not issue another (potentially blocking) swap on a suspended surface.
-		w.frame.arm(windowSurface(w))
+		w.frame.arm(surface)
 		view.SwapBuffers()
 		w.completeFramebufferPresentation()
-
 	}
 
 	// mark that we have walked the window and don't

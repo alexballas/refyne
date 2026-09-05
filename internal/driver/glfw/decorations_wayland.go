@@ -158,9 +158,16 @@ func (w *window) setupWaylandDecorations() {
 	d.onDragStart = func() { w.viewport.StartWindowMove() }
 	d.onDoubleTap = d.onMaximizeToggle
 
-	w.updateChrome(func() {
+	if w.pendingResize {
+		// The initial configure owns the outer bounds. Install the title bar
+		// within them instead of expanding the pre-configure content size.
+		w.applyPendingResize()
 		w.canvas.setDecoration(d)
-	})
+	} else {
+		w.updateChrome(func() {
+			w.canvas.setDecoration(d)
+		})
+	}
 	w.canvas.setWindowBackground(true)
 	w.canvas.setWindowOutline(true)
 	w.canvas.setWindowCornersSquare(w.viewport.GetAttrib(glfw.Maximized) == glfw.True || w.fullScreen)
