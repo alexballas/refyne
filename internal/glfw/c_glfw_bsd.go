@@ -9,12 +9,6 @@ package glfw
 	#include "glfw/src/wl_monitor.c"
 	#include "glfw/src/wl_window.c"
 	#include "glfw/src/wl_refyne.c"
-	#include "glfw/src/wayland-idle-inhibit-unstable-v1-client-protocol.c"
-	#include "glfw/src/wayland-pointer-constraints-unstable-v1-client-protocol.c"
-	#include "glfw/src/wayland-relative-pointer-unstable-v1-client-protocol.c"
-	#include "glfw/src/wayland-viewporter-client-protocol.c"
-	#include "glfw/src/wayland-xdg-decoration-unstable-v1-client-protocol.c"
-	#include "glfw/src/wayland-xdg-shell-client-protocol.c"
 #endif
 #ifdef _GLFW_X11
 	#include "glfw/src/x11_init.c"
@@ -22,7 +16,6 @@ package glfw
 	#include "glfw/src/x11_window.c"
 	#include "glfw/src/glx_context.c"
 #endif
-#include "glfw/src/null_joystick.c"
 #include "glfw/src/posix_module.c"
 #include "glfw/src/posix_poll.c"
 #include "glfw/src/posix_time.c"
