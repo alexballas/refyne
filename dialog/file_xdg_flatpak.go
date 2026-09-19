@@ -67,6 +67,11 @@ func saveFile(parentWindowHandle string, options *filechooser.SaveFileOptions) (
 }
 
 func fileOpenOSOverride(d *FileDialog) bool {
+	nativeWindow, ok := d.parent.(driver.NativeWindow)
+	if !ok {
+		return false // Use the built-in dialog for windows without native support.
+	}
+
 	options := &filechooser.OpenFileOptions{
 		Directory:   d.isDirectory(),
 		AcceptLabel: d.confirmText,
@@ -76,7 +81,7 @@ func fileOpenOSOverride(d *FileDialog) bool {
 	}
 	options.Filters, options.CurrentFilter = convertFilterForPortal(d.filter)
 
-	windowHandle := windowHandleForPortal(d.parent)
+	windowHandle := windowHandleForPortal(nativeWindow)
 
 	go func() {
 		if options.Directory {
@@ -98,6 +103,11 @@ func fileOpenOSOverride(d *FileDialog) bool {
 }
 
 func fileSaveOSOverride(d *FileDialog) bool {
+	nativeWindow, ok := d.parent.(driver.NativeWindow)
+	if !ok {
+		return false // Use the built-in dialog for windows without native support.
+	}
+
 	options := &filechooser.SaveFileOptions{
 		AcceptLabel: d.confirmText,
 		CurrentName: d.initialFileName,
@@ -108,7 +118,7 @@ func fileSaveOSOverride(d *FileDialog) bool {
 	options.Filters, options.CurrentFilter = convertFilterForPortal(d.filter)
 
 	callback := d.callback.(func(fyne.URIWriteCloser, error))
-	windowHandle := windowHandleForPortal(d.parent)
+	windowHandle := windowHandleForPortal(nativeWindow)
 
 	go func() {
 		file, err := saveFile(windowHandle, options)
@@ -120,11 +130,11 @@ func fileSaveOSOverride(d *FileDialog) bool {
 	return true
 }
 
-func windowHandleForPortal(window fyne.Window) string {
+func windowHandleForPortal(window driver.NativeWindow) string {
 	windowHandle := ""
 	// The default build compiles both backends and only knows the live platform
 	// at runtime, so switch on the actual context type rather than a build tag.
-	window.(driver.NativeWindow).RunNative(func(context any) {
+	window.RunNative(func(context any) {
 		if x11, ok := context.(driver.X11WindowContext); ok {
 			windowHandle = portal.FormatX11WindowHandle(x11.WindowHandle)
 		}
