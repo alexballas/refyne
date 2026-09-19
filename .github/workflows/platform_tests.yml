@@ -46,6 +46,10 @@ jobs:
         run: go test -race -tags no_glfw,ci,wayland ./...
         if: ${{ runner.os == 'Linux' }}
 
+      - name: Flatpak Tests
+        run: xvfb-run -a go test -race -tags flatpak,migrated_fynedo ./app ./dialog
+        if: ${{ runner.os == 'Linux' }}
+
       - name: Update PR Coverage
         uses: shogo82148/actions-goveralls@v1
         with:

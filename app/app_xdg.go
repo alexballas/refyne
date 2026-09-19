@@ -3,6 +3,7 @@
 package app
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"os/exec"
@@ -141,7 +142,7 @@ func watchTheme(s *settings) {
 			fyne.Do(func() { s.applyVariant(themeVariant) })
 		}
 
-		portalSettings.OnSignalSettingChanged(func(changed portalSettings.Changed) {
+		portalSettings.OnSignalSettingChangedContext(context.Background(), func(changed portalSettings.Changed) {
 			if changed.Namespace == appearance.Namespace && changed.Key == "color-scheme" {
 				themeVariant := colorSchemeToThemeVariant(appearance.ColorScheme(changed.Value.(uint32)))
 				internalapp.CurrentVariant.Store(uint64(themeVariant))

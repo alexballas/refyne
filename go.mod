@@ -5,7 +5,7 @@ go 1.19
 require (
 	fyne.io/systray v1.12.0
 	github.com/BurntSushi/toml v1.5.0
-	github.com/alexballas/portal v0.5.1-0.20260919171357-abfde6f9a4f3
+	github.com/alexballas/portal v0.5.1-0.20260919195621-cd0a66028e66
 	github.com/anthonynsimon/bild v0.13.0
 	github.com/fogleman/gg v1.3.0
 	github.com/fsnotify/fsnotify v1.9.0
