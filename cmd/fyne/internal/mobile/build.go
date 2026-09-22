@@ -109,10 +109,7 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 			}
 			return pkg, nil
 		}
-		target := 35
-		if !buildDistribution {
-			target = 29 // TODO once we have gomobile debug signing working for v2 android signs
-		}
+		target := androidTargetSDK(buildRelease, buildDistribution)
 		nmpkgs, err = goAndroidBuild(pkg, buildBundleID, targetArchs, cmd.IconPath, cmd.AppName, cmd.Version, cmd.Build,
 			target, buildDistribution, cmd.iconFG, cmd.iconBG, cmd.iconMono, cmd.androidMeta)
 		if err != nil {
@@ -149,6 +146,16 @@ func runBuildImpl(cmd *command) (*packages.Package, error) {
 	}
 
 	return pkg, nil
+}
+
+func androidTargetSDK(release, distribution bool) int {
+	if release || distribution {
+		return 35
+	}
+
+	// Debug APKs remain on the legacy target until gomobile debug signing
+	// supports v2 Android signatures.
+	return 29
 }
 
 var nmRE = regexp.MustCompile(`[0-9a-f]{8} t _?(?:.*/vendor/)?(github.com/alexballas/refyne/v2/internal/driver/mobile.*/[^.]*)`)
