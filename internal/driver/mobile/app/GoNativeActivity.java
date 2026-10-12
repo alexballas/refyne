@@ -201,6 +201,7 @@ public class GoNativeActivity extends NativeActivity {
         if ("application/x-directory".equals(mimes) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); // ask for a directory picker if OS supports it
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         } else if (mimes.contains("|") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             intent.setType("*/*");
             intent.putExtra(Intent.EXTRA_MIME_TYPES, mimes.split("\\|"));
@@ -716,7 +717,21 @@ public class GoNativeActivity extends NativeActivity {
             return;
         }
 
-        Uri uri = data.getData();
+        Uri uri = data == null ? null : data.getData();
+        if (uri == null) {
+            filePickerReturned("");
+            return;
+        }
+
+        int readGrant = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+        if (readGrant != 0) {
+            try {
+                getContentResolver().takePersistableUriPermission(uri, readGrant);
+            } catch (SecurityException e) {
+                // Some providers only grant temporary access. Keep the selection usable now.
+                Log.w("Fyne", "could not persist read permission for selected document", e);
+            }
+        }
         filePickerReturned(uri.toString());
     }
 
