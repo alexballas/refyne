@@ -11,6 +11,15 @@
 
 **Status update (2026-06-13):** finding **2.1 is implemented** (`widget/list.go`, `widget/list_internal_test.go`). `RefreshItem` now updates only the visible target row, keyboard/highlight refreshes batch old/new rows, `SetItemHeight` keeps the full relayout path, and full `Refresh` reuses a cached measuring template unless the theme scope changes. Remaining proposals: 2.3 (space-run cache), 2.4, §3 (except 3.1), §5.
 
+**Status update (2026-10-17):** benchmarked against upstream fyne `develop` (f3f105ada) with `tools/fynecmp/run.sh`, which runs identical benchmark code in both frameworks. Refyne was behind on the GL path: 3,800 allocs per static 1,200-widget frame (fyne 202), one alloc per label per frame for cached text, and 6.7× slower frames when 400 labels change. Fixed by:
+- **Per-draw allocations:** `gl.Ptr` boxed every vertex upload (`floats_ptr.go`); the text-texture and font-metric caches boxed their struct keys in `sync.Map`, so they are now typed maps (upstream `88897100e`, `5a4ca9b20`). Also backported: parse each font once (`720c691eb`), atomic cache expiry (`cfd15a3f0`) and no closure per `Canvas.Refresh` (`29c4413bb`).
+- **Shape once** (upstream `7f314d8e0`): measuring and drawing share one shaping of a string.
+- **Glyph atlas and batching** (upstream `cc3a7d65a` series): text, plain rectangles and lines are drawn as batched quads from a single atlas texture, on desktop, gles, mobile and wasm. Two deviations from upstream. The glyph shader writes premultiplied colour, so antialiased text edges keep an opaque framebuffer, as the whole-run textures did. Batched rectangles snap position and size separately, like refyne's rectangle shader. Refyne also caches each shaped string's resolved atlas slots from its second draw onwards.
+- **go-text** bumped to typesetting v0.3.5 / render v0.2.1 for its faster bidi, with upstream's newline workaround (`47c3224d3`), applied in `walkString`.
+- **Software painter:** fast path for opaque rectangle fills (`6f88c761e`).
+
+Measured per frame, fyne → refyne before → after: static heavy UI 202 → 3,800 → 202 allocs (10.6 → 10.8 → 9.9 ms); 400 static labels 1.86 → 1.37 → 1.21 ms; 400 changing labels 5.4 → 36.4 → 5.1 ms; uncached `MeasureText` 7.2 → 11.9 → 6.5 µs. Rendering was checked with GL captures: rectangles and lines are pixel-identical at 1× and 1.5×. Text differs only by up to 60 levels at antialiased edges, from the atlas's sub-pixel glyph positioning.
+
 The engine's frame model: any `Refresh`/`Move`/`Resize` sets a canvas dirty flag; a ticker at display refresh rate triggers `drawSingleFrame`, which re-walks and re-draws **the entire window** (`internal/driver/glfw/loop.go:67`, `internal/driver/glfw/canvas.go:305`). That makes two things dominant: **per-node cost in the walk** (paid thousands of times per frame) and **work triggered per `Refresh()` call** (paid on every interaction). Most findings below fall into one of those two buckets.
 
 ---
