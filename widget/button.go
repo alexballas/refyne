@@ -121,6 +121,7 @@ func (b *Button) CreateRenderer() fyne.WidgetRenderer {
 	background := canvas.NewRectangle(th.Color(theme.ColorNameButton, v))
 	background.CornerRadius = th.Size(theme.SizeNameInputRadius)
 	tapBG := canvas.NewRectangle(color.Transparent)
+	tapBG.CornerRadius = background.CornerRadius
 	b.tapAnim = newButtonTapAnimation(tapBG, b, th)
 	b.tapAnim.Curve = fyne.AnimationEaseOut
 	objects := []fyne.CanvasObject{
@@ -347,6 +348,10 @@ func (r *buttonRenderer) applyTheme() {
 		bg.FillColor = bgColor
 		bg.CornerRadius = th.Size(theme.SizeNameInputRadius)
 		bg.Refresh()
+	}
+	// The tap ripple must follow the background's rounded shape.
+	if r.tapBG != nil {
+		r.tapBG.CornerRadius = th.Size(theme.SizeNameInputRadius)
 	}
 
 	r.label.Segments[0].(*TextSegment).Style.ColorName = fgColorName
