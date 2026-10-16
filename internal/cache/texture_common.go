@@ -1,12 +1,19 @@
 package cache
 
 import (
+	"sync"
+
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/async"
 )
 
 var (
-	textTextures   async.Map[FontCacheEntry, *textureInfo]
+	// textTextures is looked up for every visible canvas.Text on every frame,
+	// so it is a typed map: async.Map would box the FontCacheEntry key, an
+	// allocation per lookup.
+	textTexturesLock sync.Mutex
+	textTextures     = map[FontCacheEntry]*textureInfo{}
+
 	objectTextures async.Map[fyne.CanvasObject, *textureInfo]
 )
 
@@ -17,7 +24,9 @@ func DeleteTexture(obj fyne.CanvasObject) {
 
 // GetTextTexture gets cached texture for a text run.
 func GetTextTexture(ent FontCacheEntry) (TextureType, bool) {
-	texInfo, ok := textTextures.Load(ent)
+	textTexturesLock.Lock()
+	texInfo, ok := textTextures[ent]
+	textTexturesLock.Unlock()
 	if texInfo == nil || !ok {
 		return NoTexture, false
 	}
@@ -42,14 +51,15 @@ func GetTexture(obj fyne.CanvasObject) (TextureType, bool) {
 func RangeExpiredTexturesFor(canvas fyne.Canvas, f func(fyne.CanvasObject)) {
 	now := timeNow()
 
-	textTextures.Range(func(key FontCacheEntry, tinfo *textureInfo) bool {
+	textTexturesLock.Lock()
+	for key, tinfo := range textTextures {
 		// Just free text directly when that string/style combo is done.
 		if tinfo.isExpired(now) && tinfo.canvas == canvas {
-			textTextures.Delete(key)
+			delete(textTextures, key)
 			tinfo.textFree()
 		}
-		return true
-	})
+	}
+	textTexturesLock.Unlock()
 
 	objectTextures.Range(func(obj fyne.CanvasObject, tinfo *textureInfo) bool {
 		if tinfo.isExpired(now) && tinfo.canvas == canvas {
@@ -76,19 +86,22 @@ func RangeTexturesFor(canvas fyne.Canvas, f func(fyne.CanvasObject)) {
 
 // DeleteTextTexturesFor deletes all text textures for the given canvas.
 func DeleteTextTexturesFor(canvas fyne.Canvas) {
-	textTextures.Range(func(key FontCacheEntry, tinfo *textureInfo) bool {
+	textTexturesLock.Lock()
+	for key, tinfo := range textTextures {
 		if tinfo.canvas == canvas {
-			textTextures.Delete(key)
+			delete(textTextures, key)
 			tinfo.textFree()
 		}
-		return true
-	})
+	}
+	textTexturesLock.Unlock()
 }
 
 // SetTextTexture sets cached texture for a text run.
 func SetTextTexture(ent FontCacheEntry, texture TextureType, canvas fyne.Canvas, free func()) {
 	tinfo := prepareTexture(texture, canvas, free)
-	textTextures.Store(ent, tinfo)
+	textTexturesLock.Lock()
+	textTextures[ent] = tinfo
+	textTexturesLock.Unlock()
 }
 
 // SetTexture sets cached texture.

@@ -98,7 +98,7 @@ func ResetThemeCaches() {
 	svgs.Clear()
 	colorizedSvgs.Clear()
 	svgDecoders.Clear()
-	fontSizeCache.Clear()
+	ClearFontMetrics()
 }
 
 // destroyExpiredCanvases deletes objects from the canvases cache.
@@ -125,19 +125,19 @@ func destroyExpiredRenderers(now time.Time) {
 }
 
 type expiringCache struct {
-	expires time.Time
+	expires atomic.Int64 // unix nanos; atomic as cache hits can come from any goroutine
 }
 
 // isExpired check if the cache data is expired.
 func (c *expiringCache) isExpired(now time.Time) bool {
-	return c.expires.Before(now)
+	return c.expires.Load() < now.UnixNano()
 }
 
 // setAlive updates expiration time.
 func (c *expiringCache) setAlive() {
-	if t := coarseTimestamp.Load(); t != 0 {
-		c.expires = time.Unix(0, t).Add(ValidDuration)
-		return
+	t := coarseTimestamp.Load()
+	if t == 0 {
+		t = timeNow().UnixNano()
 	}
-	c.expires = timeNow().Add(ValidDuration)
+	c.expires.Store(t + ValidDuration.Nanoseconds())
 }

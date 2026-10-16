@@ -12,6 +12,7 @@ import (
 	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/app"
 	"github.com/alexballas/refyne/v2/internal/async"
+	"github.com/alexballas/refyne/v2/internal/build"
 	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/driver"
 	"github.com/alexballas/refyne/v2/internal/painter/gl"
@@ -302,6 +303,12 @@ func (c *Canvas) Painter() gl.Painter {
 // Refresh refreshes a canvas object.
 func (c *Canvas) Refresh(obj fyne.CanvasObject) {
 	c.refreshQueue.In(obj)
+	// EnsureMain's own check, done here because handing it the c.SetDirty
+	// method value allocates, and this runs for every refreshed object.
+	if build.MigratedToFyneDo() || async.IsMainGoroutine() {
+		c.SetDirty()
+		return
+	}
 	async.EnsureMain(c.SetDirty)
 }
 

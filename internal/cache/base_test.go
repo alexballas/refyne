@@ -278,7 +278,9 @@ func testClearAll() {
 	skippedCleanWithCanvasRefresh = false
 	canvases.Clear()
 	svgs.Clear()
-	textTextures.Clear()
+	textTexturesLock.Lock()
+	textTextures = map[FontCacheEntry]*textureInfo{}
+	textTexturesLock.Unlock()
 	objectTextures.Clear()
 	renderers.Clear()
 	coarseTimestamp.Store(0)

@@ -223,11 +223,11 @@ func (c *esContext) BlendFuncSeparate(srcRGB, destRGB, srcAlpha, destAlpha uint3
 }
 
 func (c *esContext) BufferData(target uint32, points []float32, usage uint32) {
-	gl.BufferData(target, 4*len(points), gl.Ptr(points), usage)
+	gl.BufferData(target, 4*len(points), floatsPtr(points), usage)
 }
 
 func (c *esContext) BufferSubData(target uint32, points []float32) {
-	gl.BufferSubData(target, 0, 4*len(points), gl.Ptr(points))
+	gl.BufferSubData(target, 0, 4*len(points), floatsPtr(points))
 }
 
 func (c *esContext) Clear(mask uint32) {
