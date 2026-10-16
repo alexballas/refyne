@@ -1,0 +1,80 @@
+//go:build !no_glfw && !mobile
+
+package glfw
+
+import (
+	"image/color"
+	"image/png"
+	"os"
+	"testing"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+)
+
+// TestGLShot renders a mixed UI through the real GL path and saves it to
+// $GLSHOT_OUT so two builds can be diffed.
+func TestGLShot(t *testing.T) {
+	out := os.Getenv("GLSHOT_OUT")
+	if out == "" {
+		t.Skip("GLSHOT_OUT not set")
+	}
+	w := createWindow("shot")
+	defer w.Close()
+
+	line := canvas.NewLine(color.NRGBA{R: 200, A: 255})
+	line.StrokeWidth = 3
+	line.Position1, line.Position2 = fyne.NewPos(0, 0), fyne.NewPos(300, 40)
+	thin := canvas.NewLine(color.NRGBA{B: 200, A: 180})
+	thin.Position1, thin.Position2 = fyne.NewPos(0, 40), fyne.NewPos(300, 0)
+	lines := container.NewWithoutLayout(line, thin)
+	lines.Resize(fyne.NewSize(300, 40))
+
+	rt := widget.NewRichTextFromMarkdown("# Heading\n\nSome **bold** and *italic* text, `code`, and a [link](https://example.com).\n\n* one\n* two")
+	rt.Wrapping = fyne.TextWrapWord
+	under := canvas.NewText("underlined text", theme.Color(theme.ColorNamePrimary))
+	under.TextStyle.Underline = true
+	content := container.NewVBox(
+		widget.NewLabel("The quick brown fox jumps over the lazy dog 0123456789"),
+		widget.NewLabelWithStyle("Bold centred", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("Monospace\ttab", fyne.TextAlignLeading, fyne.TextStyle{Monospace: true}),
+		under,
+		canvas.NewText("emoji 😀 fallback", color.Black),
+		widget.NewButtonWithIcon("Button", theme.HomeIcon(), func() {}),
+		widget.NewEntry(),
+		widget.NewCheck("Check", nil),
+		widget.NewProgressBar(),
+		widget.NewSlider(0, 10),
+		widget.NewSeparator(),
+		container.NewGridWithColumns(4,
+			canvas.NewRectangle(color.NRGBA{R: 255, A: 255}),
+			canvas.NewRectangle(color.NRGBA{G: 255, A: 128}),
+			canvas.NewText("in grid", color.Black),
+			canvas.NewRectangle(color.NRGBA{B: 255, A: 255}),
+		),
+		lines,
+		rt,
+		container.NewHScroll(widget.NewLabel("A long clipped label that should be cut off by the scroll container at the right edge of the window and keep going")),
+	)
+	w.SetContent(content)
+	w.Resize(fyne.NewSize(420, 640))
+	time.Sleep(300 * time.Millisecond)
+	// Several frames, so caches built on later draws are what gets captured.
+	for i := 0; i < 4; i++ {
+		repaintWindow(w)
+	}
+
+	img := w.Canvas().Capture()
+	f, err := os.Create(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+}

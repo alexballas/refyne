@@ -1,0 +1,117 @@
+//go:build !no_glfw && !mobile
+
+package glfw
+
+import (
+	"fmt"
+	"testing"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+)
+
+// These benchmarks drive the real GL pipeline (min-size walk, texture free,
+// paint walk, GL painter) for one window, without SwapBuffers so vsync and the
+// compositor do not gate the measurement. One op == one frame.
+
+var glIcons = []fyne.Resource{
+	theme.HomeIcon(), theme.SettingsIcon(), theme.MailSendIcon(), theme.DeleteIcon(),
+	theme.ContentCopyIcon(), theme.SearchIcon(), theme.InfoIcon(), theme.DocumentIcon(),
+}
+
+func glHeavyUI(cols, rows int) fyne.CanvasObject {
+	cells := make([]fyne.CanvasObject, 0, cols*rows)
+	for i := 0; i < cols*rows; i++ {
+		chk := widget.NewCheck("Enabled", nil)
+		chk.SetChecked(i%2 == 0)
+		e := widget.NewEntry()
+		e.SetText(fmt.Sprintf("value-%d", i))
+		p := widget.NewProgressBar()
+		p.SetValue(float64(i%100) / 100)
+		s := widget.NewSlider(0, 100)
+		s.SetValue(float64(i % 100))
+		cells = append(cells, container.NewVBox(
+			widget.NewLabel(fmt.Sprintf("Item %d", i)),
+			widget.NewButtonWithIcon("Run", glIcons[i%len(glIcons)], func() {}),
+			chk, e, p, s))
+	}
+	return container.NewGridWithColumns(cols, cells...)
+}
+
+func glLabels(n int) ([]*widget.Label, fyne.CanvasObject) {
+	ls := make([]*widget.Label, n)
+	objs := make([]fyne.CanvasObject, n)
+	for i := range ls {
+		ls[i] = widget.NewLabel(fmt.Sprintf("The quick brown fox %d jumps over the lazy dog", i))
+		objs[i] = ls[i]
+	}
+	return ls, container.NewGridWithColumns(4, objs...)
+}
+
+func glFrame(w *window) {
+	c := w.canvas
+	c.SetDirty()
+	c.EnsureMinSize()
+	c.FreeDirtyTextures()
+	updateGLContext(w)
+	c.paint(c.Size())
+}
+
+// benchWindow is shared: closing the last test window would quit the driver.
+var benchWindow *safeWindow
+
+func runGLFrames(b *testing.B, content fyne.CanvasObject, perFrame func(i int)) {
+	if benchWindow == nil {
+		benchWindow = createWindow("bench")
+	}
+	w := benchWindow
+	runOnMain(func() {
+		w.window.SetContent(content)
+		w.window.Resize(fyne.NewSize(1600, 1200))
+	})
+	runOnMain(func() {
+		w.RunWithContext(func() {
+			for i := 0; i < 5; i++ { // warm caches and textures
+				glFrame(w.window)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if perFrame != nil {
+					perFrame(i)
+				}
+				glFrame(w.window)
+			}
+			b.StopTimer()
+		})
+	})
+}
+
+func BenchmarkGL_StaticHeavy_Frame(b *testing.B) {
+	runGLFrames(b, glHeavyUI(8, 25), nil)
+}
+
+func BenchmarkGL_StaticLabels_Frame(b *testing.B) {
+	_, content := glLabels(400)
+	runGLFrames(b, content, nil)
+}
+
+func BenchmarkGL_ChangingLabels_Frame(b *testing.B) {
+	ls, content := glLabels(400)
+	runGLFrames(b, content, func(i int) {
+		for j, l := range ls {
+			l.SetText(fmt.Sprintf("Value %d / %d updated", j, i))
+		}
+	})
+}
+
+// One label changes per frame (clock / counter style) in an otherwise heavy UI.
+func BenchmarkGL_HeavyOneLabelChanging_Frame(b *testing.B) {
+	l := widget.NewLabel("0")
+	content := container.NewBorder(l, nil, nil, nil, glHeavyUI(8, 25))
+	runGLFrames(b, content, func(i int) {
+		l.SetText(fmt.Sprintf("tick %d", i))
+	})
+}

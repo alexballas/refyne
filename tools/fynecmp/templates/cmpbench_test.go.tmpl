@@ -1,0 +1,204 @@
+// Package cmpbench holds framework-level benchmarks that only use the public
+// API, so the identical file can be dropped into fyne and refyne (imports are
+// rewritten by run.sh). Rendering goes through the test driver's software
+// painter, so these measure tree walk + layout + text/icon rasterisation.
+package cmpbench_test
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+)
+
+var icons = []fyne.Resource{
+	theme.HomeIcon(), theme.SettingsIcon(), theme.MailSendIcon(), theme.DeleteIcon(),
+	theme.ContentCopyIcon(), theme.SearchIcon(), theme.InfoIcon(), theme.DocumentIcon(),
+}
+
+// heavyUI builds cols*rows cards of six widgets each (default 8*25*6 = 1200 widgets).
+func heavyUI(cols, rows int) (fyne.CanvasObject, []fyne.Widget) {
+	var all []fyne.Widget
+	cells := make([]fyne.CanvasObject, 0, cols*rows)
+	for i := 0; i < cols*rows; i++ {
+		l := widget.NewLabel(fmt.Sprintf("Item %d", i))
+		btn := widget.NewButtonWithIcon("Run", icons[i%len(icons)], func() {})
+		chk := widget.NewCheck("Enabled", nil)
+		chk.SetChecked(i%2 == 0)
+		e := widget.NewEntry()
+		e.SetText(fmt.Sprintf("value-%d", i))
+		p := widget.NewProgressBar()
+		p.SetValue(float64(i%100) / 100)
+		s := widget.NewSlider(0, 100)
+		s.SetValue(float64(i % 100))
+		all = append(all, l, btn, chk, e, p, s)
+		cells = append(cells, container.NewVBox(l, btn, chk, e, p, s))
+	}
+	return container.NewGridWithColumns(cols, cells...), all
+}
+
+func newWindow(b *testing.B, content fyne.CanvasObject, size fyne.Size) fyne.Window {
+	w := test.NewTempWindow(b, content)
+	w.Resize(size)
+	w.Canvas().Capture() // warm caches
+	return w
+}
+
+// Static UI: every iteration is a full repaint of an unchanged 1200-widget UI.
+func BenchmarkStaticUI_Frame(b *testing.B) {
+	test.NewTempApp(b)
+	content, _ := heavyUI(8, 25)
+	w := newWindow(b, content, fyne.NewSize(1600, 1200))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Canvas().Capture()
+	}
+}
+
+// Static UI where every widget is refreshed before the frame (theme-change style).
+func BenchmarkStaticUI_RefreshAllFrame(b *testing.B) {
+	test.NewTempApp(b)
+	content, widgets := heavyUI(8, 25)
+	w := newWindow(b, content, fyne.NewSize(1600, 1200))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, wid := range widgets {
+			wid.Refresh()
+		}
+		w.Canvas().Capture()
+	}
+}
+
+// Build the UI, attach it and render the first frame.
+func BenchmarkStaticUI_BuildFirstFrame(b *testing.B) {
+	test.NewTempApp(b)
+	w := test.NewTempWindow(b, widget.NewLabel(""))
+	w.Resize(fyne.NewSize(1600, 1200))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		content, _ := heavyUI(8, 25)
+		w.SetContent(content)
+		w.Canvas().Capture()
+	}
+}
+
+// Layout only: min size + layout of the whole tree, no painting.
+func BenchmarkStaticUI_Layout(b *testing.B) {
+	test.NewTempApp(b)
+	content, _ := heavyUI(8, 25)
+	newWindow(b, content, fyne.NewSize(1600, 1200))
+	sizes := []fyne.Size{fyne.NewSize(1600, 1200), fyne.NewSize(1700, 1250)}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		content.MinSize()
+		content.Resize(sizes[i%2])
+	}
+}
+
+func labels(n int) ([]*widget.Label, fyne.CanvasObject) {
+	ls := make([]*widget.Label, n)
+	objs := make([]fyne.CanvasObject, n)
+	for i := range ls {
+		ls[i] = widget.NewLabel(fmt.Sprintf("The quick brown fox %d jumps over the lazy dog", i))
+		objs[i] = ls[i]
+	}
+	return ls, container.NewGridWithColumns(4, objs...)
+}
+
+// 400 unchanged labels, full repaint (text textures/metrics should be cached).
+func BenchmarkText_StaticLabels_Frame(b *testing.B) {
+	test.NewTempApp(b)
+	_, content := labels(400)
+	w := newWindow(b, content, fyne.NewSize(1600, 1200))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Canvas().Capture()
+	}
+}
+
+// 400 labels whose text changes every frame (cache misses: shape + rasterise).
+func BenchmarkText_ChangingLabels_Frame(b *testing.B) {
+	test.NewTempApp(b)
+	ls, content := labels(400)
+	w := newWindow(b, content, fyne.NewSize(1600, 1200))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for j, l := range ls {
+			l.SetText(fmt.Sprintf("Value %d / %d updated", j, i))
+		}
+		w.Canvas().Capture()
+	}
+}
+
+var paragraph = strings.Repeat("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ", 40)
+
+// Word-wrapped RichText re-wrapped at alternating widths (window resize).
+func BenchmarkText_RichTextRewrap(b *testing.B) {
+	test.NewTempApp(b)
+	rt := widget.NewRichTextWithText(paragraph)
+	rt.Wrapping = fyne.TextWrapWord
+	newWindow(b, rt, fyne.NewSize(800, 600))
+	widths := []float32{600, 750}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rt.Resize(fyne.NewSize(widths[i%2], 600))
+	}
+}
+
+// Typing into a multi-line entry with ~200 lines of text.
+func BenchmarkText_EntryTyping(b *testing.B) {
+	test.NewTempApp(b)
+	e := widget.NewMultiLineEntry()
+	e.Wrapping = fyne.TextWrapWord
+	e.SetText(strings.Repeat("some line of text in the editor\n", 200))
+	w := newWindow(b, e, fyne.NewSize(800, 600))
+	w.Canvas().Focus(e)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e.TypedRune('a')
+	}
+}
+
+// Uncached text measurement through the public API.
+func BenchmarkText_MeasureUnique(b *testing.B) {
+	test.NewTempApp(b)
+	style := fyne.TextStyle{}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fyne.MeasureText(fmt.Sprintf("measure me please %d", i), 14, style)
+	}
+}
+
+// Cached text measurement through the public API.
+func BenchmarkText_MeasureCached(b *testing.B) {
+	test.NewTempApp(b)
+	style := fyne.TextStyle{}
+	fyne.MeasureText("measure me please", 14, style)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fyne.MeasureText("measure me please", 14, style)
+	}
+}
