@@ -87,6 +87,9 @@ func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
 		p.blurKernelRadius = kernelRadius
 	}
 
+	// The snapshot below reads the framebuffer, so queued quads have to be in it.
+	p.FlushGlyphs()
+
 	// Copy the blur region from the framebuffer directly to the texture on the GPU.
 	// glCopyTexSubImage2D uses GL coordinates (y=0 at bottom), so convert the canvas-top y.
 	fbY := p.fbHeight - int(y) - bh
@@ -102,7 +105,7 @@ func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
 	points[14], points[19] = points[19], points[14]
 
 	uniforms := &p.uniforms.blur
-	p.ctx.UseProgram(p.blurProgram.ref)
+	p.useProgram(p.blurProgram.ref)
 	p.updateBuffer(p.blurProgram.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 3, 5, 0)
 	p.UpdateVertexArray(uniforms.vertTexCoord, 2, 5, 3)
@@ -144,7 +147,7 @@ func (p *painter) drawCircle(circle *canvas.Circle, pos fyne.Position, frame fyn
 
 	// Vertex: BEG
 	bounds, points := p.vecSquareCoordsWithShadow(pos, circle, frame, circle.Shadow)
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
 	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
@@ -214,24 +217,8 @@ func (p *painter) drawLine(line *canvas.Line, pos fyne.Position, frame fyne.Size
 		return
 	}
 	points, halfWidth, feather := p.lineCoords(pos, line.Position1, line.Position2, line.StrokeWidth, 0.5, frame)
-	uniforms := &p.uniforms.line
-	p.ctx.UseProgram(p.lineProgram.ref)
-	p.updateBuffer(p.lineProgram.buff, points)
-	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
-	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
-
-	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
-	p.logError()
-
 	r, g, b, a := getFragmentColor(line.StrokeColor)
-	p.SetUniform4f(uniforms.color, r, g, b, a)
-
-	p.SetUniform1f(uniforms.lineWidth, halfWidth)
-
-	p.SetUniform1f(uniforms.feather, feather)
-
-	p.ctx.DrawArrays(triangles, 0, 6)
-	p.logError()
+	p.pushLine(points, [4]float32{r, g, b, a}, halfWidth, feather)
 }
 
 func (p *painter) drawBezierCurve(bezierCurve *canvas.BezierCurve, pos fyne.Position, frame fyne.Size) {
@@ -243,7 +230,7 @@ func (p *painter) drawBezierCurve(bezierCurve *canvas.BezierCurve, pos fyne.Posi
 	bounds, points := p.vecRectCoords(pos, bezierCurve, frame, 0.0)
 	program := p.bezierCurveProgram
 	uniforms := &p.uniforms.bezier
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
 	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
@@ -374,7 +361,7 @@ func (p *painter) drawShader(shader *canvas.Shader, pos fyne.Position, frame fyn
 
 	// Vertex: BEG
 	bounds, points := p.vecRectCoords(pos, shader, frame, 0.0)
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(p.getAttribLocation(program, "vert"), 2, 4, 0)
 	p.UpdateVertexArray(p.getAttribLocation(program, "normal"), 2, 4, 2)
@@ -439,6 +426,10 @@ func (p *painter) drawRectangle(rect *canvas.Rectangle, pos fyne.Position, frame
 	topLeftRadius := paint.GetCornerRadius(rect.TopLeftCornerRadius, rect.CornerRadius)
 	bottomRightRadius := paint.GetCornerRadius(rect.BottomRightCornerRadius, rect.CornerRadius)
 	bottomLeftRadius := paint.GetCornerRadius(rect.BottomLeftCornerRadius, rect.CornerRadius)
+	if topRightRadius == 0 && topLeftRadius == 0 && bottomRightRadius == 0 && bottomLeftRadius == 0 &&
+		p.pushSolidRect(rect, pos, frame) {
+		return
+	}
 	p.drawOblong(rect, rect.FillColor, rect.StrokeColor, rect.StrokeWidth, topRightRadius, topLeftRadius, bottomRightRadius, bottomLeftRadius, rect.Aspect, rect.Shadow, pos, frame)
 }
 
@@ -467,7 +458,7 @@ func (p *painter) drawOblong(obj fyne.CanvasObject, fill, stroke color.Color, st
 
 	// Vertex: BEG
 	bounds, points := p.vecRectCoordsWithShadow(pos, obj, frame, aspect, shadow)
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(vert, 2, 4, 0)
 	p.UpdateVertexArray(normal, 2, 4, 2)
@@ -574,7 +565,7 @@ func (p *painter) drawRegularPolygon(polygon *canvas.RegularPolygon, pos fyne.Po
 	bounds, points := p.vecRectCoords(pos, polygon, frame, 0.0)
 	program := p.polygonProgram
 	uniforms := &p.uniforms.polygon
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
 	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
@@ -633,7 +624,7 @@ func (p *painter) drawArbitraryPolygon(polygon *canvas.ArbitraryPolygon, pos fyn
 	bounds, points := p.vecRectCoords(pos, polygon, frame, 0.0)
 	program := p.arbitraryPolygonProgram
 	uniforms := &p.uniforms.arbitraryPolygon
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
 	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
@@ -719,7 +710,7 @@ func (p *painter) drawArc(arc *canvas.Arc, pos fyne.Position, frame fyne.Size) {
 	bounds, points := p.vecRectCoords(pos, arc, frame, 0.0)
 	program := p.arcProgram
 	uniforms := &p.uniforms.arc
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
 	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
@@ -796,7 +787,7 @@ func (p *painter) drawEllipse(ellipse *canvas.Ellipse, pos fyne.Position, frame 
 
 	// Vertex: BEG
 	bounds, points := p.vecRectCoordsWithPadAndShadow(pos, ellipse, frame, -xPad, -yPad, ellipse.Shadow)
-	p.ctx.UseProgram(program.ref)
+	p.useProgram(program.ref)
 	p.updateBuffer(program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 2, 4, 0)
 	p.UpdateVertexArray(uniforms.normal, 2, 4, 2)
@@ -892,7 +883,11 @@ func (p *painter) drawText(text *canvas.Text, pos fyne.Position, frame fyne.Size
 	size.Height = roundToPixel(size.Height, p.pixScale)
 	size.Width += roundToPixel(paint.VectorPad(text), p.pixScale)
 	size.Height += roundToPixel(paint.TextVectorPad, p.pixScale)
-	p.drawTextureWithDetails(text, p.newGlTextTexture, pos, size, frame, canvas.ImageFillStretch, 1.0, 0)
+	// The atlas draws a quad per glyph out of one shared texture, so it needs no
+	// texture of its own; the whole-run texture is for strings it cannot represent.
+	if !p.drawTextFromAtlas(text, pos, frame, clip) {
+		p.drawTextureWithDetails(text, p.newGlTextTexture, pos, size, frame, canvas.ImageFillStretch, 1.0, 0)
+	}
 
 	if decorated {
 		_, baseline := cache.GetFontMetrics(text.Text, text.TextSize, text.TextStyle, text.FontSource)
@@ -932,7 +927,7 @@ func (p *painter) drawTextureWithDetails(o fyne.CanvasObject, creator func(canva
 	inner, _ := rectInnerCoords(size, pos, fill, aspect)
 
 	uniforms := &p.uniforms.simple
-	p.ctx.UseProgram(p.program.ref)
+	p.useProgram(p.program.ref)
 	p.updateBuffer(p.program.buff, points)
 	p.UpdateVertexArray(uniforms.vert, 3, 5, 0)
 	p.UpdateVertexArray(uniforms.vertTexCoord, 2, 5, 3)

@@ -64,6 +64,9 @@ func (p *painter) glctx() gl.Context {
 	return p.contextProvider.Context().(gl.Context)
 }
 
+// glyphAtlasSupported enables batched atlas text; see atlas.go.
+const glyphAtlasSupported = true
+
 func (p *painter) Init() {
 	p.ctx = &mobileContext{glContext: p.contextProvider.Context().(gl.Context)}
 	p.glctx().Disable(gl.DepthTest)
@@ -86,8 +89,8 @@ func (p *painter) Init() {
 			uniforms:   make(map[string]*UniformState),
 			attributes: make(map[string]Attribute),
 		}
-		p.getUniformLocations(p.lineProgram, "color", "feather", "lineWidth")
-		p.enableAttribArrays(p.lineProgram, "vert", "normal")
+		p.enableAttribArrays(p.lineProgram, "vert", "normal", "vertColor", "lineStyle")
+		p.initGlyphProgram("glyph_es")
 
 		p.rectangleProgram = ProgramState{
 			ref:        p.createProgram("rectangle_es"),
@@ -380,6 +383,10 @@ func (c *mobileContext) TexImage2D(target uint32, level, width, height int, colo
 		gl.Enum(typ),
 		data,
 	)
+}
+
+func (c *mobileContext) TexSubImage2D(target uint32, level, x, y, width, height int, colorFormat, typ uint32, data []uint8) {
+	c.glContext.TexSubImage2D(gl.Enum(target), level, x, y, width, height, gl.Enum(colorFormat), gl.Enum(typ), data)
 }
 
 func (c *mobileContext) TexParameteri(target, param uint32, value int32) {

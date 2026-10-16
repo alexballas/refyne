@@ -50,6 +50,12 @@ var (
 
 	//go:embed shaders/ellipse_es.frag
 	shaderEllipseesFrag []byte
+
+	//go:embed shaders/glyph_es.frag
+	shaderGlyphesFrag []byte
+
+	//go:embed shaders/glyph_es.vert
+	shaderGlyphesVert []byte
 )
 
 func shaderSourceNamed(name string) ([]byte, []byte) {
@@ -74,6 +80,8 @@ func shaderSourceNamed(name string) ([]byte, []byte) {
 		return shaderRectangleesVert, shaderArbitraryPolygonesFrag
 	case "ellipse_es":
 		return shaderRectangleesVert, shaderEllipseesFrag
+	case "glyph_es":
+		return shaderGlyphesVert, shaderGlyphesFrag
 	}
 	return nil, nil
 }

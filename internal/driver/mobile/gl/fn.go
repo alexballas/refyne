@@ -83,6 +83,7 @@ const (
 	glfnUseProgram
 	glfnVertexAttribPointer
 	glfnViewport
+	glfnTexSubImage2D
 )
 
 func goString(buf []byte) string {

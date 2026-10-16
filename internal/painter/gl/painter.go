@@ -8,6 +8,7 @@ import (
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/driver"
+	paint "github.com/alexballas/refyne/v2/internal/painter"
 	"github.com/alexballas/refyne/v2/theme"
 )
 
@@ -41,6 +42,9 @@ type Painter interface {
 	StartClipping(fyne.Position, fyne.Size)
 	// StopClipping stops clipping paint actions.
 	StopClipping()
+	// FlushGlyphs draws the batched text, rectangles and lines queued so far. It
+	// must be called once a frame's tree walk is done.
+	FlushGlyphs()
 }
 
 // NewPainter creates a new GL based renderer for the provided canvas.
@@ -65,6 +69,7 @@ type painter struct {
 	bezierCurveProgram      ProgramState
 	arbitraryPolygonProgram ProgramState
 	ellipseProgram          ProgramState
+	glyphProgram            ProgramState
 	shaderPrograms          map[string]*shaderState
 	texScale                float32
 	pixScale                float32 // pre-calculate scale*texScale for each draw
@@ -77,6 +82,17 @@ type painter struct {
 	blurKernelTexValid      bool
 	blurKernelRadius        float32
 	fbHeight                int
+
+	// The glyph atlas and the batch of quads and lines drawn out of it; see
+	// atlas.go. glyphPending and linePending hold queued vertices,
+	// glyphVertexFloats and lineVertexFloats each, and quadScratch one
+	// string's quads, reused from string to string.
+	atlas         paint.GlyphAtlas
+	atlasTex      Texture
+	atlasTexValid bool
+	glyphPending  []float32
+	linePending   []float32
+	quadScratch   []paint.GlyphQuad
 
 	// uniforms and attributes resolved once in resolveUniforms, so per-draw
 	// updates avoid map[string] lookups.
@@ -114,8 +130,10 @@ type resolvedUniforms struct {
 		vert, vertTexCoord                                                 Attribute
 	}
 	line struct {
-		color, lineWidth, feather *UniformState
-		vert, normal              Attribute
+		vert, normal, vertColor, lineStyle Attribute
+	}
+	glyph struct {
+		vert, vertTexCoord, vertColor Attribute
 	}
 	rect struct {
 		frameSize, rectCoords, strokeWidth, fillColor, strokeColor, addShadow, shadowBlurRadius, shadowSpread, shadowOffset, shadowColor, shadowType *UniformState
@@ -173,11 +191,15 @@ func (p *painter) resolveUniforms() {
 	u.blur.vertTexCoord = bl.attributes["vertTexCoord"]
 
 	l := &p.lineProgram
-	u.line.color = l.uniforms["color"]
-	u.line.lineWidth = l.uniforms["lineWidth"]
-	u.line.feather = l.uniforms["feather"]
 	u.line.vert = l.attributes["vert"]
 	u.line.normal = l.attributes["normal"]
+	u.line.vertColor = l.attributes["vertColor"]
+	u.line.lineStyle = l.attributes["lineStyle"]
+
+	g := &p.glyphProgram
+	u.glyph.vert = g.attributes["vert"]
+	u.glyph.vertTexCoord = g.attributes["vertTexCoord"]
+	u.glyph.vertColor = g.attributes["vertColor"]
 
 	r := &p.rectangleProgram
 	u.rect.frameSize = r.uniforms["frame_size"]
@@ -440,6 +462,9 @@ func (p *painter) blendFunc(srcFactor, dstFactor uint32) {
 }
 
 func (p *painter) Clear() {
+	// Anything still queued belongs to a frame that is about to be wiped.
+	p.glyphPending = p.glyphPending[:0]
+	p.linePending = p.linePending[:0]
 	if p.transparentBackground {
 		p.ctx.ClearColor(0, 0, 0, 0)
 		p.ctx.Clear(bitColorBuffer | bitDepthBuffer)
@@ -475,6 +500,7 @@ func (p *painter) SetOutputSize(width, height int) {
 }
 
 func (p *painter) StartClipping(pos fyne.Position, size fyne.Size) {
+	p.FlushGlyphs() // queued quads belong to the outgoing scissor rectangle
 	x := p.textureScale(pos.X)
 	y := p.textureScale(p.canvas.Size().Height - pos.Y - size.Height)
 	w := p.textureScale(size.Width)
@@ -485,6 +511,7 @@ func (p *painter) StartClipping(pos fyne.Position, size fyne.Size) {
 }
 
 func (p *painter) StopClipping() {
+	p.FlushGlyphs() // as in StartClipping: draw under the rectangle still in force
 	p.ctx.Disable(scissorTest)
 	p.logError()
 }
@@ -580,6 +607,17 @@ func (p *painter) initEllipseProgram(shaderFilename string) {
 		16,
 		[]string{"frame_size", "rect_coords", "stroke_width", "radius", "angle", "fill_color", "stroke_color", "edge_softness", "add_shadow", "shadow_blur_radius", "shadow_spread", "shadow_offset", "shadow_color", "shadow_type"},
 		[]string{"vert", "normal"},
+	)
+}
+
+// initGlyphProgram compiles the program batched text and plain rectangles are
+// drawn with. It is optional: without it both take their unbatched paths.
+func (p *painter) initGlyphProgram(shaderFilename string) {
+	p.glyphProgram = p.initOptionalProgram(
+		shaderFilename,
+		6*glyphVertexFloats,
+		nil,
+		[]string{"vert", "vertTexCoord", "vertColor"},
 	)
 }
 

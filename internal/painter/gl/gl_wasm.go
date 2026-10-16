@@ -59,6 +59,9 @@ var (
 	textureFilterToGL = [...]int32{gl.LINEAR, gl.NEAREST, gl.LINEAR}
 )
 
+// glyphAtlasSupported enables batched atlas text; see atlas.go.
+const glyphAtlasSupported = true
+
 func (p *painter) Init() {
 	p.ctx = &xjsContext{}
 	gl.Disable(gl.DEPTH_TEST)
@@ -81,8 +84,8 @@ func (p *painter) Init() {
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
-	p.getUniformLocations(p.lineProgram, "color", "feather", "lineWidth")
-	p.enableAttribArrays(p.lineProgram, "vert", "normal")
+	p.enableAttribArrays(p.lineProgram, "vert", "normal", "vertColor", "lineStyle")
+	p.initGlyphProgram("glyph_es")
 
 	p.rectangleProgram = ProgramState{
 		ref:        p.createProgram("rectangle_es"),
@@ -343,6 +346,10 @@ func (c *xjsContext) TexImage2D(target uint32, level, width, height int, colorFo
 		gl.Enum(typ),
 		data,
 	)
+}
+
+func (c *xjsContext) TexSubImage2D(target uint32, level, x, y, width, height int, colorFormat, typ uint32, data []uint8) {
+	gl.TexSubImage2D(gl.Enum(target), level, x, y, width, height, gl.Enum(colorFormat), gl.Enum(typ), data)
 }
 
 func (c *xjsContext) TexParameteri(target, param uint32, value int32) {

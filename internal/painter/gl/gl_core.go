@@ -63,6 +63,9 @@ type (
 
 var textureFilterToGL = [...]int32{gl.LINEAR, gl.NEAREST, gl.LINEAR}
 
+// glyphAtlasSupported enables batched atlas text; see atlas.go.
+const glyphAtlasSupported = true
+
 func (p *painter) Init() {
 	p.ctx = &coreContext{}
 	err := gl.Init()
@@ -91,8 +94,8 @@ func (p *painter) Init() {
 		uniforms:   make(map[string]*UniformState),
 		attributes: make(map[string]Attribute),
 	}
-	p.getUniformLocations(p.lineProgram, "feather", "color", "lineWidth")
-	p.enableAttribArrays(p.lineProgram, "vert", "normal")
+	p.enableAttribArrays(p.lineProgram, "vert", "normal", "vertColor", "lineStyle")
+	p.initGlyphProgram("glyph")
 
 	p.rectangleProgram = ProgramState{
 		ref:        p.createProgram("rectangle"),
@@ -377,6 +380,20 @@ func (c *coreContext) TexImage2D(target uint32, level, width, height int, colorF
 		colorFormat,
 		typ,
 		ptr,
+	)
+}
+
+func (c *coreContext) TexSubImage2D(target uint32, level, x, y, width, height int, colorFormat, typ uint32, data []uint8) {
+	gl.TexSubImage2D(
+		target,
+		int32(level),  //gosec:disable G115 -- we are definitely fine with limiting the value range here
+		int32(x),      //gosec:disable G115 -- we are definitely fine with limiting the value range here
+		int32(y),      //gosec:disable G115 -- we are definitely fine with limiting the value range here
+		int32(width),  //gosec:disable G115 -- we are definitely fine with limiting the value range here
+		int32(height), //gosec:disable G115 -- we are definitely fine with limiting the value range here
+		colorFormat,
+		typ,
+		gl.Ptr(data),
 	)
 }
 

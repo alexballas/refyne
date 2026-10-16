@@ -355,6 +355,9 @@ func (c *glCanvas) paint(size fyne.Size) {
 	if c.outline != nil {
 		c.Painter().Paint(c.outline, fyne.NewPos(0, 0), size, nil)
 	}
+	// The painter batches text, plain rectangles and lines, so the tail of the
+	// frame can still be sitting in a queue when the walk ends.
+	c.Painter().FlushGlyphs()
 }
 
 func (c *glCanvas) setContent(content fyne.CanvasObject) {
