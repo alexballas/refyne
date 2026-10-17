@@ -3,6 +3,7 @@
 package gl
 
 import (
+	"fmt"
 	"image/color"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/canvas"
+	"github.com/alexballas/refyne/v2/test"
 )
 
 // blendRecorder records the last blend call. It embeds the context interface so
@@ -47,6 +49,25 @@ func (r *clearRecorder) ClearColor(red, green, blue, alpha float32) {
 func (r *clearRecorder) GetError() uint32 {
 	return 0
 }
+
+func (r *clearRecorder) Disable(uint32) {}
+
+// glCallRecorder logs the calls that clipping and drawing make.
+type glCallRecorder struct {
+	context
+	calls []string
+}
+
+func (r *glCallRecorder) Scissor(x, y, w, h int32) {
+	r.calls = append(r.calls, fmt.Sprint("scissor ", x, y, w, h))
+}
+
+func (r *glCallRecorder) Enable(uint32)                 { r.calls = append(r.calls, "enable") }
+func (r *glCallRecorder) Disable(uint32)                { r.calls = append(r.calls, "disable") }
+func (r *glCallRecorder) DrawArrays(uint32, int, int)   { r.calls = append(r.calls, "draw") }
+func (r *glCallRecorder) Clear(uint32)                  { r.calls = append(r.calls, "clear") }
+func (r *glCallRecorder) ClearColor(_, _, _, _ float32) {}
+func (r *glCallRecorder) GetError() uint32              { return 0 }
 
 type linkFailureContext struct {
 	context
@@ -304,4 +325,60 @@ func TestKernelToRGBAKeepsFullWeight(t *testing.T) {
 
 		assert.Equal(t, 255, total, "kernel weights for radius %v must total 255", radius)
 	}
+}
+
+func TestOutsideClip(t *testing.T) {
+	frame := fyne.NewSize(100, 100)
+	rect := canvas.NewRectangle(color.White)
+	rect.Resize(fyne.NewSize(10, 10))
+
+	assert.False(t, outsideClip(rect, fyne.NewPos(50, 50), frame, nil))
+	assert.False(t, outsideClip(rect, fyne.NewPos(-9, 95), frame, nil), "partly visible")
+	assert.True(t, outsideClip(rect, fyne.NewPos(50, 120), frame, nil))
+	assert.True(t, outsideClip(rect, fyne.NewPos(-20, 50), frame, nil))
+
+	rect.Shadow = canvas.Shadow{Color: color.Black, BlurRadius: 8, Offset: fyne.NewPos(0, 4)}
+	assert.False(t, outsideClip(rect, fyne.NewPos(50, -20), frame, nil), "shadow reaches into the frame")
+	assert.True(t, outsideClip(rect, fyne.NewPos(50, -40), frame, nil))
+
+	line := canvas.NewLine(color.White)
+	line.StrokeWidth = 6
+	line.Position2 = fyne.NewPos(50, 0)
+	assert.False(t, outsideClip(line, fyne.NewPos(20, -3), frame, nil), "stroke straddles the edge")
+}
+
+func TestPainter_ScissorAppliedOnlyForDraws(t *testing.T) {
+	rec := &glCallRecorder{}
+	c := test.NewCanvas()
+	c.Resize(fyne.NewSize(100, 100))
+	p := &painter{canvas: c, ctx: rec, pixScale: 1, transparentBackground: true}
+
+	p.Clear()
+	assert.Equal(t, []string{"disable", "clear"}, rec.calls, "the first clear sets a known state")
+
+	rec.calls = nil
+	p.StartClipping(fyne.NewPos(0, 0), fyne.NewSize(10, 10))
+	p.StartClipping(fyne.NewPos(5, 5), fyne.NewSize(10, 10))
+	assert.Empty(t, rec.calls, "clips with nothing drawn in them cost nothing")
+
+	p.StartClipping(fyne.NewPos(10, 20), fyne.NewSize(30, 40))
+	p.drawArrays(triangles, 0, 4)
+	p.drawArrays(triangles, 0, 4)
+	assert.Equal(t, []string{"scissor 10 40 30 40", "enable", "draw", "draw"}, rec.calls)
+
+	rec.calls = nil
+	p.StartClipping(fyne.NewPos(0, 0), fyne.NewSize(10, 10))
+	p.StartClipping(fyne.NewPos(10, 20), fyne.NewSize(30, 40))
+	p.drawArrays(triangles, 0, 4)
+	assert.Equal(t, []string{"draw"}, rec.calls, "an unchanged clip is not sent again")
+
+	rec.calls = nil
+	p.StopClipping()
+	assert.Equal(t, []string{"disable"}, rec.calls, "lifting the clip reaches the context at once")
+
+	rec.calls = nil
+	p.StartClipping(fyne.NewPos(10, 20), fyne.NewSize(30, 40))
+	p.drawArrays(triangles, 0, 4)
+	assert.Equal(t, []string{"scissor 10 40 30 40", "enable", "draw"}, rec.calls,
+		"after a stop the rectangle is sent again, in case the context was replaced")
 }

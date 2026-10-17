@@ -6,6 +6,7 @@ import (
 	"image"
 
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/canvas"
 	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/driver"
 	paint "github.com/alexballas/refyne/v2/internal/painter"
@@ -82,6 +83,16 @@ type painter struct {
 	blurKernelTexValid      bool
 	blurKernelRadius        float32
 	fbHeight                int
+
+	// scissor is the clip the next draw must be cut to, and glScissor the one
+	// the context has, valid while glScissorKnown is set. Starting a clip only
+	// records the request and syncScissor hands it to GL before a draw, so the
+	// clips of containers whose content is culled or empty cost no GL calls.
+	// Stopping clipping reaches GL at once and forgets the rectangle: a frame
+	// ends with the test off, as a driver clearing the screen itself or a new
+	// context expects.
+	scissor, glScissor scissorState
+	glScissorKnown     bool
 
 	// The glyph atlas and the batch of quads and lines drawn out of it; see
 	// atlas.go. glyphPending and linePending hold queued vertices,
@@ -465,6 +476,8 @@ func (p *painter) Clear() {
 	// Anything still queued belongs to a frame that is about to be wiped.
 	p.glyphPending = p.glyphPending[:0]
 	p.linePending = p.linePending[:0]
+	// The last frame's closing StopClipping may not have reached the context.
+	p.syncScissor()
 	if p.transparentBackground {
 		p.ctx.ClearColor(0, 0, 0, 0)
 		p.ctx.Clear(bitColorBuffer | bitDepthBuffer)
@@ -483,9 +496,58 @@ func (p *painter) Free(obj fyne.CanvasObject) {
 }
 
 func (p *painter) Paint(obj fyne.CanvasObject, pos fyne.Position, frame fyne.Size, clip *internal.ClipItem) {
-	if obj.Visible() {
-		p.drawObject(obj, pos, frame, clip)
+	if !obj.Visible() {
+		return
 	}
+	// Text is culled by drawText against its rendered size, which can exceed obj.Size().
+	if _, ok := obj.(*canvas.Text); !ok && outsideClip(obj, pos, frame, clip) {
+		return
+	}
+	p.drawObject(obj, pos, frame, clip)
+}
+
+// outsideClip reports whether nothing obj draws can land inside the clip (or the
+// frame when unclipped), so that objects scrolled out of view cost no GL calls.
+func outsideClip(obj fyne.CanvasObject, pos fyne.Position, frame fyne.Size, clip *internal.ClipItem) bool {
+	var clipPos fyne.Position
+	clipSize := frame
+	if clip != nil {
+		clipPos, clipSize = clip.Rect()
+	}
+	size := obj.Size()
+	pad := drawOverflow(obj)
+	return pos.Y-pad[1] > clipPos.Y+clipSize.Height || pos.Y+size.Height+pad[3] < clipPos.Y ||
+		pos.X-pad[0] > clipPos.X+clipSize.Width || pos.X+size.Width+pad[2] < clipPos.X
+}
+
+// drawOverflow returns how far (left, top, right, bottom) obj may draw outside its
+// bounds: shadows, strokes and the anti-aliased edge, plus a pixel of slack.
+func drawOverflow(obj fyne.CanvasObject) [4]float32 {
+	var stroke float32
+	var shadow canvas.Shadow
+	switch o := obj.(type) {
+	case *canvas.Rectangle:
+		stroke, shadow = o.StrokeWidth, o.Shadow
+	case *canvas.Circle:
+		stroke, shadow = o.StrokeWidth, o.Shadow
+	case *canvas.Ellipse:
+		stroke, shadow = o.StrokeWidth, o.Shadow
+	case *canvas.Line:
+		stroke = o.StrokeWidth
+	case *canvas.Arc:
+		stroke = o.StrokeWidth
+	case *canvas.RegularPolygon:
+		stroke = o.StrokeWidth
+	case *canvas.ArbitraryPolygon:
+		stroke = o.StrokeWidth
+	case *canvas.BezierCurve:
+		stroke = o.StrokeWidth
+	}
+	pad := paint.GetShadowPaddings(shadow)
+	for i := range pad {
+		pad[i] += stroke + edgeSoftness + 1
+	}
+	return pad
 }
 
 func (p *painter) SetFrameBufferScale(scale float32) {
@@ -499,21 +561,59 @@ func (p *painter) SetOutputSize(width, height int) {
 	p.logError()
 }
 
+// scissorState is a scissor test setting: off, or on with a rectangle in
+// framebuffer pixels.
+type scissorState struct {
+	enabled    bool
+	x, y, w, h int32
+}
+
 func (p *painter) StartClipping(pos fyne.Position, size fyne.Size) {
 	p.FlushGlyphs() // queued quads belong to the outgoing scissor rectangle
 	x := p.textureScale(pos.X)
 	y := p.textureScale(p.canvas.Size().Height - pos.Y - size.Height)
 	w := p.textureScale(size.Width)
 	h := p.textureScale(size.Height)
-	p.ctx.Scissor(int32(x), int32(y), int32(w), int32(h))
-	p.ctx.Enable(scissorTest)
-	p.logError()
+	p.scissor = scissorState{enabled: true, x: int32(x), y: int32(y), w: int32(w), h: int32(h)}
 }
 
 func (p *painter) StopClipping() {
 	p.FlushGlyphs() // as in StartClipping: draw under the rectangle still in force
+	p.scissor.enabled = false
 	p.ctx.Disable(scissorTest)
 	p.logError()
+	p.glScissorKnown = false
+}
+
+// syncScissor applies the requested clip to the context if it differs from
+// what the context has. Everything the scissor test affects, draws and clears,
+// calls it first.
+func (p *painter) syncScissor() {
+	want := p.scissor
+	if p.glScissorKnown && want == p.glScissor {
+		return
+	}
+	if !want.enabled {
+		p.ctx.Disable(scissorTest)
+		p.glScissor.enabled = false
+	} else {
+		have := p.glScissor
+		if !p.glScissorKnown || want.x != have.x || want.y != have.y || want.w != have.w || want.h != have.h {
+			p.ctx.Scissor(want.x, want.y, want.w, want.h)
+		}
+		if !p.glScissorKnown || !have.enabled {
+			p.ctx.Enable(scissorTest)
+		}
+		p.glScissor = want
+	}
+	p.glScissorKnown = true
+	p.logError()
+}
+
+// drawArrays draws from the bound buffers under the requested clip.
+func (p *painter) drawArrays(mode uint32, first, count int) {
+	p.syncScissor()
+	p.ctx.DrawArrays(mode, first, count)
 }
 
 func (p *painter) compileShader(source string, shaderType uint32) (Shader, error) {

@@ -129,18 +129,24 @@ func (p *painter) drawBlur(b *canvas.Blur, pos fyne.Position, frame fyne.Size) {
 	// over it rather than through the alpha-preserving blendFunc wrapper.
 	p.ctx.BlendFunc(one, zero)
 	p.SetUniform2f(uniforms.direction, 1.0/float32(bw), 0.0)
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 
 	// Capture the horizontally blurred result back into blurSnapTex for the second pass.
 	p.ctx.CopyTexSubImage2D(texture2D, 0, 0, 0, int(x), fbY, bw, bh)
 
 	p.ctx.BlendFunc(one, zero)
 	p.SetUniform2f(uniforms.direction, 0.0, 1.0/float32(bh))
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
 func (p *painter) drawCircle(circle *canvas.Circle, pos fyne.Position, frame fyne.Size) {
+	// Widgets keep hidden indicators as transparent circles, one per check
+	// and slider, which would otherwise cost a draw call each.
+	if !paint.IsShadowVisible(circle.Shadow) && transparent(circle.FillColor) &&
+		(transparent(circle.StrokeColor) || circle.StrokeWidth == 0) {
+		return
+	}
 	radius := paint.GetMaximumRadius(circle.Size())
 	program := p.roundRectangleProgram
 	uniforms := &p.uniforms.roundRect
@@ -200,7 +206,7 @@ func (p *painter) drawCircle(circle *canvas.Circle, pos fyne.Position, frame fyn
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -283,7 +289,7 @@ func (p *painter) drawBezierCurve(bezierCurve *canvas.BezierCurve, pos fyne.Posi
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -385,7 +391,7 @@ func (p *painter) drawShader(shader *canvas.Shader, pos fyne.Position, frame fyn
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -434,7 +440,7 @@ func (p *painter) drawRectangle(rect *canvas.Rectangle, pos fyne.Position, frame
 }
 
 func (p *painter) drawOblong(obj fyne.CanvasObject, fill, stroke color.Color, strokeWidth, topRightRadius, topLeftRadius, bottomRightRadius, bottomLeftRadius, aspect float32, shadow canvas.Shadow, pos fyne.Position, frame fyne.Size) {
-	if !paint.IsShadowVisible(shadow) && (fill == color.Transparent || fill == nil) && (stroke == color.Transparent || stroke == nil || strokeWidth == 0) {
+	if !paint.IsShadowVisible(shadow) && transparent(fill) && (transparent(stroke) || strokeWidth == 0) {
 		return
 	}
 
@@ -551,7 +557,7 @@ func (p *painter) drawOblong(obj fyne.CanvasObject, fill, stroke color.Color, st
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -611,7 +617,7 @@ func (p *painter) drawRegularPolygon(polygon *canvas.RegularPolygon, pos fyne.Po
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -697,7 +703,7 @@ func (p *painter) drawArbitraryPolygon(polygon *canvas.ArbitraryPolygon, pos fyn
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -761,7 +767,7 @@ func (p *painter) drawArc(arc *canvas.Arc, pos fyne.Position, frame fyne.Size) {
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -840,7 +846,7 @@ func (p *painter) drawEllipse(ellipse *canvas.Ellipse, pos fyne.Position, frame 
 	p.logError()
 	// Fragment: END
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -947,7 +953,7 @@ func (p *painter) drawTextureWithDetails(o fyne.CanvasObject, creator func(canva
 	p.ctx.BindTexture(texture2D, texture)
 	p.logError()
 
-	p.ctx.DrawArrays(triangleStrip, 0, 4)
+	p.drawArrays(triangleStrip, 0, 4)
 	p.logError()
 }
 
@@ -1166,6 +1172,15 @@ func roundToPixelCoords(size fyne.Size, pos fyne.Position, pixScale float32) (fy
 }
 
 // Returns FragmentColor(red,green,blue,alpha) from fyne.Color
+// transparent reports whether drawing in col leaves the framebuffer as it was.
+func transparent(col color.Color) bool {
+	if col == nil || col == color.Transparent {
+		return true
+	}
+	_, _, _, a := col.RGBA()
+	return a == 0
+}
+
 func getFragmentColor(col color.Color) (float32, float32, float32, float32) {
 	if col == nil {
 		return 0, 0, 0, 0

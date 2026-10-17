@@ -72,7 +72,7 @@ func (p *painter) flushQuads() {
 	p.blendFunc(one, oneMinusSrcAlpha) // the glyph shader writes premultiplied colour
 	p.ctx.ActiveTexture(texture0)
 	p.ctx.BindTexture(texture2D, p.atlasTex)
-	p.ctx.DrawArrays(triangles, 0, vertices)
+	p.drawArrays(triangles, 0, vertices)
 	p.logError()
 
 	p.glyphPending = p.glyphPending[:0]
@@ -93,7 +93,7 @@ func (p *painter) flushLines() {
 	p.UpdateVertexArray(u.vertColor, 4, lineVertexFloats, 4)
 	p.UpdateVertexArray(u.lineStyle, 2, lineVertexFloats, lineStyleOffset)
 	p.blendFunc(srcAlpha, oneMinusSrcAlpha)
-	p.ctx.DrawArrays(triangles, 0, vertices)
+	p.drawArrays(triangles, 0, vertices)
 	p.logError()
 
 	p.linePending = p.linePending[:0]
