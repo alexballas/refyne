@@ -1,6 +1,14 @@
 package painter
 
-import "testing"
+import (
+	"image/color"
+	"strconv"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/alexballas/refyne/v2/canvas"
+)
 
 // rect is a placed slot, used to check that nothing the packer hands out
 // overlaps anything else it has handed out.
@@ -131,4 +139,24 @@ func TestGlyphEntryEmpty(t *testing.T) {
 	if (glyphEntry{width: 8, height: 8}).empty() {
 		t.Error("a glyph with both dimensions is not empty")
 	}
+}
+
+// TestGlyphAtlas_ShapedCacheKeepsRecentStrings checks that filling the shaped
+// cache retires it a generation at a time: a string used in the last
+// generation survives, one unused for two is shaped afresh.
+func TestGlyphAtlas_ShapedCacheKeepsRecentStrings(t *testing.T) {
+	var a GlyphAtlas
+	shapeNew := func(n int) {
+		for i := 0; i < n; i++ {
+			a.shape(canvas.NewText(strconv.Itoa(i), color.White), 1)
+		}
+	}
+	kept := canvas.NewText("kept", color.White)
+	first := a.shape(kept, 1)
+
+	shapeNew(shapedCacheMax)
+	assert.Same(t, first, a.shape(kept, 1), "the previous generation is still cached")
+
+	shapeNew(3 * shapedCacheMax)
+	assert.NotSame(t, first, a.shape(kept, 1), "two generations later it is gone")
 }

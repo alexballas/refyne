@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -335,5 +336,35 @@ func TestGlyphAtlas_CachedSlotsDropOnReset(t *testing.T) {
 	require.True(t, ok)
 	for _, q := range quads {
 		assert.True(t, containsRect(tex.live, slot(&a, q)), "quad samples %v, which is not live", slot(&a, q))
+	}
+}
+
+// BenchmarkGlyphAtlas_ChurningNumbers is a frame of a live data view: 2000
+// labels each get a new number, are measured for layout and laid out as quads.
+// The numbers drift from frame to frame, so some repeat and most are new.
+func BenchmarkGlyphAtlas_ChurningNumbers(b *testing.B) {
+	texts := make([]*canvas.Text, 2000)
+	for i := range texts {
+		texts[i] = canvas.NewText("0", color.White)
+	}
+	var a painter.GlyphAtlas
+	tex := &fakeAtlasTexture{}
+	var quads []painter.GlyphQuad
+	frame := func(n int) {
+		t := float64(n) / 60
+		quads = quads[:0]
+		for i, text := range texts {
+			text.Text = strconv.FormatFloat(1000*math.Sin(t+float64(i)), 'f', 1, 64)
+			painter.RenderedTextSize(text.Text, text.TextSize, text.TextStyle, text.FontSource)
+			quads, _ = a.TextQuads(quads, text, fyne.NewPos(0, float32(i)), 1, 0, 1920, tex)
+		}
+	}
+	for n := 0; n < 120; n++ {
+		frame(n)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		frame(120 + n)
 	}
 }

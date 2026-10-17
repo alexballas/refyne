@@ -35,11 +35,11 @@ const (
 	// atlasPad separates neighbouring glyphs so linear sampling at the edge of
 	// one cannot pick up the next.
 	atlasPad = 1
-	// shapedCacheMax caps the shaped-run cache. A UI whose labels churn
-	// (counters, live values) grows entries without bound; past the cap the
-	// whole cache is dropped and rebuilt from live strings, the same
-	// reset-and-repack answer the atlas uses. 4096 entries of a dozen glyphs is
-	// roughly 2MB.
+	// shapedCacheMax caps each generation of the shaped-run cache. A UI whose
+	// labels churn (counters, live values) grows entries without bound; when
+	// the current generation fills it becomes the old one and the one before
+	// is dropped, so what was drawn recently survives and the rest goes. Two
+	// generations of 4096 entries of a dozen glyphs is roughly 4MB.
 	shapedCacheMax = 4096
 	// whiteBlock is the side of the solid block plain rectangles sample, and
 	// whiteCentre the offset of its centre texel from the block's corner.
@@ -82,8 +82,9 @@ type GlyphAtlas struct {
 	// shaped caches the result of shaping one string, keyed by everything the
 	// shaper reads. Shaping (segmenting plus HarfBuzz) is the dominant cost of
 	// text once rasterisation and draws are cached and batched, and a UI's
-	// strings mostly repeat frame over frame.
-	shaped map[shapedKey]*shapedEntry
+	// strings mostly repeat frame over frame. oldShaped is the previous
+	// generation, whose entries move back to shaped when used again.
+	shaped, oldShaped map[shapedKey]*shapedEntry
 	// resets counts atlas resets, which is how a string being resolved notices
 	// that the slots it already has went stale.
 	resets int
@@ -167,9 +168,12 @@ func (a *GlyphAtlas) TextQuads(dst []GlyphQuad, text *canvas.Text, pos fyne.Posi
 	// second draw spares strings that churn every frame the allocation, and a
 	// string with glyphs culled has not resolved those, so it stays on this path.
 	if !culled && se.drawn {
-		se.slots = se.slots[:0]
+		if cap(se.slots) < len(glyphs) {
+			se.slots = make([]cachedSlot, len(glyphs))
+		}
+		se.slots = se.slots[:len(glyphs)]
 		for i := range glyphs {
-			se.slots = append(se.slots, cachedSlot{entry: a.slotScratch[i], sub: a.subScratch[i]})
+			se.slots[i] = cachedSlot{entry: a.slotScratch[i], sub: a.subScratch[i]}
 		}
 		se.slotsResets = a.resets
 	}
@@ -261,6 +265,10 @@ func (a *GlyphAtlas) shape(text *canvas.Text, pixScale float32) *shapedEntry {
 	if e, ok := a.shaped[key]; ok {
 		return e
 	}
+	if e, ok := a.oldShaped[key]; ok {
+		a.storeShaped(key, e)
+		return e
+	}
 
 	a.glyphScratch = a.glyphScratch[:0]
 	WalkGlyphs(face.Fonts, text.Text, text.TextSize, pixScale, text.TextStyle,
@@ -270,11 +278,27 @@ func (a *GlyphAtlas) shape(text *canvas.Text, pixScale float32) *shapedEntry {
 	if e.ok {
 		e.glyphs = append([]PlacedGlyph(nil), a.glyphScratch...)
 	}
-	if a.shaped == nil || len(a.shaped) >= shapedCacheMax {
+	a.storeShaped(key, e)
+	return e
+}
+
+// storeShaped adds e to the current generation of the shaped-run cache,
+// retiring that generation first when it is full. Labels that keep changing
+// value revisit recent strings, which the old generation still has; the
+// generation before is dropped, the way the atlas resets.
+func (a *GlyphAtlas) storeShaped(key shapedKey, e *shapedEntry) {
+	if a.shaped == nil {
 		a.shaped = make(map[shapedKey]*shapedEntry)
+	} else if len(a.shaped) >= shapedCacheMax {
+		a.shaped, a.oldShaped = a.oldShaped, a.shaped
+		if a.shaped == nil {
+			a.shaped = make(map[shapedKey]*shapedEntry)
+		}
+		for k := range a.shaped {
+			delete(a.shaped, k)
+		}
 	}
 	a.shaped[key] = e
-	return e
 }
 
 // glyph returns where a glyph lives in the atlas when drawn sub/64 of a pixel

@@ -448,10 +448,54 @@ const shapeCacheMax = 4096
 // other way round. It is guarded by fontUseLock.
 var shapeCache = make(map[shapeKey]*shapedString)
 
+// spaceCacheMax caps the shaped space cache, which grows by one entry per font
+// map and size: a handful in a normal app, more while a text size animates.
+const spaceCacheMax = 256
+
+type spaceKey struct {
+	faces *dynamicFontMap
+	size  fixed.Int26_6
+}
+
+// spaceCache holds the space shaped for each font map and size, which every
+// string needs for its line metrics and tab width. A font map only ever gains
+// faces, so the face that resolves a space never changes. It is guarded by
+// fontUseLock.
+var spaceCache = make(map[spaceKey]shaping.Output)
+
 func clearShapeCache() {
 	fontUseLock.Lock()
 	shapeCache = make(map[shapeKey]*shapedString)
+	spaceCache = make(map[spaceKey]shaping.Output)
 	fontUseLock.Unlock()
+}
+
+// shapeSpace returns a space shaped in faces at textSize. Callers hold
+// fontUseLock.
+func shapeSpace(shaper *shaping.HarfbuzzShaper, faces shaping.Fontmap, textSize fixed.Int26_6) shaping.Output {
+	key := spaceKey{size: textSize}
+	key.faces, _ = faces.(*dynamicFontMap)
+	if key.faces != nil {
+		if out, ok := spaceCache[key]; ok {
+			return out
+		}
+	}
+
+	out := shaper.Shape(shaping.Input{
+		Text:      []rune{' '},
+		RunStart:  0,
+		RunEnd:    1,
+		Direction: di.DirectionLTR,
+		Face:      faces.ResolveFace(' '),
+		Size:      textSize,
+	})
+	if key.faces != nil {
+		if len(spaceCache) >= spaceCacheMax {
+			spaceCache = make(map[spaceKey]shaping.Output)
+		}
+		spaceCache[key] = out
+	}
+	return out
 }
 
 // shapeString returns s shaped in faces at textSize, from the cache when it has
@@ -471,20 +515,17 @@ func shapeString(faces shaping.Fontmap, s string, textSize fixed.Int26_6) *shape
 	segmenter := segmenterPool.Get()
 	defer segmenterPool.Put(segmenter)
 
+	shaped := &shapedString{space: shapeSpace(shaper, faces, textSize)}
+
+	runes := []rune(s)
 	in := shaping.Input{
-		Text:      []rune{' '},
+		Text:      runes,
 		RunStart:  0,
-		RunEnd:    1,
+		RunEnd:    len(runes),
 		Direction: di.DirectionLTR,
 		Face:      faces.ResolveFace(' '),
 		Size:      textSize,
 	}
-	shaped := &shapedString{space: shaper.Shape(in)}
-
-	runes := []rune(s)
-	in.Text = runes
-	in.RunStart = 0
-	in.RunEnd = len(runes)
 	for _, in := range splitEmojiSequences(in, faces, segmenter) {
 		inEnd := in.RunEnd
 
