@@ -203,6 +203,7 @@ func (d *gLDriver) runGL() {
 	frameInterval := d.frameInterval()
 	nextRateCheck := time.Now().Add(time.Second)
 	nextFrame := time.Now()
+	waited := false // whether events were taken since the last frame
 	for {
 		if d.processQueuedFuncsOrDone() {
 			return
@@ -223,8 +224,20 @@ func (d *gLDriver) runGL() {
 					return
 				}
 				d.processWindowEvents()
+				waited = true
 				continue
 			}
+			// A frame running behind schedule leaves no wait to take events
+			// in. Take them now, or input queues up and, on Wayland, the
+			// frame callback that lets this frame paint goes unseen, so the
+			// tick would update content it cannot present.
+			if !waited {
+				d.pollEvents()
+				if d.processQueuedFuncsOrDone() {
+					return
+				}
+			}
+			waited = false
 			d.runFrame()
 			// Advance the deadline by a whole interval from the previous
 			// deadline (not from time.Now()) so draw time and timer-wakeup
@@ -250,6 +263,7 @@ func (d *gLDriver) runGL() {
 			d.runFrame()
 			nextFrame = time.Now().Add(frameInterval)
 		}
+		waited = false
 	}
 }
 
@@ -300,7 +314,26 @@ func (d *gLDriver) shutdownGL() {
 func (d *gLDriver) runFrame() {
 	d.processWindowEvents()
 	d.animation.TickAnimations()
+	// A window waits for its compositor to present the last frame (see
+	// presentGate), which it learns from an event. The tick may have outlasted
+	// that wait, so take the event before drawing rather than skip the paint
+	// and leave what the tick changed for the frame after.
+	if d.hasGatedWindow() {
+		d.pollEvents()
+	}
 	d.drawSingleFrame()
+}
+
+// hasGatedWindow reports whether a visible window is waiting to be told its
+// last frame was presented.
+func (d *gLDriver) hasGatedWindow() bool {
+	for _, win := range d.windowList() {
+		w := win.(*window)
+		if !w.closing && w.visible && w.viewport != nil && !w.frame.ready() {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *gLDriver) processWindowEvents() {

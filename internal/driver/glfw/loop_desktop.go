@@ -61,6 +61,11 @@ func (d *gLDriver) initGLFW() {
 	initCursors()
 }
 
+// pollEvents processes pending window system events without blocking.
+func (d *gLDriver) pollEvents() {
+	glfw.PollEvents()
+}
+
 func (d *gLDriver) waitEvents() {
 	glfw.WaitEvents()
 }
