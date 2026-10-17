@@ -207,6 +207,21 @@ func TestButtonRenderer_ApplyTheme(t *testing.T) {
 	assert.NotEqual(t, textSize, customTextSize)
 }
 
+func TestButtonRenderer_TapRippleFollowsBackgroundRadius(t *testing.T) {
+	button := NewButton("Hi", nil)
+	render := test.TempWidgetRenderer(t, button).(*buttonRenderer)
+
+	radius := render.background.CornerRadius
+	assert.NotZero(t, radius)
+	assert.Equal(t, radius, render.tapBG.CornerRadius)
+
+	test.WithTestTheme(t, func() {
+		button.Refresh()
+		assert.NotEqual(t, radius, render.background.CornerRadius, "the test theme has its own input radius")
+		assert.Equal(t, render.background.CornerRadius, render.tapBG.CornerRadius)
+	})
+}
+
 func TestButtonRenderer_TapAnimation(t *testing.T) {
 	test.NewTempApp(t)
 	test.ApplyTheme(t, test.NewTheme())
