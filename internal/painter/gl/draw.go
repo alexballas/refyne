@@ -1171,7 +1171,6 @@ func roundToPixelCoords(size fyne.Size, pos fyne.Position, pixScale float32) (fy
 	return size, pos
 }
 
-// Returns FragmentColor(red,green,blue,alpha) from fyne.Color
 // transparent reports whether drawing in col leaves the framebuffer as it was.
 func transparent(col color.Color) bool {
 	if col == nil || col == color.Transparent {
@@ -1181,6 +1180,7 @@ func transparent(col color.Color) bool {
 	return a == 0
 }
 
+// Returns FragmentColor(red,green,blue,alpha) from fyne.Color
 func getFragmentColor(col color.Color) (float32, float32, float32, float32) {
 	if col == nil {
 		return 0, 0, 0, 0
