@@ -244,6 +244,27 @@ static void registryHandleGlobalRemove(void* userData,
         _GLFWmonitor* monitor = _glfw.monitors[i];
         if (monitor->wl.name == name)
         {
+            // Remove cached output references before freeing its proxy. This
+            // also reconciles compositor-selected fullscreen to a surviving
+            // entered output before the generic disconnect handler runs.
+            for (_GLFWwindow* window = _glfw.windowListHead; window; window = window->next)
+            {
+                _glfwRemoveOutputWayland(window, monitor->wl.output);
+                if (window->monitor == monitor && window->wl.fullscreenCurrentOutput)
+                {
+                    // Enter for the replacement output may arrive only after
+                    // global_remove. Keep automatic fullscreen alive using a
+                    // temporary surviving monitor until it can be reconciled.
+                    for (int j = 0; j < _glfw.monitorCount; j++)
+                    {
+                        if (_glfw.monitors[j] != monitor)
+                        {
+                            _glfwInputWindowMonitor(window, _glfw.monitors[j]);
+                            break;
+                        }
+                    }
+                }
+            }
             _glfwInputMonitor(monitor, GLFW_DISCONNECTED, 0);
             return;
         }

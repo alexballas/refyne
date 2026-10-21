@@ -129,6 +129,10 @@ func (w *window) setupWaylandDecorations() {
 	}
 
 	if w.fullScreen {
+		// Mapping has negotiated the decoration mode. Remember it for the exit,
+		// which may happen while hidden, after the xdg objects are destroyed.
+		w.waylandDecorationsDeferred = true
+		w.waylandServerSideDecorations = w.viewport.DecorationMode() == glfw.DecorationModeServerSide
 		return
 	}
 
@@ -144,6 +148,47 @@ func (w *window) setupWaylandDecorations() {
 	// Take over: remove GLFW's fallback bars (this destroys them on Wayland).
 	w.viewport.SetAttrib(glfw.Decorated, glfw.False)
 
+	d := w.newWaylandDecoration()
+	if w.pendingResize {
+		// The initial configure owns the outer bounds. Install the title bar
+		// within them instead of expanding the pre-configure content size.
+		w.applyPendingResize()
+		w.canvas.setDecoration(d)
+	} else {
+		w.updateChrome(func() {
+			w.canvas.setDecoration(d)
+		})
+	}
+	w.finishWaylandDecoration()
+}
+
+// setupWaylandDecorationsForFullScreenExit installs the custom title bar on a
+// window shown fullscreen, which setupWaylandDecorations deferred. Call it
+// before requesting the exit, visible or hidden: GLFW then creates no fallback
+// bars, and the restore size grows by the title bar like a windowed Show.
+func (w *window) setupWaylandDecorationsForFullScreenExit() {
+	if !runningWayland() || !w.decorate || w.viewport == nil || w.canvas.decoration != nil || !w.waylandDecorationsDeferred {
+		return
+	}
+	w.waylandDecorationsDeferred = false
+	if w.waylandServerSideDecorations {
+		return
+	}
+
+	// While GLFW still holds the monitor this only records the attribute.
+	// After a forced exit on disconnect it removes GLFW's fallback bars.
+	w.viewport.SetAttrib(glfw.Decorated, glfw.False)
+
+	// The compositor still owns the fullscreen bounds, so do not resize now.
+	oldHeight := w.canvas.chromeHeight()
+	w.canvas.setDecoration(w.newWaylandDecoration())
+	if w.width > 0 && w.height > 0 {
+		w.height += scale.ToScreenCoordinate(w.canvas, w.canvas.chromeHeight()-oldHeight)
+	}
+	w.finishWaylandDecoration()
+}
+
+func (w *window) newWaylandDecoration() *windowDecoration {
 	d := newWindowDecoration(w.title, w.decorationIcon())
 	d.SetMaximized(w.viewport.GetAttrib(glfw.Maximized) == glfw.True)
 	d.onClose = w.Close
@@ -157,17 +202,10 @@ func (w *window) setupWaylandDecorations() {
 	}
 	d.onDragStart = func() { w.viewport.StartWindowMove() }
 	d.onDoubleTap = d.onMaximizeToggle
+	return d
+}
 
-	if w.pendingResize {
-		// The initial configure owns the outer bounds. Install the title bar
-		// within them instead of expanding the pre-configure content size.
-		w.applyPendingResize()
-		w.canvas.setDecoration(d)
-	} else {
-		w.updateChrome(func() {
-			w.canvas.setDecoration(d)
-		})
-	}
+func (w *window) finishWaylandDecoration() {
 	w.canvas.setWindowBackground(true)
 	w.canvas.setWindowOutline(true)
 	w.canvas.setWindowCornersSquare(w.viewport.GetAttrib(glfw.Maximized) == glfw.True || w.fullScreen)

@@ -79,6 +79,12 @@ type window struct {
 	decorate  bool
 	closing   bool
 	fixedSize bool
+	// fittingFixedSize is set while fitContent applies the fixed size, so its
+	// canvas notification does not re-enter fitContent.
+	fittingFixedSize bool
+	// Wayland custom decorations are deferred while a window is shown
+	// fullscreen, using the decoration mode negotiated when it was mapped.
+	waylandDecorationsDeferred, waylandServerSideDecorations bool
 
 	cursor       desktop.Cursor
 	customCursor *glfw.Cursor
@@ -155,6 +161,9 @@ func (w *window) SetFullScreen(full bool) {
 			// Wayland CSD.
 			maximized := w.viewport.GetAttrib(glfw.Maximized) == glfw.True
 			w.canvas.setWindowCornersSquare(full || maximized)
+			if !full {
+				w.setupWaylandDecorationsForFullScreenExit()
+			}
 			w.doSetFullScreen(full)
 		})
 	}
@@ -333,7 +342,9 @@ func (w *window) fitContent() {
 		}
 		view.SetSizeLimits(w.requestedWidth, w.requestedHeight, w.requestedWidth, w.requestedHeight)
 		view.SetSize(w.requestedWidth, w.requestedHeight)
+		w.fittingFixedSize = true
 		w.processResized(w.requestedWidth, w.requestedHeight)
+		w.fittingFixedSize = false
 	} else {
 		view.SetSizeLimits(minWidth, minHeight, glfw.DontCare, glfw.DontCare)
 	}
@@ -870,10 +881,11 @@ func (w *window) RescaleContext() {
 	w.fitContent()
 
 	if w.fullScreen {
-		w.width, w.height = w.viewport.GetSize()
+		// Keep the windowed bounds intact across fullscreen output/scale changes.
+		width, height := w.viewport.GetSize()
 		scaledFull := fyne.NewSize(
-			scale.ToFyneCoordinate(w.canvas, w.width),
-			scale.ToFyneCoordinate(w.canvas, w.height),
+			scale.ToFyneCoordinate(w.canvas, width),
+			scale.ToFyneCoordinate(w.canvas, height),
 		)
 		w.canvas.Resize(scaledFull)
 		return

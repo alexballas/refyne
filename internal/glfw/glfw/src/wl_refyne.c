@@ -23,6 +23,33 @@
 
 #if defined(_GLFW_WAYLAND)
 
+GLFWAPI void glfwRefyneFullScreenOnCurrentOutput(GLFWwindow* handle)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    if (!window)
+        return;
+
+    // Mapping recreates the shell role and reapplies this policy itself.
+    // Repeating the request (including Fyne's post-Show call) is a no-op.
+    if (window->wl.fullscreenCurrentOutput && window->monitor)
+        return;
+
+    // GLFW needs a non-NULL monitor to represent fullscreen internally, even
+    // when xdg-shell leaves output selection to the compositor. Prefer the
+    // surface's known output and reconcile it on subsequent enter/leave events.
+    _GLFWmonitor* monitor = monitorForEnteredOutput(window);
+    if (!monitor)
+        monitor = window->monitor;
+    if (!monitor && _glfw.monitorCount)
+        monitor = _glfw.monitors[0];
+    if (!monitor)
+        return;
+
+    window->wl.fullscreenCurrentOutput = GLFW_TRUE;
+    _glfwInputWindowMonitor(window, monitor);
+    acquireMonitor(window);
+}
+
 // Approximate libadwaita's active CSD shadow layers in one cached alpha atlas:
 // a broad 6% shadow plus a tighter 4% shadow. The atlas keeps a longer tail
 // than the CSS blur radius so the fade remains smooth at its outer edge.
@@ -102,6 +129,39 @@ static void destroyRefyneShadowSurfaces(_GLFWwindow* window)
     destroyRefyneShadowSlice(&window->wl.refyneShadow.bottomLeft);
     destroyRefyneShadowSlice(&window->wl.refyneShadow.bottom);
     destroyRefyneShadowSlice(&window->wl.refyneShadow.bottomRight);
+    window->wl.refyneShadow.visible = GLFW_FALSE;
+    window->wl.refyneShadow.focus = NULL;
+}
+
+static void hideRefyneShadowSurfaces(_GLFWwindow* window)
+{
+    _GLFWfallbackEdgeWayland* slices[] =
+    {
+        &window->wl.refyneShadow.topLeft,
+        &window->wl.refyneShadow.top,
+        &window->wl.refyneShadow.topRight,
+        &window->wl.refyneShadow.left,
+        &window->wl.refyneShadow.right,
+        &window->wl.refyneShadow.bottomLeft,
+        &window->wl.refyneShadow.bottom,
+        &window->wl.refyneShadow.bottomRight,
+    };
+
+    // Keep the surfaces alive across fullscreen/maximized transitions. Mutter
+    // 50.1 can retain a mapped actor for a destroyed shadow surface while
+    // checking fullscreen scanout candidates, then dereference its NULL
+    // Wayland surface. Unmapping synchronized subsurfaces instead applies
+    // their visibility atomically with the next parent content commit.
+    for (size_t i = 0;  i < sizeof(slices) / sizeof(slices[0]);  i++)
+    {
+        if (!slices[i]->surface)
+            continue;
+
+        invalidatePointerSurface(slices[i]->surface);
+        wl_surface_attach(slices[i]->surface, NULL, 0, 0);
+        wl_surface_commit(slices[i]->surface);
+    }
+
     window->wl.refyneShadow.visible = GLFW_FALSE;
     window->wl.refyneShadow.focus = NULL;
 }
@@ -228,35 +288,34 @@ static GLFWbool createRefyneShadowSlice(_GLFWwindow* window,
                                         int sourceWidth, int sourceHeight,
                                         int x, int y, int width, int height)
 {
-    slice->surface = wl_compositor_create_surface(_glfw.wl.compositor);
     if (!slice->surface)
-        return GLFW_FALSE;
+    {
+        slice->surface = wl_compositor_create_surface(_glfw.wl.compositor);
+        if (!slice->surface)
+            return GLFW_FALSE;
 
-    wl_surface_set_user_data(slice->surface, window);
-    wl_proxy_set_tag((struct wl_proxy*) slice->surface, &_glfw.wl.tag);
+        wl_surface_set_user_data(slice->surface, window);
+        wl_proxy_set_tag((struct wl_proxy*) slice->surface, &_glfw.wl.tag);
 
-    slice->subsurface =
-        wl_subcompositor_get_subsurface(_glfw.wl.subcompositor,
-                                        slice->surface, window->wl.surface);
-    if (!slice->subsurface)
-        return GLFW_FALSE;
+        slice->subsurface =
+            wl_subcompositor_get_subsurface(_glfw.wl.subcompositor,
+                                            slice->surface, window->wl.surface);
+        if (!slice->subsurface)
+            return GLFW_FALSE;
+
+        wl_subsurface_place_below(slice->subsurface, window->wl.surface);
+
+        // Apply shadow visibility, viewports and positions with the matching
+        // parent content buffer, including when restoring retained surfaces.
+        wl_subsurface_set_sync(slice->subsurface);
+
+        slice->viewport =
+            wp_viewporter_get_viewport(_glfw.wl.viewporter, slice->surface);
+        if (!slice->viewport)
+            return GLFW_FALSE;
+    }
 
     wl_subsurface_set_position(slice->subsurface, x, y);
-    wl_subsurface_place_below(slice->subsurface, window->wl.surface);
-
-    // Keep shadow commits synchronized with the parent content surface. During
-    // interactive resize the compositor sends a configure, we update the shadow
-    // slice viewports, then Go renders and swaps the matching EGL buffer. If
-    // these subsurfaces are desynchronized, their viewport commits can take
-    // effect before that buffer swap and the shadow/resize extents visually
-    // lead the content by one frame on Mutter/Mesa.
-    wl_subsurface_set_sync(slice->subsurface);
-
-    slice->viewport =
-        wp_viewporter_get_viewport(_glfw.wl.viewporter, slice->surface);
-    if (!slice->viewport)
-        return GLFW_FALSE;
-
     wp_viewport_set_source(slice->viewport,
                            wl_fixed_from_int(sourceX),
                            wl_fixed_from_int(sourceY),
@@ -281,6 +340,10 @@ static GLFWbool createRefyneWindowShadow(_GLFWwindow* window)
     const int squareY = c * 2 + 1;
     const int w = window->wl.width;
     const int h = window->wl.height;
+    // Viewport destinations must be positive. A window can be smaller than
+    // its rounded corners, e.g. while it awaits its first sized configure.
+    const int topWidth = _glfw_max(1, w - r * 2);
+    const int sideHeight = _glfw_max(1, h - r);
 
     if (!_glfw.wl.viewporter || !_glfw.wl.subcompositor ||
         !window->wl.surface || !window->wl.xdg.surface)
@@ -294,13 +357,13 @@ static GLFWbool createRefyneWindowShadow(_GLFWwindow* window)
     if (!createRefyneShadowSlice(window, &window->wl.refyneShadow.topLeft,
                                  0, 0, c, c, -m, -m, c, c) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.top,
-                                 c, 0, 1, m, r, -m, w - r * 2, m) ||
+                                 c, 0, 1, m, r, -m, topWidth, m) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.topRight,
                                  c + 1, 0, c, c, w - r, -m, c, c) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.left,
-                                 0, squareY + m, m, 1, -m, r, m, h - r) ||
+                                 0, squareY + m, m, 1, -m, r, m, sideHeight) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.right,
-                                 m + 1, squareY + m, m, 1, w, r, m, h - r) ||
+                                 m + 1, squareY + m, m, 1, w, r, m, sideHeight) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.bottomLeft,
                                  0, squareY + m + 1, m, m, -m, h, m, m) ||
         !createRefyneShadowSlice(window, &window->wl.refyneShadow.bottom,
@@ -323,6 +386,8 @@ static void resizeRefyneWindowShadow(_GLFWwindow* window)
     const int r = GLFW_REFYNE_SHADOW_CORNER_RADIUS;
     const int w = window->wl.width;
     const int h = window->wl.height;
+    const int topWidth = _glfw_max(1, w - r * 2);
+    const int sideHeight = _glfw_max(1, h - r);
 
     wl_subsurface_set_position(window->wl.refyneShadow.topRight.subsurface,
                                w - r, -m);
@@ -336,11 +401,11 @@ static void resizeRefyneWindowShadow(_GLFWwindow* window)
                                w, h);
 
     wp_viewport_set_destination(window->wl.refyneShadow.top.viewport,
-                                w - r * 2, m);
+                                topWidth, m);
     wp_viewport_set_destination(window->wl.refyneShadow.left.viewport,
-                                m, h - r);
+                                m, sideHeight);
     wp_viewport_set_destination(window->wl.refyneShadow.right.viewport,
-                                m, h - r);
+                                m, sideHeight);
     wp_viewport_set_destination(window->wl.refyneShadow.bottom.viewport, w, m);
 
     wl_surface_commit(window->wl.refyneShadow.top.surface);
@@ -391,7 +456,7 @@ GLFWbool _glfwRefyneUpdateWindowShadow(_GLFWwindow* window)
     {
         if (window->wl.refyneShadow.visible)
         {
-            destroyRefyneShadowSurfaces(window);
+            hideRefyneShadowSurfaces(window);
             setRefyneWindowGeometry(window);
             return GLFW_TRUE;
         }

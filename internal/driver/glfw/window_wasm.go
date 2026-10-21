@@ -52,6 +52,8 @@ type window struct {
 	decorate  bool
 	closing   bool
 	fixedSize bool
+	// fittingFixedSize is shared with processResized; fitContent never sets it here.
+	fittingFixedSize bool
 
 	cursor   desktop.Cursor
 	canvas   *glCanvas

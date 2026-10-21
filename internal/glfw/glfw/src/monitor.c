@@ -127,6 +127,12 @@ void _glfwInputMonitor(_GLFWmonitor* monitor, int action, int placement)
                 int width, height, xoff, yoff;
                 _glfw.platform.getWindowSize(window, &width, &height);
                 _glfw.platform.setWindowMonitor(window, NULL, 0, 0, width, height, 0);
+#if defined(_GLFW_WAYLAND)
+                // Wayland leaves placement to the compositor. Calling its
+                // setWindowPos here would raise GLFW_FEATURE_UNAVAILABLE.
+                if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
+                    continue;
+#endif
                 _glfw.platform.getWindowFrameSize(window, &xoff, &yoff, NULL, NULL);
                 _glfw.platform.setWindowPos(window, xoff, yoff);
             }

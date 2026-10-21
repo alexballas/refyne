@@ -104,6 +104,11 @@ static void outputHandleDone(void* userData, struct wl_output* output)
     }
 
     _glfwInputMonitor(monitor, GLFW_CONNECTED, _GLFW_INSERT_LAST);
+
+    // A surface enter may precede this output's first done event, when the
+    // monitor was not yet available to fullscreen bookkeeping.
+    for (_GLFWwindow* window = _glfw.windowListHead; window; window = window->next)
+        _glfwReconcileFullscreenOutputWayland(window);
 }
 
 static void outputHandleScale(void* userData,

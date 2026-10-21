@@ -12,6 +12,9 @@ func initWaylandDecorationCursors() {}
 // setupWaylandDecorations is a no-op outside Wayland builds.
 func (w *window) setupWaylandDecorations() {}
 
+// setupWaylandDecorationsForFullScreenExit is a no-op outside Wayland builds.
+func (w *window) setupWaylandDecorationsForFullScreenExit() {}
+
 // pushWaylandIcon is a no-op outside Wayland builds.
 func (w *window) pushWaylandIcon() {}
 

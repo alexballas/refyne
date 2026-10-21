@@ -493,6 +493,11 @@ void _glfwUpdateBufferScaleFromOutputsWayland(_GLFWwindow* window)
     if (window->wl.fractionalScale)
         return;
 
+    // During an output transition there may briefly be no entered output.
+    // Preserve the last known scale until the next enter supplies a new one.
+    if (!window->wl.outputScaleCount)
+        return;
+
     // Get the scale factor from the highest scale monitor.
     int32_t maxScale = 1;
 
@@ -512,17 +517,53 @@ void _glfwUpdateBufferScaleFromOutputsWayland(_GLFWwindow* window)
     }
 }
 
+static _GLFWmonitor* monitorForEnteredOutput(_GLFWwindow* window)
+{
+    if (window->wl.outputScaleCount != 1)
+        return NULL;
+
+    for (int i = 0; i < _glfw.monitorCount; i++)
+    {
+        if (_glfw.monitors[i]->wl.output == window->wl.outputScales[0].output)
+            return _glfw.monitors[i];
+    }
+
+    return NULL;
+}
+
+void _glfwReconcileFullscreenOutputWayland(_GLFWwindow* window)
+{
+    if (window->monitor && window->wl.fullscreenCurrentOutput)
+    {
+        _GLFWmonitor* monitor = monitorForEnteredOutput(window);
+        if (monitor)
+            _glfwInputWindowMonitor(window, monitor);
+    }
+}
+
 static void surfaceHandleEnter(void* userData,
                                struct wl_surface* surface,
                                struct wl_output* output)
 {
-    if (wl_proxy_get_tag((struct wl_proxy*) output) != &_glfw.wl.tag)
+    if (!output || wl_proxy_get_tag((struct wl_proxy*) output) != &_glfw.wl.tag)
         return;
 
     _GLFWwindow* window = userData;
     _GLFWmonitor* monitor = wl_output_get_user_data(output);
     if (!window || !monitor)
         return;
+
+    // Keep one entry per output, even if an enter is repeated before leave.
+    for (size_t i = 0; i < window->wl.outputScaleCount; i++)
+    {
+        if (window->wl.outputScales[i].output == output)
+        {
+            window->wl.outputScales[i].factor = monitor->wl.scale;
+            _glfwReconcileFullscreenOutputWayland(window);
+            _glfwUpdateBufferScaleFromOutputsWayland(window);
+            return;
+        }
+    }
 
     if (window->wl.outputScaleCount + 1 > window->wl.outputScaleSize)
     {
@@ -536,18 +577,12 @@ static void surfaceHandleEnter(void* userData,
     window->wl.outputScales[window->wl.outputScaleCount - 1] =
         (_GLFWscaleWayland) { output, monitor->wl.scale };
 
+    _glfwReconcileFullscreenOutputWayland(window);
     _glfwUpdateBufferScaleFromOutputsWayland(window);
 }
 
-static void surfaceHandleLeave(void* userData,
-                               struct wl_surface* surface,
-                               struct wl_output* output)
+void _glfwRemoveOutputWayland(_GLFWwindow* window, struct wl_output* output)
 {
-    if (wl_proxy_get_tag((struct wl_proxy*) output) != &_glfw.wl.tag)
-        return;
-
-    _GLFWwindow* window = userData;
-
     for (size_t i = 0; i < window->wl.outputScaleCount; i++)
     {
         if (window->wl.outputScales[i].output == output)
@@ -559,7 +594,20 @@ static void surfaceHandleLeave(void* userData,
         }
     }
 
-    _glfwUpdateBufferScaleFromOutputsWayland(window);
+    _glfwReconcileFullscreenOutputWayland(window);
+    if (window->wl.surface)
+        _glfwUpdateBufferScaleFromOutputsWayland(window);
+}
+
+static void surfaceHandleLeave(void* userData,
+                               struct wl_surface* surface,
+                               struct wl_output* output)
+{
+    // A leave queued after the output proxy was destroyed carries NULL.
+    if (!output || wl_proxy_get_tag((struct wl_proxy*) output) != &_glfw.wl.tag)
+        return;
+
+    _glfwRemoveOutputWayland(userData, output);
 }
 
 static const struct wl_surface_listener surfaceListener =
@@ -590,15 +638,17 @@ static void setIdleInhibitor(_GLFWwindow* window, GLFWbool enable)
 //
 static void acquireMonitor(_GLFWwindow* window)
 {
+    struct wl_output* output = window->wl.fullscreenCurrentOutput ?
+        NULL : window->monitor->wl.output;
     if (window->wl.libdecor.frame)
     {
         libdecor_frame_set_fullscreen(window->wl.libdecor.frame,
-                                      window->monitor->wl.output);
+                                      output);
     }
     else if (window->wl.xdg.toplevel)
     {
         xdg_toplevel_set_fullscreen(window->wl.xdg.toplevel,
-                                    window->monitor->wl.output);
+                                    output);
     }
 
     setIdleInhibitor(window, GLFW_TRUE);
@@ -645,6 +695,30 @@ const struct wp_fractional_scale_v1_listener fractionalScaleListener =
     fractionalScaleHandlePreferredScale,
 };
 
+static void restoreSyncHandleDone(void* userData,
+                                  struct wl_callback* callback,
+                                  uint32_t data)
+{
+    _GLFWwindow* window = userData;
+
+    wl_callback_destroy(callback);
+    window->wl.restore.sync = NULL;
+
+    // The compositor has handled the latest exit request. If its windowed
+    // configure was already applied, later configures are unrelated to it.
+    // Otherwise the next windowed configure still completes the exit.
+    if (!window->wl.fullscreen)
+    {
+        window->wl.restore.width = 0;
+        window->wl.restore.height = 0;
+    }
+}
+
+static const struct wl_callback_listener restoreSyncListener =
+{
+    restoreSyncHandleDone
+};
+
 static void xdgToplevelHandleConfigure(void* userData,
                                        struct xdg_toplevel* toplevel,
                                        int32_t width,
@@ -678,7 +752,17 @@ static void xdgToplevelHandleConfigure(void* userData,
         }
     }
 
-    if (width && height)
+    if (!window->wl.pending.fullscreen && !window->wl.pending.maximized &&
+        window->wl.restore.width > 0)
+    {
+        // glfwSetWindowMonitor(NULL) requested this windowed size, and a
+        // floating configure size is only a suggestion. After queued
+        // exit/enter/exit requests Mutter suggests its stale fullscreen-sized
+        // restore rectangle, so the requested size must win.
+        window->wl.pending.width  = window->wl.restore.width;
+        window->wl.pending.height = window->wl.restore.height;
+    }
+    else if (width && height)
     {
         if (window->wl.fallback.decorations)
         {
@@ -738,6 +822,14 @@ static void xdgSurfaceHandleConfigure(void* userData,
 
     window->wl.fullscreen = window->wl.pending.fullscreen;
     window->wl.resizing = window->wl.pending.resizing;
+
+    // A windowed configure completes the exit only once the compositor has
+    // handled the latest exit request; earlier ones may be stale.
+    if (!window->wl.fullscreen && !window->wl.restore.sync)
+    {
+        window->wl.restore.width = 0;
+        window->wl.restore.height = 0;
+    }
 
     int width  = window->wl.pending.width;
     int height = window->wl.pending.height;
@@ -955,7 +1047,8 @@ static GLFWbool createLibdecorFrame(_GLFWwindow* window)
     if (window->monitor)
     {
         libdecor_frame_set_fullscreen(window->wl.libdecor.frame,
-                                      window->monitor->wl.output);
+                                      window->wl.fullscreenCurrentOutput ?
+                                      NULL : window->monitor->wl.output);
         setIdleInhibitor(window, GLFW_TRUE);
     }
     else
@@ -1048,7 +1141,9 @@ static GLFWbool createXdgShellObjects(_GLFWwindow* window)
 
     if (window->monitor)
     {
-        xdg_toplevel_set_fullscreen(window->wl.xdg.toplevel, window->monitor->wl.output);
+        xdg_toplevel_set_fullscreen(window->wl.xdg.toplevel,
+                                    window->wl.fullscreenCurrentOutput ?
+                                    NULL : window->monitor->wl.output);
         setIdleInhibitor(window, GLFW_TRUE);
     }
     else
@@ -1103,9 +1198,6 @@ static GLFWbool createShellObjects(_GLFWwindow* window)
 
 static void destroyShellObjects(_GLFWwindow* window)
 {
-    _glfwRefyneDestroyWindowShadow(window);
-    destroyFallbackDecorations(window);
-
     if (window->wl.libdecor.frame)
         libdecor_frame_unref(window->wl.libdecor.frame);
 
@@ -1117,6 +1209,13 @@ static void destroyShellObjects(_GLFWwindow* window)
 
     if (window->wl.xdg.surface)
         xdg_surface_destroy(window->wl.xdg.surface);
+
+    // Destroy subsurfaces only after the role is gone and the window is
+    // unmapped. Hide or Close can follow a fullscreen request in the same
+    // turn, while the shadow is still mapped; destroying it under a
+    // fullscreen toplevel is the Mutter scanout hazard noted in wl_refyne.c.
+    _glfwRefyneDestroyWindowShadow(window);
+    destroyFallbackDecorations(window);
 
     window->wl.libdecor.frame = NULL;
     window->wl.xdg.decoration = NULL;
@@ -2817,6 +2916,9 @@ void _glfwDestroyWindowWayland(_GLFWwindow* window)
     if (window->wl.activationToken)
         xdg_activation_token_v1_destroy(window->wl.activationToken);
 
+    if (window->wl.restore.sync)
+        wl_callback_destroy(window->wl.restore.sync);
+
     if (window->wl.idleInhibitor)
         zwp_idle_inhibitor_v1_destroy(window->wl.idleInhibitor);
 
@@ -2897,6 +2999,12 @@ void _glfwSetWindowSizeWayland(_GLFWwindow* window, int width, int height)
     {
         if (!resizeWindow(window, width, height))
             return;
+
+        // GLFW ignores size limits for non-resizable windows and pins them
+        // to the window size instead, so a client resize must update them.
+        // Stale limits make the compositor suggest the old size.
+        if (!window->resizable && window->wl.xdg.toplevel)
+            updateXdgSizeLimits(window);
 
         if (window->wl.libdecor.frame)
         {
@@ -3125,29 +3233,85 @@ void _glfwFocusWindowWayland(_GLFWwindow* window)
     xdg_activation_token_v1_commit(window->wl.activationToken);
 }
 
+// Applies a windowed size while leaving fullscreen without an xdg configure
+//
+static void setWindowedSizeWayland(_GLFWwindow* window, int width, int height)
+{
+    const int oldWidth = window->wl.width;
+    const int oldHeight = window->wl.height;
+
+    _glfwSetWindowSizeWayland(window, width, height);
+
+    // A hidden window receives no configure for this size, so report it as
+    // a configure would. Otherwise the application keeps laying out for the
+    // fullscreen size when the window is shown again.
+    if (!window->wl.libdecor.frame && !window->wl.xdg.toplevel &&
+        (window->wl.width != oldWidth || window->wl.height != oldHeight))
+    {
+        _glfwInputWindowSize(window, window->wl.width, window->wl.height);
+    }
+}
+
 void _glfwSetWindowMonitorWayland(_GLFWwindow* window,
                                   _GLFWmonitor* monitor,
                                   int xpos, int ypos,
                                   int width, int height,
                                   int refreshRate)
 {
+    const GLFWbool wasCurrentOutput = window->wl.fullscreenCurrentOutput;
+    window->wl.fullscreenCurrentOutput = GLFW_FALSE;
+
     if (window->monitor == monitor)
     {
         if (!monitor)
-            _glfwSetWindowSizeWayland(window, width, height);
+        {
+            if (window->wl.restore.width > 0)
+            {
+                // A disconnect callback may supply the saved windowed size
+                // after the generic fallback has already requested exit.
+                // Keep waiting for that configure before resizing EGL.
+                window->wl.restore.width = width;
+                window->wl.restore.height = height;
+            }
+            else
+                setWindowedSizeWayland(window, width, height);
+        }
+        else if (wasCurrentOutput)
+            acquireMonitor(window);
 
         return;
     }
 
-    if (window->monitor)
+    // xdg-shell can retarget fullscreen directly. Unsetting it between two
+    // outputs can overwrite the compositor's saved windowed geometry.
+    if (window->monitor && !monitor)
         releaseMonitor(window);
 
     _glfwInputWindowMonitor(window, monitor);
 
     if (window->monitor)
         acquireMonitor(window);
+    else if (window->wl.xdg.toplevel && !window->wl.libdecor.frame)
+    {
+        // Wait for the unfullscreen configure before resizing the EGL window
+        // and committing window geometry. Eagerly resizing here presents a
+        // windowed buffer while the compositor still considers us fullscreen.
+        // It also consumes the size change, so a matching configure would not
+        // notify the application and its canvas would retain fullscreen bounds.
+        window->wl.restore.width = width;
+        window->wl.restore.height = height;
+
+        // Mark where the compositor has handled this exit request. Configures
+        // before that point may answer earlier queued requests.
+        if (window->wl.restore.sync)
+            wl_callback_destroy(window->wl.restore.sync);
+        window->wl.restore.sync = wl_display_sync(_glfw.wl.display);
+        wl_callback_add_listener(window->wl.restore.sync,
+                                 &restoreSyncListener,
+                                 window);
+    }
     else
-        _glfwSetWindowSizeWayland(window, width, height);
+        setWindowedSizeWayland(window, width, height);
 }
 
 GLFWbool _glfwWindowFocusedWayland(_GLFWwindow* window)

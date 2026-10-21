@@ -820,7 +820,13 @@ GLFWAPI void glfwShowWindow(GLFWwindow* handle)
 
     _GLFW_REQUIRE_INIT();
 
-    if (window->monitor)
+    // Refyne supports remapping Wayland fullscreen surfaces with their policy
+    // intact; no display mode needs restoring on this platform.
+    if (window->monitor
+#if defined(_GLFW_WAYLAND)
+        && _glfw.platform.platformID != GLFW_PLATFORM_WAYLAND
+#endif
+       )
         return;
 
     _glfw.platform.showWindow(window);
@@ -846,7 +852,13 @@ GLFWAPI void glfwHideWindow(GLFWwindow* handle)
 
     _GLFW_REQUIRE_INIT();
 
-    if (window->monitor)
+    // Unlike exclusive fullscreen, a Wayland fullscreen surface can unmap
+    // without changing a monitor's video mode.
+    if (window->monitor
+#if defined(_GLFW_WAYLAND)
+        && _glfw.platform.platformID != GLFW_PLATFORM_WAYLAND
+#endif
+       )
         return;
 
     _glfw.platform.hideWindow(window);

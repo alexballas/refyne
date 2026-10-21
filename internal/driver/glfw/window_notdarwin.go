@@ -11,6 +11,9 @@ import (
 const desktopDefaultDoubleTapDelay = 300 * time.Millisecond
 
 func (w *window) doSetFullScreen(full bool) {
+	if full && w.fullScreenOnCurrentOutput() {
+		return
+	}
 	monitor := w.getMonitorForWindow()
 	w.doApplyFullScreen(monitor, full)
 }

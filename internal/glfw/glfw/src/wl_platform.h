@@ -356,6 +356,9 @@ typedef struct _GLFWwindowWayland
     GLFWbool                    maximized;
     GLFWbool                    activated;
     GLFWbool                    fullscreen;
+    // Ordinary fullscreen follows the compositor's output choice. Explicit
+    // SetMonitor requests continue to name a particular output.
+    GLFWbool                    fullscreenCurrentOutput;
     GLFWbool                    resizing;
     // Staged double-buffered size state (framebuffer size, viewport
     // destination, xdg window geometry) not yet latched by a content-buffer
@@ -382,6 +385,16 @@ typedef struct _GLFWwindowWayland
         GLFWbool                fullscreen;
         GLFWbool                resizing;
     } pending;
+
+    // Windowed size requested when leaving fullscreen. It overrides the
+    // compositor's floating size suggestion until that exit is configured.
+    // Do not resize before that configure.
+    struct {
+        int                     width, height;
+        // Sync after the latest exit request. Until it is done, windowed
+        // configures may be stale answers to earlier queued requests.
+        struct wl_callback*     sync;
+    } restore;
 
     struct {
         struct xdg_surface*     surface;
@@ -678,6 +691,8 @@ void _glfwHideWindowWayland(_GLFWwindow* window);
 void _glfwRequestWindowAttentionWayland(_GLFWwindow* window);
 void _glfwFocusWindowWayland(_GLFWwindow* window);
 void _glfwSetWindowMonitorWayland(_GLFWwindow* window, _GLFWmonitor* monitor, int xpos, int ypos, int width, int height, int refreshRate);
+void _glfwRemoveOutputWayland(_GLFWwindow* window, struct wl_output* output);
+void _glfwReconcileFullscreenOutputWayland(_GLFWwindow* window);
 GLFWbool _glfwWindowFocusedWayland(_GLFWwindow* window);
 GLFWbool _glfwWindowIconifiedWayland(_GLFWwindow* window);
 GLFWbool _glfwWindowVisibleWayland(_GLFWwindow* window);

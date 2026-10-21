@@ -8,6 +8,7 @@ package glfw
 
 //#define GLFW_INCLUDE_NONE
 //#include "glfw/include/GLFW/glfw3.h"
+//extern void glfwRefyneFullScreenOnCurrentOutput(GLFWwindow* handle);
 //extern void glfwRefyneStartWindowMove(GLFWwindow* handle);
 //extern void glfwRefyneStartWindowResize(GLFWwindow* handle, int edges);
 //extern void glfwRefyneShowWindowMenu(GLFWwindow* handle, int xpos, int ypos);
@@ -18,6 +19,13 @@ package glfw
 import "C"
 
 import "unsafe"
+
+// FullScreenOnCurrentOutputWayland asks the compositor to fullscreen this
+// window on its current output. Wayland only; call on the main thread.
+func (w *Window) FullScreenOnCurrentOutputWayland() {
+	C.glfwRefyneFullScreenOnCurrentOutput(w.data)
+	panicError()
+}
 
 // ResizeEdge identifies which window edge or corner an interactive resize
 // grabs. Values match xdg_toplevel.resize_edge.

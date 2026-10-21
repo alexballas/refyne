@@ -691,7 +691,8 @@ func (w *Window) Restore() {
 }
 
 // Show makes the window visible, if it was previously hidden. If the window is
-// already visible or is in full screen mode, this function does nothing.
+// already visible, this function does nothing. Fullscreen windows can also be
+// shown on Wayland; other platforms ignore this call while fullscreen.
 //
 // This function may only be called from the main thread.
 func (w *Window) Show() {
@@ -700,7 +701,8 @@ func (w *Window) Show() {
 }
 
 // Hide hides the window, if it was previously visible. If the window is already
-// hidden or is in full screen mode, this function does nothing.
+// hidden, this function does nothing. Fullscreen windows can also be hidden
+// on Wayland; other platforms ignore this call while fullscreen.
 //
 // This function may only be called from the main thread.
 func (w *Window) Hide() {

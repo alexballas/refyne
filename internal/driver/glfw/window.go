@@ -321,7 +321,11 @@ func (w *window) processResized(width, height int) {
 
 	if w.fixedSize {
 		w.canvas.Resize(canvasSize)
-		w.fitContent()
+		// Re-assert the fixed size after a native resize. fitContent itself
+		// reports its size here, which must not enforce it again.
+		if !w.fittingFixedSize {
+			w.fitContent()
+		}
 		return
 	}
 

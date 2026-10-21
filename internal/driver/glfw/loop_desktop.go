@@ -57,6 +57,22 @@ func (d *gLDriver) initGLFW() {
 	// and Wayland are compiled in, so this is the only reliable signal of which
 	// one is live. Must run before initCursors (it sets up Wayland-only cursors).
 	waylandRuntime = glfw.GetPlatform() == glfw.PlatformWayland
+	if waylandRuntime {
+		glfw.SetMonitorCallback(func(_ *glfw.Monitor, event glfw.PeripheralEvent) {
+			if event != glfw.Disconnected {
+				return
+			}
+			for _, win := range d.windowList() {
+				w := win.(*window)
+				if w.viewport != nil && w.fullScreen && w.viewport.GetMonitor() == nil {
+					// GLFW exits explicit fullscreen when its output disappears.
+					// Follow it in Fyne and replace the generic fallback's
+					// fullscreen-sized restore bounds with our windowed bounds.
+					w.SetFullScreen(false)
+				}
+			}
+		})
+	}
 
 	initCursors()
 }
