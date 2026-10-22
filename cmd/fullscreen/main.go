@@ -2,6 +2,9 @@
 package main
 
 import (
+	"log"
+	"time"
+
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/app"
 	"github.com/alexballas/refyne/v2/container"
@@ -15,9 +18,17 @@ func main() {
 	toggle := widget.NewButton("Toggle fullscreen", func() {
 		w.SetFullScreen(!w.FullScreen())
 	})
+	exitAndResize := widget.NewButton("Exit fullscreen and resize to 800x600", func() {
+		w.SetFullScreen(false)
+		w.Resize(fyne.NewSize(800, 600))
+		time.AfterFunc(time.Second, func() {
+			fyne.Do(func() { log.Println("canvas size:", w.Canvas().Size()) })
+		})
+	})
 	w.SetContent(container.NewCenter(container.NewVBox(
 		widget.NewLabel("Move this window to another monitor, then toggle fullscreen."),
 		toggle,
+		exitAndResize,
 		widget.NewLabel("Press Escape to leave fullscreen."),
 	)))
 	w.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {

@@ -719,6 +719,8 @@ static const struct wl_callback_listener restoreSyncListener =
     restoreSyncHandleDone
 };
 
+static void updateXdgSizeLimits(_GLFWwindow* window);
+
 static void xdgToplevelHandleConfigure(void* userData,
                                        struct xdg_toplevel* toplevel,
                                        int32_t width,
@@ -823,6 +825,10 @@ static void xdgSurfaceHandleConfigure(void* userData,
     window->wl.fullscreen = window->wl.pending.fullscreen;
     window->wl.resizing = window->wl.pending.resizing;
 
+    // This configure applies the size requested when leaving fullscreen.
+    const GLFWbool restoring = !window->wl.fullscreen && !window->wl.maximized &&
+                               window->wl.restore.width > 0;
+
     // A windowed configure completes the exit only once the compositor has
     // handled the latest exit request; earlier ones may be stale.
     if (!window->wl.fullscreen && !window->wl.restore.sync)
@@ -847,7 +853,16 @@ static void xdgSurfaceHandleConfigure(void* userData,
         }
     }
 
-    if (resizeWindow(window, width, height))
+    const GLFWbool resized = resizeWindow(window, width, height);
+
+    // Non-resizable windows pin their limits to the window size, and the
+    // restore size skipped the client resize that would have updated them.
+    // Stale limits make the compositor suggest the old size later. Like the
+    // resize, they apply with the next content commit.
+    if (restoring && !window->resizable)
+        updateXdgSizeLimits(window);
+
+    if (resized)
     {
         _glfwInputWindowSize(window, window->wl.width, window->wl.height);
 
@@ -2997,6 +3012,17 @@ void _glfwSetWindowSizeWayland(_GLFWwindow* window, int width, int height)
     }
     else
     {
+        if (window->wl.restore.width > 0)
+        {
+            // A fullscreen exit is pending and its configure applies the
+            // restore size, so a client resize must replace it. Resizing now
+            // would present a windowed buffer while still fullscreen.
+            window->wl.restore.width = width;
+            window->wl.restore.height = height;
+            if (window->wl.xdg.toplevel && !window->wl.libdecor.frame)
+                return;
+        }
+
         if (!resizeWindow(window, width, height))
             return;
 

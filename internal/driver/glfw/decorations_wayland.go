@@ -128,18 +128,18 @@ func (w *window) setupWaylandDecorations() {
 		return
 	}
 
-	if w.fullScreen {
-		// Mapping has negotiated the decoration mode. Remember it for the exit,
-		// which may happen while hidden, after the xdg objects are destroyed.
-		w.waylandDecorationsDeferred = true
-		w.waylandServerSideDecorations = w.viewport.DecorationMode() == glfw.DecorationModeServerSide
-		return
-	}
-
 	// The decoration mode is delivered asynchronously by the compositor; pump
 	// the event queue once so any reply has been processed before we read it.
 	// On GNOME (no decoration manager) the mode stays None and we draw our own.
 	glfw.PollEvents()
+
+	if w.fullScreen {
+		// Remember the negotiated mode for the exit, which may happen while
+		// hidden, after the xdg objects are destroyed.
+		w.waylandDecorationsDeferred = true
+		w.waylandServerSideDecorations = w.viewport.DecorationMode() == glfw.DecorationModeServerSide
+		return
+	}
 
 	if w.viewport.DecorationMode() == glfw.DecorationModeServerSide {
 		return // real SSD: nothing for us to draw.
