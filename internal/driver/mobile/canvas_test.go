@@ -84,7 +84,7 @@ func Test_canvas_Dragged(t *testing.T) {
 	c.Resize(fyne.NewSize(40, 24))
 	assert.Equal(t, float32(0), scroll.Offset.Y)
 
-	c.tapDown(fyne.NewPos(32, 3), 0)
+	c.tapDown(fyne.NewPos(32, 5), 0)
 	c.tapMove(fyne.NewPos(32, 10), 0, func(wid fyne.Draggable, ev *fyne.DragEvent) {
 		wid.Dragged(ev)
 		dragged = true
@@ -130,6 +130,53 @@ func Test_canvas_DraggingOutOfWidget(t *testing.T) {
 	})
 	assert.True(t, dragged)
 	assert.Greater(t, slider.Value, lastValue)
+}
+
+func Test_canvas_NoDragAfterPressOutsideObject(t *testing.T) {
+	c := newCanvas(fyne.CurrentDevice()).(*canvas)
+	slider := widget.NewSlider(0.0, 100.0)
+	c.SetContent(container.NewGridWithRows(2, widget.NewLabel("Outside"), slider))
+	c.Resize(fyne.NewSize(100, 200))
+
+	dragged := false
+	drag := func(wid fyne.Draggable, ev *fyne.DragEvent) {
+		wid.Dragged(ev)
+		dragged = true
+	}
+	c.tapDown(fyne.NewPos(23, 13), 0)
+	c.tapMove(fyne.NewPos(23, 120), 0, drag)
+	c.tapMove(fyne.NewPos(30, 120), 0, drag)
+	assert.False(t, dragged)
+	assert.Zero(t, slider.Value)
+}
+
+// Test_canvas_DragAfterWaitingOnTouchableUsesPressPosition checks that a drag that waited while
+// the finger was over a Touchable starts on the Draggable where the touch went down, not on
+// whatever is under the move that made it wait (lastTapDownPos follows the finger).
+func Test_canvas_DragAfterWaitingOnTouchableUsesPressPosition(t *testing.T) {
+	c := newCanvas(fyne.CurrentDevice()).(*canvas)
+	slider := widget.NewSlider(0.0, 100.0)
+	touchable := &touchableLabel{Label: widget.NewLabel("Touch"), ids: make(map[int]bool)}
+	c.SetContent(container.NewGridWithRows(2, slider, touchable))
+	c.Resize(fyne.NewSize(100, 200))
+
+	var draggedObj fyne.Draggable
+	var lastEvent *fyne.DragEvent
+	drag := func(wid fyne.Draggable, ev *fyne.DragEvent) {
+		wid.Dragged(ev)
+		draggedObj = wid
+		lastEvent = ev
+	}
+	c.tapDown(fyne.NewPos(23, 13), 0)
+	c.tapMove(fyne.NewPos(23, 120), 0, drag) // over the Touchable: wait
+	assert.Nil(t, draggedObj)
+	c.tapMove(fyne.NewPos(60, 13), 0, drag) // back over the slider
+	assert.Equal(t, slider, draggedObj)
+	if assert.NotNil(t, lastEvent) {
+		assert.Equal(t, fyne.NewPos(60, 13).Subtract(c.content.Position()), lastEvent.Position)
+	}
+	assert.Greater(t, slider.Value, 0.0)
+	assert.False(t, touchable.down)
 }
 
 func Test_canvas_Focusable(t *testing.T) {

@@ -27,6 +27,7 @@ type canvas struct {
 	lastTapDown    map[int]time.Time
 	lastTapDownPos map[int]fyne.Position
 	lastTapDelta   map[int]fyne.Delta
+	tapDownPos     map[int]fyne.Position // where each touch went down; lastTapDownPos follows it as it moves
 	menu           fyne.CanvasObject
 	padded         bool
 	scale          float32
@@ -58,6 +59,7 @@ func newCanvas(dev fyne.Device) fyne.Canvas {
 		lastTapDown:    make(map[int]time.Time),
 		lastTapDownPos: make(map[int]fyne.Position),
 		lastTapDelta:   make(map[int]fyne.Delta),
+		tapDownPos:     make(map[int]fyne.Position),
 		padded:         true,
 		scale:          dev.SystemScaleForWindow(nil), // we don't need a window parameter on mobile,
 		touched:        make(map[int]mobile.Touchable),
@@ -226,6 +228,7 @@ func (c *canvas) sizeContent(size fyne.Size) {
 func (c *canvas) tapDown(pos fyne.Position, tapID int) {
 	c.lastTapDown[tapID] = time.Now()
 	c.lastTapDownPos[tapID] = pos
+	c.tapDownPos[tapID] = pos
 	c.dragging = nil
 
 	co, objPos, layer := c.findObjectAtPositionMatching(pos, func(object fyne.CanvasObject) bool {
@@ -289,13 +292,25 @@ func (c *canvas) tapMove(pos fyne.Position, tapID int,
 	}
 
 	if c.dragging == nil {
-		if drag, ok := co.(fyne.Draggable); ok {
-			c.dragging = drag
-			c.dragOffset = previousPos.Subtract(objPos)
-			c.dragStart = co.Position()
-		} else {
+		// Wait while the touch is over something that is not Draggable (such as selectable text),
+		// but start the drag on the Draggable under the press, not the one under the finger now.
+		if _, ok := co.(fyne.Draggable); !ok {
 			return
 		}
+
+		pressPos := c.tapDownPos[tapID]
+		co, objPos, _ = c.findObjectAtPositionMatching(pressPos, func(object fyne.CanvasObject) bool {
+			_, ok := object.(fyne.Draggable)
+			return ok
+		})
+		drag, ok := co.(fyne.Draggable)
+		if !ok {
+			return
+		}
+
+		c.dragging = drag
+		c.dragOffset = pressPos.Subtract(objPos)
+		c.dragStart = co.Position()
 	}
 
 	ev := &fyne.DragEvent{}
