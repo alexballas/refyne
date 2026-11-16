@@ -102,6 +102,8 @@ func (c *Canvas) EnsureMinSize() bool {
 	}
 	windowNeedsMinSizeUpdate := false
 	csize := c.impl.Size()
+	cache.BeginMinSizePass()
+	defer cache.EndMinSizePass()
 	min := c.impl.MinSize()
 
 	var parentNeedingUpdate *RenderCacheNode
@@ -529,6 +531,9 @@ type activatableMenu interface {
 }
 
 func (c *Canvas) updateLayout(objToLayout fyne.CanvasObject) {
+	// A layout can change min sizes without resizing a widget - a GridWrap's
+	// rows follow its width - so widgets measure again for the rest of the pass.
+	defer cache.RestartMinSizePass()
 	switch cont := objToLayout.(type) {
 	case *fyne.Container:
 		if cont.Layout != nil {

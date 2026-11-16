@@ -19,6 +19,8 @@ type BaseWidget struct {
 
 	impl       fyne.Widget
 	themeCache fyne.Theme
+	minSize    fyne.Size
+	minSizeGen uint64
 }
 
 // ExtendBaseWidget is used by an extending widget to make use of BaseWidget functionality.
@@ -43,6 +45,7 @@ func (w *BaseWidget) Resize(size fyne.Size) {
 	}
 
 	w.size = size
+	w.forgetMinSize() // min size can depend on size, like wrapped text
 
 	impl := w.super()
 	if impl == nil {
@@ -69,6 +72,11 @@ func (w *BaseWidget) Move(pos fyne.Position) {
 
 // MinSize for the widget - it should never be resized below this value.
 func (w *BaseWidget) MinSize() fyne.Size {
+	gen := cache.MinSizeGeneration()
+	if gen != 0 && w.minSizeGen == gen {
+		return w.minSize
+	}
+
 	impl := w.super()
 
 	r := cache.Renderer(impl)
@@ -76,7 +84,8 @@ func (w *BaseWidget) MinSize() fyne.Size {
 		return fyne.Size{}
 	}
 
-	return r.MinSize()
+	w.minSize, w.minSizeGen = r.MinSize(), gen
+	return w.minSize
 }
 
 // Visible returns whether or not this widget should be visible.
@@ -123,6 +132,7 @@ func (w *BaseWidget) Refresh() {
 	}
 
 	w.themeCache = nil
+	w.forgetMinSize()
 
 	cache.Renderer(impl).Refresh()
 }
@@ -145,6 +155,14 @@ func (w *BaseWidget) Theme() fyne.Theme {
 
 	w.themeCache = cached
 	return cached
+}
+
+// forgetMinSize drops the min size kept in the current pass, and restarts the
+// pass so that the widgets above this one, whose min size may follow it,
+// compute theirs again too.
+func (w *BaseWidget) forgetMinSize() {
+	w.minSizeGen = 0
+	cache.RestartMinSizePass()
 }
 
 // super will return the actual object that this represents.

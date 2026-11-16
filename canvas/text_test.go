@@ -49,6 +49,40 @@ func TestText_MinSize(t *testing.T) {
 	assert.Greater(t, min2.Width, min.Width)
 }
 
+func TestText_MinSize_FollowsChanges(t *testing.T) {
+	test.NewTempApp(t)
+	text := canvas.NewText("a", color.Black)
+	one := text.MinSize()
+	assert.Equal(t, one, text.MinSize(), "asked again, the same")
+	text.Text = "aaaa"
+	assert.Greater(t, text.MinSize().Width, one.Width)
+	text.TextSize *= 2
+	assert.Greater(t, text.MinSize().Height, one.Height)
+	text.TextStyle.Bold = true
+	bold := text.MinSize()
+	text.TextStyle.Bold = false
+	assert.NotEqual(t, bold, text.MinSize())
+}
+
+type monoTheme struct {
+	fyne.Theme
+}
+
+func (monoTheme) Font(fyne.TextStyle) fyne.Resource {
+	return theme.DefaultTextMonospaceFont()
+}
+
+func TestText_MinSize_FollowsThemeFont(t *testing.T) {
+	a := test.NewTempApp(t)
+	text := canvas.NewText("iiii", color.Black)
+	proportional := text.MinSize()
+
+	a.Settings().SetTheme(monoTheme{Theme: theme.DefaultTheme()})
+	mono := text.MinSize()
+	assert.Greater(t, mono.Width, proportional.Width, "a theme change measures in the new font")
+	assert.Equal(t, mono, text.MinSize())
+}
+
 func TestText_MinSize_NoMultiLine(t *testing.T) {
 	text := canvas.NewText("Break", color.NRGBA{0, 0, 0, 0xff})
 	min := text.MinSize()
