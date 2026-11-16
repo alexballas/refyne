@@ -94,6 +94,9 @@ type Entry struct {
 	// selectKeyDown indicates whether left shift or right shift is currently held down
 	selectKeyDown bool
 
+	// keepScrollOffset stops a refresh caused by a focus change from scrolling to the cursor
+	keepScrollOffset bool
+
 	sel   *selectable
 	popUp *PopUpMenu
 	// TODO: Add OnSelectChanged
@@ -299,6 +302,8 @@ func (e *Entry) ExtendBaseWidget(wid fyne.Widget) {
 
 // FocusGained is called when the Entry has been given focus.
 func (e *Entry) FocusGained() {
+	e.keepScrollOffset = true
+	defer func() { e.keepScrollOffset = false }()
 	e.setFieldsAndRefresh(func() {
 		e.dirty = true
 		e.focused = true
@@ -310,6 +315,8 @@ func (e *Entry) FocusGained() {
 
 // FocusLost is called when the Entry has had focus removed.
 func (e *Entry) FocusLost() {
+	e.keepScrollOffset = true
+	defer func() { e.keepScrollOffset = false }()
 	e.setFieldsAndRefresh(func() {
 		e.focused = false
 		e.selectKeyDown = false
@@ -1577,6 +1584,18 @@ func (r *entryRenderer) Layout(size fyne.Size) {
 	prov := r.entry.textProvider()
 	textPos := textPosFromRowCol(r.entry.CursorRow, r.entry.CursorColumn, prov)
 	selectPos := textPosFromRowCol(r.entry.sel.selectRow, r.entry.sel.selectColumn, prov)
+	// Wrapping may have changed since SetText created the providers.
+	wrap := r.entry.textWrap()
+	for _, provider := range []*RichText{prov, r.entry.placeholderProvider()} {
+		if provider.Wrapping != wrap {
+			provider.Wrapping = wrap
+			provider.Refresh()
+		}
+	}
+	if rend := cache.Renderer(r.entry.content); rend != nil {
+		rend.(*entryContentRenderer).updateScrollDirections()
+	}
+
 	if r.entry.Wrapping == fyne.TextWrapOff && r.entry.Scroll == widget.ScrollNone {
 		r.entry.content.Resize(entrySize)
 		r.entry.content.Move(entryPos)
@@ -1585,8 +1604,11 @@ func (r *entryRenderer) Layout(size fyne.Size) {
 		r.scroll.Move(entryPos)
 	}
 
+	// a cursor on the first row keeps its text position whatever the wrapping does,
+	// because that position is just the column, so look for a column that the new
+	// rows have left past the end of its own row as well.
 	resizedTextPos := textPosFromRowCol(r.entry.CursorRow, r.entry.CursorColumn, prov)
-	if textPos != resizedTextPos {
+	if textPos != resizedTextPos || r.entry.CursorColumn > prov.rowLength(r.entry.CursorRow) {
 		r.entry.setFieldsAndRefresh(func() {
 			r.entry.CursorRow, r.entry.CursorColumn = r.entry.rowColFromTextPos(textPos)
 			r.entry.sel.cursorRow, r.entry.sel.cursorColumn = r.entry.CursorRow, r.entry.CursorColumn
@@ -1667,6 +1689,8 @@ func (r *entryRenderer) Refresh() {
 	if wrapping == fyne.TextWrapOff && scroll == widget.ScrollNone && r.scroll.Content != nil {
 		r.scroll.Hide()
 		r.scroll.Content = nil
+		// The content is moved back to the top, so a stale offset would map later taps onto the wrong line.
+		r.scroll.Offset = fyne.NewPos(0, 0)
 		content.Move(fyne.NewPos(0, inputBorder))
 		content.Resize(entrySize)
 
@@ -1905,7 +1929,9 @@ func (r *entryContentRenderer) moveCursor() {
 	r.cursor.Move(r.content.entry.CursorPosition())
 
 	callback := r.content.entry.OnCursorChanged
-	r.ensureCursorVisible()
+	if !r.content.entry.keepScrollOffset {
+		r.ensureCursorVisible()
+	}
 
 	if callback != nil {
 		callback()

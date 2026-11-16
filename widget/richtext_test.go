@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 
@@ -1359,4 +1360,163 @@ func TestText_findSpaceIndex(t *testing.T) {
 			assert.Equal(t, tt.want, findSpaceIndex([]rune(tt.text), len(tt.text)-1))
 		})
 	}
+}
+
+// keptWrapSpaces counts the rows of rt that end in a space which does not fit in the
+// width available, so it can only be there because word wrap broke the line on it.
+func keptWrapSpaces(rt *RichText, textSize float32, style fyne.TextStyle) int {
+	avail := rt.Size().Width - 2*theme.InnerPadding() + 2*rt.inset.Width
+	kept := 0
+	for i := 0; i < rt.rows(); i++ {
+		row := rt.row(i)
+		if len(row) > 1 && row[len(row)-1] == ' ' && fyne.MeasureText(string(row), textSize, style).Width > avail {
+			kept++
+		}
+	}
+	return kept
+}
+
+// Word wrap keeps the space that it broke a line on, when that space ends the line,
+// so that the position after it is inside a row. It must not be drawn or measured
+// though: a wrapped label has to size, align and truncate exactly as it did when the
+// space was dropped, which is how the same label without the space still looks.
+func TestLabel_WrapWord_KeptTrailingSpaceNotDrawn(t *testing.T) {
+	test.NewTempApp(t)
+	text, trimmed := "aa bb cc \nmore text", "aa bb cc\nmore text"
+	newLabel := func(text string, width, height float32, align fyne.TextAlign, trunc fyne.TextTruncation) *Label {
+		l := NewLabelWithStyle(text, align, fyne.TextStyle{})
+		l.Wrapping = fyne.TextWrapWord
+		l.Truncation = trunc
+		test.TempWidgetRenderer(t, l)
+		l.Resize(fyne.NewSize(width, height))
+		return l
+	}
+
+	kept := 0
+	for width := float32(20); width <= 160; width++ {
+		l := newLabel(text, width, 500, fyne.TextAlignLeading, fyne.TextTruncateOff)
+		if keptWrapSpaces(l.provider, theme.TextSize(), fyne.TextStyle{}) == 0 {
+			continue
+		}
+		kept++
+
+		for _, align := range []fyne.TextAlign{fyne.TextAlignLeading, fyne.TextAlignCenter, fyne.TextAlignTrailing} {
+			for _, trunc := range []fyne.TextTruncation{fyne.TextTruncateOff, fyne.TextTruncateEllipsis, fyne.TextTruncateClip} {
+				for _, height := range []float32{40, 60, 500} {
+					with := newLabel(text, width, height, align, trunc)
+					without := newLabel(trimmed, width, height, align, trunc)
+					name := fmt.Sprintf("width %v align %v truncation %v height %v", width, align, trunc, height)
+
+					assert.Equal(t, without.provider.rows(), with.provider.rows(), name)
+					assert.Equal(t, without.MinSize(), with.MinSize(), name)
+					got, want := richTextRenderTexts(with.provider), richTextRenderTexts(without.provider)
+					if assert.Len(t, got, len(want), name) {
+						for i := range want {
+							assert.Equal(t, want[i].Text, got[i].Text, name)
+							assert.Equal(t, want[i].Position(), got[i].Position(), name)
+							assert.Equal(t, want[i].Size(), got[i].Size(), name)
+						}
+					}
+				}
+			}
+		}
+	}
+	assert.NotZero(t, kept, "no width wrapped the line on its trailing space")
+}
+
+// A kept wrap space must not take room from the inline segment that follows it either,
+// so text in several styles wraps exactly as it does when the space is not there.
+func TestRichText_WrapWord_KeptTrailingSpaceInlineSegments(t *testing.T) {
+	test.NewTempApp(t)
+	bold := RichTextStyle{Inline: true, TextStyle: fyne.TextStyle{Bold: true}}
+	newRichText := func(width float32, segs ...RichTextSegment) *RichText {
+		rt := NewRichText(segs...)
+		rt.Wrapping = fyne.TextWrapWord
+		test.TempWidgetRenderer(t, rt)
+		rt.Resize(fyne.NewSize(width, 500))
+		return rt
+	}
+	newStyled := func(first string, width float32) *RichText {
+		return newRichText(
+			width,
+			&TextSegment{Style: bold, Text: first},
+			&TextSegment{Style: RichTextStyle{Inline: true, TextStyle: fyne.TextStyle{Italic: true}}, Text: ". dd ee"},
+			&HyperlinkSegment{Text: "link"},
+		)
+	}
+
+	kept := 0
+	for width := float32(20); width <= 120; width += .25 {
+		alone := newRichText(width, &TextSegment{Style: bold, Text: "aa bb cc "})
+		if keptWrapSpaces(alone, theme.TextSize(), bold.TextStyle) == 0 {
+			continue
+		}
+		kept++
+
+		with, without := newStyled("aa bb cc ", width), newStyled("aa bb cc", width)
+		name := fmt.Sprintf("width %v", width)
+		if assert.Len(t, with.rowBounds, len(without.rowBounds), name) {
+			for i, want := range without.rowBounds {
+				got := with.rowBounds[i]
+				assert.Len(t, got.segments, len(want.segments), name)
+				assert.Equal(t, want.begin, got.begin, name)
+				assert.Equal(t, want.end, got.end, name)
+			}
+		}
+		assert.Equal(t, without.MinSize(), with.MinSize(), name)
+	}
+	assert.NotZero(t, kept, "no width wrapped the first segment on its trailing space")
+}
+
+func TestRichText_WrapWord_EllipsisKeepsWrapSpaceHidden(t *testing.T) {
+	test.NewTempApp(t)
+
+	// The second inline segment starts on the row the first one ends, so its first row is
+	// narrower than the rest. When word wrap keeps "aa "'s space there and the ellipsis is then
+	// applied to that row, the kept space must stay hidden, as it does without the ellipsis.
+	newInline := func(first string, align fyne.TextAlign, trunc fyne.TextTruncation, size fyne.Size) *RichText {
+		style := RichTextStyleInline
+		style.Alignment = align
+		rt := NewRichText(
+			&TextSegment{Style: style, Text: "xxxxxx"},
+			&TextSegment{Style: style, Text: first + "\nbb cc dd"},
+		)
+		rt.Wrapping = fyne.TextWrapWord
+		rt.Truncation = trunc
+		test.TempWidgetRenderer(t, rt)
+		rt.Resize(size)
+		return rt
+	}
+
+	checked := 0
+	for _, align := range []fyne.TextAlign{fyne.TextAlignLeading, fyne.TextAlignCenter, fyne.TextAlignTrailing} {
+		for width := float32(40); width <= 120; width++ {
+			for _, height := range []float32{40, 60, 80} {
+				size := fyne.NewSize(width, height)
+				// only sizes where word wrap breaks on the space; elsewhere "aa " fits and is drawn
+				wrapped := false
+				for _, b := range newInline("aa ", align, fyne.TextTruncateOff, size).rowBounds {
+					wrapped = wrapped || b.wrapSpace
+				}
+				if !wrapped {
+					continue
+				}
+				checked++
+
+				with := newInline("aa ", align, fyne.TextTruncateEllipsis, size)
+				without := newInline("aa", align, fyne.TextTruncateEllipsis, size)
+				name := fmt.Sprintf("align %d size %vx%v", align, width, height)
+				got, want := richTextRenderTexts(with), richTextRenderTexts(without)
+				if !assert.Len(t, got, len(want), name) {
+					continue
+				}
+				for i := range want {
+					assert.Equal(t, want[i].Text, got[i].Text, name)
+					assert.Equal(t, want[i].Position(), got[i].Position(), name)
+					assert.Equal(t, want[i].Size(), got[i].Size(), name)
+				}
+			}
+		}
+	}
+	assert.NotZero(t, checked, "no size wrapped the second segment on its trailing space")
 }
