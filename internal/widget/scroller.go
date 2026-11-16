@@ -339,6 +339,9 @@ func (a *scrollBarArea) moveBar(offset float32, barSize fyne.Size) {
 
 func (a *scrollBarArea) computeScrollOffset(length, offset, scrollLength, contentLength float32) float32 {
 	maxOffset := scrollLength - length
+	if maxOffset <= 0 {
+		return 0
+	}
 	if offset < 0 {
 		offset = 0
 	} else if offset > maxOffset {
@@ -362,7 +365,6 @@ type scrollContainerRenderer struct {
 	horizArea               *scrollBarArea
 	leftShadow, rightShadow *Shadow
 	topShadow, bottomShadow *Shadow
-	oldMinSize              fyne.Size
 }
 
 func (r *scrollContainerRenderer) layoutBars(size fyne.Size) {
@@ -410,16 +412,8 @@ func (r *scrollContainerRenderer) Refresh() {
 		// push updated content object to baseRenderer
 		r.BaseRenderer.Objects()[0] = r.scroll.Content
 	}
-	size := r.scroll.Size()
-	newMin := r.scroll.Content.MinSize()
-	if r.oldMinSize == newMin && r.oldMinSize == r.scroll.Content.Size() &&
-		(size.Width <= r.oldMinSize.Width && size.Height <= r.oldMinSize.Height) {
-		r.layoutBars(size)
-		return
-	}
 
-	r.oldMinSize = newMin
-	r.Layout(size)
+	r.Layout(r.scroll.Size())
 }
 
 func (r *scrollContainerRenderer) handleAreaVisibility(contentSize, scrollSize float32, area *scrollBarArea) {
@@ -517,7 +511,12 @@ func (s *Scroll) CreateRenderer() fyne.WidgetRenderer {
 
 // ScrollToBottom will scroll content to container bottom - to show latest info which end user just added
 func (s *Scroll) ScrollToBottom() {
-	s.scrollBy(0, -1*(s.Content.MinSize().Height-s.Size().Height-s.Offset.Y))
+	// the content may have grown since it was last laid out (rows appended
+	// without a Refresh), so scroll against its measured size rather than the
+	// laid out one that scrollBy uses.
+	minSize := s.Content.MinSize()
+	dx, dy := s.alignScrollDelta(minSize, 0, -1*(minSize.Height-s.Size().Height-s.Offset.Y))
+	s.scrollTo(minSize, -dx, -dy)
 	s.refreshBars()
 }
 
@@ -583,6 +582,25 @@ func (s *Scroll) refreshWithoutOffsetUpdate() {
 	s.Base.Refresh()
 }
 
+// offsetUpdated repaints after a scroll. Only the content position and the bar
+// thumbs change, so this skips the refresh that re-measures the whole content tree.
+func (s *Scroll) offsetUpdated() {
+	// look the renderer up through the extending widget, as Base.Refresh does: a type
+	// embedding Scroll is cached under itself, not under the embedded *Scroll.
+	impl := s.super()
+	if impl == nil {
+		s.refreshWithoutOffsetUpdate()
+		return
+	}
+	r, ok := cache.Renderer(impl).(*scrollContainerRenderer)
+	if !ok {
+		s.refreshWithoutOffsetUpdate()
+		return
+	}
+
+	r.updatePosition()
+}
+
 // Scrolled is called when an input device triggers a scroll event
 func (s *Scroll) Scrolled(ev *fyne.ScrollEvent) {
 	if s.Direction != ScrollNone {
@@ -591,37 +609,43 @@ func (s *Scroll) Scrolled(ev *fyne.ScrollEvent) {
 }
 
 func (s *Scroll) refreshBars() {
-	s.updateOffset(0, 0)
+	// the content may have been resized, so measure it rather than trusting the
+	// laid out size. Not on the scroll path, where the laid out size is current.
+	s.scrollTo(s.Content.MinSize(), 0, 0)
 	s.refreshWithoutOffsetUpdate()
 }
 
 func (s *Scroll) scrollBy(dx, dy float32) {
-	min := s.Content.MinSize()
-	size := s.Size()
-	if size.Width < min.Width && size.Height >= min.Height && dx == 0 {
-		dx, dy = dy, dx
-	}
-	if s.updateOffset(dx, dy) {
-		s.refreshWithoutOffsetUpdate()
+	contentSize := s.Content.Size()
+	dx, dy = s.alignScrollDelta(contentSize, dx, dy)
+
+	// a scroll delta moves against the finger, hence the negation
+	if s.scrollTo(contentSize, -dx, -dy) {
+		s.offsetUpdated()
 	}
 }
 
-func (s *Scroll) updateOffset(deltaX, deltaY float32) bool {
+// alignScrollDelta turns a vertical-only delta into a horizontal one when the
+// content can only scroll horizontally, so a plain mouse wheel still scrolls it.
+func (s *Scroll) alignScrollDelta(contentSize fyne.Size, dx, dy float32) (float32, float32) {
 	size := s.Size()
-	contentSize := s.Content.Size()
-	if contentSize.Width <= size.Width && contentSize.Height <= size.Height {
-		if s.Offset.X != 0 || s.Offset.Y != 0 {
-			s.Offset.X = 0
-			s.Offset.Y = 0
-			return true
-		}
-		return false
+	if size.Width < contentSize.Width && size.Height >= contentSize.Height && dx == 0 {
+		return dy, dx
 	}
+	return dx, dy
+}
+
+// scrollTo moves the offset within contentBounds and reports whether it moved.
+func (s *Scroll) scrollTo(contentBounds fyne.Size, deltaX, deltaY float32) bool {
+	size := s.Size()
 	oldX := s.Offset.X
 	oldY := s.Offset.Y
-	min := s.Content.MinSize()
-	s.Offset.X = computeOffset(s.Offset.X, -deltaX, size.Width, min.Width)
-	s.Offset.Y = computeOffset(s.Offset.Y, -deltaY, size.Height, min.Height)
+	if contentBounds.Width <= size.Width && contentBounds.Height <= size.Height {
+		s.Offset = fyne.Position{}
+	} else {
+		s.Offset.X = computeOffset(s.Offset.X, deltaX, size.Width, contentBounds.Width)
+		s.Offset.Y = computeOffset(s.Offset.Y, deltaY, size.Height, contentBounds.Height)
+	}
 
 	moved := s.Offset.X != oldX || s.Offset.Y != oldY
 	if f := s.OnScrolled; f != nil && moved {

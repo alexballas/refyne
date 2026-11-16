@@ -179,3 +179,38 @@ func TestGlCanvas_MinSizeChangedByNonWidgetLayoutInPassOnlyWhileDirty(t *testing
 		assert.Equal(t, border.MinSize().Height, outer.Size().Height, "stale after the canvas is clean")
 	})
 }
+
+// Wheel scrolling clamps to the laid out size of the scrolled content without
+// measuring it. A Table that grows without its scroller being refreshed is
+// re-laid by the next frame's min size walk, so scrolling then reaches the new end.
+func TestGlCanvas_TableGrownIsScrollableToNewEndAfterFrame(t *testing.T) {
+	w := createWindow("Test")
+	rows := 10
+	greatest := -1
+	tb := widget.NewTable(
+		func() (int, int) { return rows, 3 },
+		func() fyne.CanvasObject { return widget.NewLabel("Template") },
+		func(id widget.TableCellID, o fyne.CanvasObject) {
+			if id.Row > greatest {
+				greatest = id.Row
+			}
+		},
+	)
+	w.SetContent(tb)
+	w.Resize(fyne.NewSize(200, 300))
+	repaintWindow(w)
+
+	runOnMain(func() {
+		rows = 1000
+		tb.Refresh()
+	})
+	repaintWindow(w)
+
+	w.mousePos = fyne.NewPos(50, 100)
+	for i := 0; i < 20; i++ {
+		w.mouseScrolled(w.viewport, 0, -10000)
+	}
+	runOnMain(func() {
+		assert.Equal(t, rows-1, greatest, "the last row must be bound")
+	})
+}

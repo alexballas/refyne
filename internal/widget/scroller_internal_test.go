@@ -69,6 +69,105 @@ func TestScrollContainer_ScrollToBottom(t *testing.T) {
 	assert.Equal(t, ExpectedY, Y)
 }
 
+// Scroll events clamp against the laid out content size, so ScrollToBottom must
+// measure the content to reach the end of rows appended without a Refresh.
+func TestScrollContainer_ScrollToBottom_ContentGrewWithoutRefresh(t *testing.T) {
+	rect := canvas.NewRectangle(color.Black)
+	rect.SetMinSize(fyne.NewSize(100, 500))
+	scroll := NewVScroll(rect)
+	scroll.Resize(fyne.NewSize(100, 100))
+	require.Equal(t, float32(500), rect.Size().Height)
+
+	rect.SetMinSize(fyne.NewSize(100, 1000))
+	var notified fyne.Position
+	scroll.OnScrolled = func(p fyne.Position) { notified = p }
+	scroll.ScrollToBottom()
+
+	assert.Equal(t, float32(900), scroll.Offset.Y)
+	assert.Equal(t, scroll.Offset, notified)
+	assert.Equal(t, float32(1000), rect.Size().Height, "the content must be laid out at its new size")
+	assert.Equal(t, fyne.NewPos(0, -900), rect.Position())
+}
+
+// A scroll event does not re-measure, so it stays within the laid out content;
+// the next Refresh picks up the new size and scrolling continues from there.
+func TestScrollContainer_Scrolled_ContentGrewWithoutRefresh(t *testing.T) {
+	rect := canvas.NewRectangle(color.Black)
+	rect.SetMinSize(fyne.NewSize(100, 500))
+	scroll := NewVScroll(rect)
+	scroll.Resize(fyne.NewSize(100, 100))
+
+	rect.SetMinSize(fyne.NewSize(100, 1000))
+	scroll.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(0, -10000)})
+	assert.Equal(t, float32(400), scroll.Offset.Y)
+
+	scroll.Refresh()
+	assert.Equal(t, float32(1000), rect.Size().Height)
+	scroll.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(0, -10000)})
+	assert.Equal(t, float32(900), scroll.Offset.Y)
+	assert.Equal(t, fyne.NewPos(0, -900), rect.Position())
+}
+
+// extendedScroll embeds Scroll, as an app type embedding container.Scroll would,
+// so its renderer is cached under the extending widget rather than the *Scroll.
+type extendedScroll struct {
+	Scroll
+}
+
+func newExtendedScroll(t *testing.T) (*extendedScroll, *canvas.Rectangle, *scrollContainerRenderer) {
+	t.Helper()
+	rect := canvas.NewRectangle(color.Black)
+	rect.SetMinSize(fyne.NewSize(100, 1000))
+	s := &extendedScroll{}
+	s.Direction = ScrollBoth
+	s.Content = rect
+	s.ExtendBaseWidget(s)
+	s.Resize(fyne.NewSize(100, 100))
+	r := cache.Renderer(s).(*scrollContainerRenderer)
+	t.Cleanup(func() { cache.DestroyRenderer(s) })
+	require.Zero(t, r.vertArea.bar.Position().Y)
+	require.False(t, r.topShadow.Visible())
+	return s, rect, r
+}
+
+// assertExtendedScrollMoved checks that a scroll by 300 updated the renderer on
+// screen, not a second one created for the embedded *Scroll.
+func assertExtendedScrollMoved(t *testing.T, s *extendedScroll, rect *canvas.Rectangle, r *scrollContainerRenderer) {
+	t.Helper()
+	assert.Equal(t, float32(300), s.Offset.Y)
+	assert.Equal(t, fyne.NewPos(0, -300), rect.Position())
+	assert.Positive(t, r.vertArea.bar.Position().Y, "the visible scroll bar thumb must follow the offset")
+	assert.True(t, r.topShadow.Visible(), "the visible top shadow must show once scrolled")
+	_, orphan := cache.CachedRenderer(&s.Scroll)
+	assert.False(t, orphan, "no second renderer may be created for the embedded Scroll")
+}
+
+func TestScrollContainer_Scrolled_Extended(t *testing.T) {
+	s, rect, r := newExtendedScroll(t)
+
+	s.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(0, -300)})
+
+	assertExtendedScrollMoved(t, s, rect, r)
+}
+
+// Shrinking content without a Refresh must not leave the offset past the new end
+// once the scroller is refreshed.
+func TestScrollContainer_Refresh_ContentShrankWithoutRefresh(t *testing.T) {
+	rect := canvas.NewRectangle(color.Black)
+	rect.SetMinSize(fyne.NewSize(100, 1000))
+	scroll := NewVScroll(rect)
+	scroll.Resize(fyne.NewSize(100, 100))
+	scroll.ScrollToBottom()
+	require.Equal(t, float32(900), scroll.Offset.Y)
+
+	rect.SetMinSize(fyne.NewSize(100, 300))
+	scroll.Refresh()
+
+	assert.Equal(t, float32(200), scroll.Offset.Y)
+	assert.Equal(t, float32(300), rect.Size().Height)
+	assert.Equal(t, fyne.NewPos(0, -200), rect.Position())
+}
+
 func TestScrollContainer_MinSize_Direction(t *testing.T) {
 	t.Run("Both", func(t *testing.T) {
 		rect := canvas.NewRectangle(color.Black)
@@ -864,4 +963,25 @@ func TestScrollContainer_TapToScroll(t *testing.T) {
 		Position: fyne.NewPos(2, 2),
 	})
 	assert.Less(t, s.Offset.X, oldX)
+}
+
+func TestScrollBarArea_ComputeScrollOffset(t *testing.T) {
+	area := &scrollBarArea{}
+	tests := []struct {
+		name                                        string
+		length, offset, scrollLength, contentLength float32
+		want                                        float32
+	}{
+		{"normal", 50, 25, 100, 200, 50},
+		{"clamp to start", 50, -10, 100, 200, 0},
+		{"clamp to end", 50, 100, 100, 200, 100},
+		{"thumb fills track", 100, 5, 100, 200, 0},
+		{"thumb larger than track", 120, 5, 100, 200, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := area.computeScrollOffset(tt.length, tt.offset, tt.scrollLength, tt.contentLength)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
