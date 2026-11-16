@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -171,17 +172,34 @@ func CachedFontFace(style fyne.TextStyle, source fyne.Resource, o fyne.CanvasObj
 		return val
 	}
 
-	scope := ""
+	id := cacheID{style: style}
 	if o != nil { // for overridden themes get the cache key right
-		scope = cache.WidgetScopeID(o)
+		id.scope = cache.WidgetScopeID(o)
 	}
 
-	val, ok := fontCache.Load(cacheID{style: style, scope: scope})
-	if !ok {
-		var faces *dynamicFontMap
+	fontCacheLock.RLock()
+	val, ok := fontCache[id]
+	fontCacheLock.RUnlock()
+	if ok {
+		return val
+	}
 
-		th := theme.CurrentForWidget(o)
-		font1 := th.Font(style)
+	// Every ThemeOverride makes a new scope on each Refresh, but a scope's
+	// faces differ from the app's only by its theme's font. Share an item
+	// between scopes whose theme returns the same font, so a refresh does not
+	// load new faces, which would also churn the caches keyed by them.
+	th := theme.CurrentForWidget(o)
+	font1 := th.Font(style)
+	shared := hashable(font1)
+	fid := fontID{style: style, font: font1}
+	if shared {
+		fontCacheLock.RLock()
+		val, ok = fontFaces[fid]
+		fontCacheLock.RUnlock()
+	}
+	built := !ok
+	if built {
+		var faces *dynamicFontMap
 
 		emoji := theme.DefaultEmojiFont() // TODO only one emoji - maybe others too
 		switch {
@@ -211,15 +229,37 @@ func CachedFontFace(style fyne.TextStyle, source fyne.Resource, o fyne.CanvasObj
 		}
 
 		val = &FontCacheItem{Fonts: faces}
-		fontCache.Store(cacheID{style: style, scope: scope}, val)
 	}
 
+	fontCacheLock.Lock()
+	defer fontCacheLock.Unlock()
+	if shared && built {
+		if len(fontFaces) >= fontFacesMax {
+			// only a theme returning a new resource on each call gets here;
+			// items already handed out stay valid
+			fontFaces = map[fontID]*FontCacheItem{}
+		}
+		fontFaces[fid] = val
+	}
+	if id.scope != "" && len(fontCache) >= fontCacheMax {
+		// Scopes replaced by a later override are never looked up again. Drop
+		// all override scopes; live ones get their item back from fontFaces.
+		for k := range fontCache {
+			if k.scope != "" {
+				delete(fontCache, k)
+			}
+		}
+	}
+	fontCache[id] = val
 	return val
 }
 
 // ClearFontCache is used to remove cached fonts in the case that we wish to re-load Font faces
 func ClearFontCache() {
-	fontCache.Clear()
+	fontCacheLock.Lock()
+	fontCache = map[cacheID]*FontCacheItem{}
+	fontFaces = map[fontID]*FontCacheItem{}
+	fontCacheLock.Unlock()
 	fontCustomCache.Clear()
 	parsedFonts.Clear()
 	clearShapeCache()
@@ -307,16 +347,58 @@ func RasteriseGlyph(dst draw.Image, g PlacedGlyph, c color.Color, fontSize, scal
 // without locking. Faces are not safe for concurrent use, but the parsed Font
 // they share is, so the parse is reused.
 func loadMeasureFont(data fyne.Resource) *font.Face {
-	if ft, ok := parsedFonts.Load(data); ok {
-		return font.NewFace(ft)
+	// a theme may return a resource that cannot be a map key; parse it each time
+	shared := hashable(data)
+	if shared {
+		if ft, ok := parsedFonts.Load(data); ok {
+			return font.NewFace(ft)
+		}
 	}
 	loaded, err := font.ParseTTF(bytes.NewReader(data.Content()))
 	if err != nil {
 		fyne.LogError("font load error", err)
 		return nil
 	}
-	parsedFonts.Store(data, loaded.Font)
+	if shared {
+		parsedFonts.Store(data, loaded.Font)
+	}
 	return loaded
+}
+
+// hashable reports whether res can be used as a map key. It checks the value,
+// not just its type: a struct with an interface field has a comparable type,
+// but hashing it panics when that field holds an unhashable value.
+func hashable(res fyne.Resource) bool {
+	return res != nil && comparableValue(reflect.ValueOf(res))
+}
+
+// comparableValue reports whether v can be compared, and so hashed, without
+// panicking. It is reflect.Value.Comparable, which needs Go 1.20 where this
+// module still builds with 1.19.
+func comparableValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Interface:
+		return v.IsNil() || comparableValue(v.Elem())
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if !comparableValue(v.Field(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Array:
+		if !v.Type().Comparable() {
+			return false
+		}
+		for i := 0; i < v.Len(); i++ {
+			if !comparableValue(v.Index(i)) {
+				return false
+			}
+		}
+		return true
+	default:
+		return v.Type().Comparable()
+	}
 }
 
 // MeasureString returns how far dot would advance by drawing s with f.
@@ -714,8 +796,31 @@ type cacheID struct {
 	scope string
 }
 
+type fontID struct {
+	style fyne.TextStyle
+	font  fyne.Resource
+}
+
+const (
+	// fontCacheMax caps fontCache. ThemeOverride.Refresh gives its content a
+	// new scope, so the scopes looked up keep changing; dropping the override
+	// scopes past this costs a theme lookup each, as their items are shared.
+	fontCacheMax = 256
+	// fontFacesMax caps fontFaces, which a well behaved theme keeps to one
+	// entry per font and style.
+	fontFacesMax = 256
+)
+
 var (
-	fontCache       async.Map[cacheID, *FontCacheItem]
+	// fontCache holds the item for each style in each theme scope, so a hit
+	// does not ask the theme for its font: some themes, such as a JSON theme
+	// with font URIs, load a new resource on every call.
+	// fontFaces holds the item for each style and theme font, shared by every
+	// scope whose theme returns that font. Both are guarded by fontCacheLock.
+	fontCacheLock sync.RWMutex
+	fontCache     = map[cacheID]*FontCacheItem{}
+	fontFaces     = map[fontID]*FontCacheItem{}
+
 	fontCustomCache async.Map[fyne.Resource, *FontCacheItem] // for custom resources
 
 	// parsedFonts holds each font resource parsed once. Every style's face list

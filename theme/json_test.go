@@ -43,6 +43,27 @@ func TestFromJSON(t *testing.T) {
 	assert.NotNil(t, c)
 }
 
+// TestFromJSON_ResourcesLoadedOnce checks a JSON theme hands out the same font
+// and icon resource on each call: the font cache keys by the theme's font, so
+// a new resource per call would load the font again on every lookup.
+func TestFromJSON_ResourcesLoadedOnce(t *testing.T) {
+	repository.Register("file", intRepo.NewFileRepository()) // file uri resolving (avoid test import loop)
+	th, err := FromJSON(`{
+"Fonts": {"monospace": "file://./testdata/NotoMono-Regular.ttf"},
+"Icons": {"cancel": "file://./testdata/cancel_Paths.svg"}
+}`)
+	assert.NoError(t, err)
+
+	mono := fyne.TextStyle{Monospace: true}
+	font := th.Font(mono)
+	assert.Equal(t, "NotoMono-Regular.ttf", font.Name())
+	assert.Same(t, font, th.Font(mono))
+
+	icon := th.Icon(IconNameCancel)
+	assert.Equal(t, "cancel_Paths.svg", icon.Name())
+	assert.Same(t, icon, th.Icon(IconNameCancel))
+}
+
 func TestFromTOML_Resource(t *testing.T) {
 	r, err := fyne.LoadResourceFromPath("./testdata/theme.json")
 	assert.NoError(t, err)

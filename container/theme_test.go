@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/alexballas/refyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2/internal/painter"
 	"github.com/alexballas/refyne/v2/test"
 	"github.com/alexballas/refyne/v2/theme"
 	"github.com/alexballas/refyne/v2/widget"
@@ -66,4 +67,28 @@ func TestThemeOverride_CurrentTheme(t *testing.T) {
 
 	text = test.WidgetRenderer(l).Objects()[0].(*widget.RichText).Segments[0].Visual()
 	assert.Equal(t, &color.NRGBA{R: 0, G: 0, B: 0, A: 0xff}, text.(*canvas.Text).Color)
+}
+
+// TestThemeOverride_RefreshSharesFontFaces checks that refreshing a
+// ThemeOverride, which gives its content a new theme scope each time, keeps
+// handing its text the same cached font faces rather than adding new ones.
+func TestThemeOverride_RefreshSharesFontFaces(t *testing.T) {
+	text := canvas.NewText("Text", color.Black)
+	bold := canvas.NewText("Bold", color.Black)
+	bold.TextStyle.Bold = true
+	o := NewThemeOverride(NewVBox(text, bold, widget.NewLabel("Label")), test.Theme())
+	w := test.NewWindow(o)
+	defer w.Close()
+
+	plain := painter.CachedFontFace(text.TextStyle, nil, text)
+	strong := painter.CachedFontFace(bold.TextStyle, nil, bold)
+	scope := cache.WidgetScopeID(text)
+	for i := 0; i < 50; i++ {
+		o.Refresh()
+		w.Canvas().Capture()
+	}
+
+	assert.NotEqual(t, scope, cache.WidgetScopeID(text), "each refresh mints a new scope")
+	assert.Same(t, plain, painter.CachedFontFace(text.TextStyle, nil, text))
+	assert.Same(t, strong, painter.CachedFontFace(bold.TextStyle, nil, bold))
 }

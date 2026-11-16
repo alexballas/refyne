@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/storage"
 )
 
@@ -139,6 +140,24 @@ type schema struct {
 type jsonTheme struct {
 	data     *schema
 	fallback fyne.Theme
+
+	// loaded holds each resource read from a font or icon URI. Callers such as
+	// the font cache key by the resource a theme returns, so it has to be the
+	// same one on every call, and the file is read once rather than per call.
+	loaded async.Map[uriString, fyne.Resource]
+}
+
+func (t *jsonTheme) resource(u uriString) fyne.Resource {
+	if r, ok := t.loaded.Load(u); ok {
+		return r
+	}
+
+	r := u.resource()
+	if r == nil {
+		return nil
+	}
+	r, _ = t.loaded.LoadOrStore(u, r)
+	return r
 }
 
 func (t *jsonTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
@@ -162,7 +181,7 @@ func (t *jsonTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) c
 
 func (t *jsonTheme) Font(style fyne.TextStyle) fyne.Resource {
 	if val, ok := t.data.Fonts[styleString(style)]; ok {
-		r := val.resource()
+		r := t.resource(val)
 		if r != nil {
 			return r
 		}
@@ -172,7 +191,7 @@ func (t *jsonTheme) Font(style fyne.TextStyle) fyne.Resource {
 
 func (t *jsonTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 	if val, ok := t.data.Icons[string(name)]; ok {
-		r := val.resource()
+		r := t.resource(val)
 		if r != nil {
 			return r
 		}
