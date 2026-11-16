@@ -15,6 +15,7 @@ import (
 	"github.com/alexballas/refyne/v2/container"
 	"github.com/alexballas/refyne/v2/driver/desktop"
 	"github.com/alexballas/refyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2/internal/cache"
 	"github.com/alexballas/refyne/v2/internal/scale"
 	internalTest "github.com/alexballas/refyne/v2/internal/test"
 	"github.com/alexballas/refyne/v2/layout"
@@ -1964,6 +1965,19 @@ func TestWindow_CloseInterception(t *testing.T) {
 			t.Error("window was not closed")
 		}
 	})
+}
+
+func TestWindow_Close_ReleasesTextTextures(t *testing.T) {
+	w := createWindow("test")
+	ent := cache.FontCacheEntry{Canvas: w.canvas}
+	freed := false
+	cache.SetTextTexture(ent, cache.NoTexture, w.canvas, func() { freed = true })
+
+	w.Close()
+
+	_, ok := cache.GetTextTexture(ent)
+	assert.False(t, ok, "text textures of a closed window should be released")
+	assert.True(t, freed)
 }
 
 func TestWindow_ClosedBeforeShow(t *testing.T) {

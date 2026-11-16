@@ -221,6 +221,9 @@ func (w *window) Close() {
 		w.viewport.SetShouldClose(true)
 
 		cache.RangeTexturesFor(w.canvas, w.canvas.Painter().Free)
+		// text textures are only expired when their canvas repaints, which a
+		// closed window never does, so they would keep its content reachable
+		cache.DeleteTextTexturesFor(w.canvas)
 		w.canvas.WalkTrees(nil, func(node *common.RenderCacheNode, _ fyne.Position) {
 			if wid, ok := node.Obj().(fyne.Widget); ok {
 				cache.DestroyRenderer(wid)
@@ -278,9 +281,12 @@ func (w *window) destroy(d *gLDriver) {
 	w.frame.free()
 
 	if w.master {
-		d.Quit()
+		d.Quit() // needs curWindow set, to leave the foreground and stop the tray
 	} else if runtime.GOOS == "darwin" {
 		d.focusPreviousWindow()
+	}
+	if curWindow == w {
+		curWindow = nil
 	}
 }
 
