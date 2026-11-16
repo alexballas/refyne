@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/go-text/render"
 	"github.com/go-text/typesetting/di"
@@ -151,6 +152,7 @@ func lookupFaces(theme, fallback, emoji fyne.Resource, family string, style fyne
 	if local != nil {
 		faces.addFace(local)
 	}
+	faces.fixed = len(faces.faces)
 
 	return faces
 }
@@ -164,7 +166,7 @@ func CachedFontFace(style fyne.TextStyle, source fyne.Resource, o fyne.CanvasObj
 			if face == nil {
 				face = loadMeasureFont(theme.TextFont())
 			}
-			faces := &dynamicFontMap{family: source.Name(), faces: []*font.Face{face}}
+			faces := &dynamicFontMap{family: source.Name(), faces: []*font.Face{face}, fixed: 1}
 
 			val = &FontCacheItem{Fonts: faces}
 			fontCustomCache.Store(source, val)
@@ -219,10 +221,10 @@ func CachedFontFace(style fyne.TextStyle, source fyne.Resource, o fyne.CanvasObj
 			f1 := loadMeasureFont(th)
 
 			if th == fallback {
-				faces = &dynamicFontMap{family: fontscan.SansSerif, faces: []*font.Face{f1}}
+				faces = &dynamicFontMap{family: fontscan.SansSerif, faces: []*font.Face{f1}, fixed: 1}
 			} else {
 				f2 := loadMeasureFont(fallback)
-				faces = &dynamicFontMap{family: fontscan.SansSerif, faces: []*font.Face{f1, f2}}
+				faces = &dynamicFontMap{family: fontscan.SansSerif, faces: []*font.Face{f1, f2}, fixed: 2}
 			}
 		default:
 			faces = lookupFaces(font1, theme.DefaultTextFont(), emoji, fontscan.SansSerif, style)
@@ -514,6 +516,13 @@ type shapeStep struct {
 	tab bool
 }
 
+// shapeKey identifies a shaped string. faces is the map the caller passed, not
+// the map the string was shaped with: shapeString pins the CJK runes of some
+// strings to one face (see pinCJK), and which face, if any, follows from the
+// text and the map alone. Every rune pinCJK looks at keeps the face it first
+// resolved to, as a map only appends faces, so shaping the same key again,
+// after the cache was emptied, pins the same way and a string is never
+// measured in one face and drawn in another.
 type shapeKey struct {
 	text  string
 	faces *dynamicFontMap
@@ -600,6 +609,11 @@ func shapeString(faces shaping.Fontmap, s string, textSize fixed.Int26_6) *shape
 	shaped := &shapedString{space: shapeSpace(shaper, faces, textSize)}
 
 	runes := []rune(s)
+	if key.faces != nil {
+		// The space above comes from faces itself: it is not CJK, so the
+		// pinned map would resolve it the same, and it stays cached per map.
+		faces = key.faces.pinCJK(runes)
+	}
 	in := shaping.Input{
 		Text:      runes,
 		RunStart:  0,
@@ -787,6 +801,38 @@ func (f fixedFontMap) ResolveFace(rune) *font.Face {
 	return f.face
 }
 
+// cjkFontMap is a [shaping.Fontmap] that draws CJK runes in one face, and
+// leaves the rest to the map it wraps. pinCJK makes one for a single string; the
+// wrapped map is shared, so this only reads it.
+type cjkFontMap struct {
+	*dynamicFontMap
+	cjk *font.Face
+}
+
+func (c cjkFontMap) ResolveFace(r rune) *font.Face {
+	if isCJK(r) {
+		return c.cjk
+	}
+	return c.dynamicFontMap.ResolveFace(r)
+}
+
+const (
+	hangulJamoStart   = 0x1100 // the first CJK block, Hangul Jamo
+	cjkSymbolsStart   = 0x3000
+	cjkSymbolsEnd     = 0x303f
+	fullwidthFormsLow = 0xff00
+	fullwidthFormsHi  = 0xffef
+)
+
+// isCJK reports whether r is a Han, Hiragana, Katakana or Hangul letter, or CJK punctuation.
+func isCJK(r rune) bool {
+	if r < hangulJamoStart {
+		return false
+	}
+	return unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) ||
+		r >= cjkSymbolsStart && r <= cjkSymbolsEnd || r >= fullwidthFormsLow && r <= fullwidthFormsHi
+}
+
 type FontCacheItem struct {
 	Fonts shaping.Fontmap
 }
@@ -833,9 +879,14 @@ type noopLogger struct{}
 
 func (n noopLogger) Printf(string, ...any) {}
 
+// dynamicFontMap resolves each rune to the first of its faces that has it, and
+// looks up and appends a system font for a rune none of them has. Maps are
+// shared by every goroutine and theme scope drawing in their style, so faces
+// is only ever appended to, under mu.
 type dynamicFontMap struct {
 	faces  []*font.Face
 	family string
+	fixed  int // how many of faces were set up with the map, before lookups added any
 	mu     sync.Mutex
 }
 
@@ -843,19 +894,119 @@ func (d *dynamicFontMap) ResolveFace(r rune) *font.Face {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	face, _ := d.resolve(r, true)
+	return face
+}
+
+// resolve returns the face for r and whether it has r. For a rune no font has,
+// that is the fallback face the lookup gives, which d keeps only if
+// keepFallback is set, or d.faces[0] if the lookup gives none. Callers hold d.mu.
+func (d *dynamicFontMap) resolve(r rune, keepFallback bool) (*font.Face, bool) {
 	for _, f := range d.faces {
 		if _, ok := f.NominalGlyph(r); ok {
-			return f
+			return f, true
 		}
 	}
 
 	toAdd := lookupRuneFont(r, d.family, font.Aspect{})
 	if toAdd != nil {
-		d.addFace(toAdd)
-		return toAdd
+		_, ok := toAdd.NominalGlyph(r)
+		if ok || keepFallback {
+			d.addFace(toAdd)
+		}
+		return toAdd, ok
 	}
 
-	return d.faces[0]
+	return d.faces[0], false
+}
+
+// pinCJK returns the font map to shape text with. The CJK runes of text are
+// resolved to a font each. If that gives more than one font, the map returned
+// draws all of them with the first of those fonts that has every one of them,
+// so a string is not split between fonts of different regional forms.
+//
+// d itself is returned, and each rune keeps the font it resolves to, if the
+// runes come from one font, if one of them is drawn by a font set up with the
+// map, or if no single font has them all. Runes that no font has are ignored.
+//
+// d is shared, so it gains only the faces that shaping the runes would look up
+// anyway: the fallback face looked up for a rune no font has is not kept.
+// The map returned is only good for text: another string with the same map
+// may pin another face, or none.
+func (d *dynamicFontMap) pinCJK(text []rune) shaping.Fontmap {
+	// most strings have no CJK, or all of it from one font: keep those free of
+	// allocations and of a second pass
+	var first, second *font.Face
+	for _, r := range text {
+		if !isCJK(r) {
+			continue
+		}
+
+		d.mu.Lock()
+		face, ok := d.resolve(r, false)
+		setUp := ok && containsFace(d.faces[:d.fixed], face)
+		d.mu.Unlock()
+		if !ok {
+			continue // no font draws it
+		}
+		if setUp {
+			return d
+		}
+		if first == nil {
+			first = face
+		} else if second == nil && face != first {
+			second = face
+		}
+	}
+	if second == nil {
+		return d
+	}
+
+	// Every rune has been resolved, so each now keeps its face, and as faces is
+	// only appended to, the elements of this copy never change either.
+	d.mu.Lock()
+	faces := d.faces
+	d.mu.Unlock()
+	var used []*font.Face
+	var cjk []rune
+	for _, r := range text {
+		if !isCJK(r) {
+			continue
+		}
+		face := firstWith(faces, r)
+		if face == nil {
+			continue
+		}
+		if !containsFace(used, face) {
+			used = append(used, face)
+		}
+		cjk = append(cjk, r)
+	}
+	for _, face := range faces {
+		if containsFace(used, face) && coversSequence(face, cjk) {
+			return cjkFontMap{dynamicFontMap: d, cjk: face}
+		}
+	}
+	return d
+}
+
+// firstWith returns the first of faces that has r, or nil.
+func firstWith(faces []*font.Face, r rune) *font.Face {
+	for _, f := range faces {
+		if _, ok := f.NominalGlyph(r); ok {
+			return f
+		}
+	}
+	return nil
+}
+
+func containsFace(faces []*font.Face, face *font.Face) bool {
+	for _, f := range faces {
+		if f == face {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *dynamicFontMap) addFace(f *font.Face) {
