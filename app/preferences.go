@@ -66,6 +66,14 @@ func (p *preferences) resetSavedRecently() {
 }
 
 func (p *preferences) save() error {
+	// Opening the writer creates or truncates the file, which the preferences'
+	// own file watch can see, so mark the save first or the watch may load the
+	// empty or partly written file.
+	p.prefLock.Lock()
+	p.savedRecently = true
+	p.prefLock.Unlock()
+	defer p.resetSavedRecently()
+
 	storage, err := p.storageWriter()
 	if err != nil {
 		return err
@@ -74,11 +82,6 @@ func (p *preferences) save() error {
 }
 
 func (p *preferences) saveToStorage(writer writeSyncCloser) error {
-	p.prefLock.Lock()
-	p.savedRecently = true
-	p.prefLock.Unlock()
-	defer p.resetSavedRecently()
-
 	defer writer.Close()
 	encode := json.NewEncoder(writer)
 
