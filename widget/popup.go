@@ -32,6 +32,10 @@ type popUpAreaCanvas interface {
 // Hide this widget, if it was previously visible
 func (p *PopUp) Hide() {
 	if p.overlayShown {
+		// removing the overlay drops its focus manager, so unfocus first or the content never sees FocusLost
+		if p.Canvas.Overlays().Top() == p && p.Canvas.Focused() != nil {
+			p.Canvas.Unfocus()
+		}
 		p.Canvas.Overlays().Remove(p)
 		p.overlayShown = false
 	}

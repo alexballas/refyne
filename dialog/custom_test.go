@@ -181,3 +181,46 @@ func TestCustom_ContentLayout(t *testing.T) {
 	c.Layout.Layout(c.Objects, c.MinSize())
 	assert.Equal(t, d.content.Size(), initialSize)
 }
+
+type focusTrackingEntry struct {
+	widget.Entry
+	focused bool
+}
+
+func newFocusTrackingEntry() *focusTrackingEntry {
+	e := &focusTrackingEntry{}
+	e.ExtendBaseWidget(e)
+	return e
+}
+
+func (e *focusTrackingEntry) FocusGained() {
+	e.focused = true
+	e.Entry.FocusGained()
+}
+
+func (e *focusTrackingEntry) FocusLost() {
+	e.focused = false
+	e.Entry.FocusLost()
+}
+
+func TestCustom_HideUnfocusesContent(t *testing.T) {
+	test.NewTempApp(t)
+	w := test.NewTempWindow(t, canvas.NewRectangle(color.Transparent))
+	w.Resize(fyne.NewSize(300, 300))
+	c := w.Canvas()
+
+	entry := newFocusTrackingEntry()
+	d := NewCustom("Title", "Close", entry, w)
+	d.Show()
+	c.Focus(entry)
+	assert.True(t, entry.focused)
+
+	d.Hide()
+	assert.False(t, entry.focused)
+
+	// a reused dialog must not show its content as still focused
+	d.Show()
+	assert.False(t, entry.focused)
+	assert.Nil(t, c.Focused())
+	d.Hide()
+}

@@ -115,6 +115,7 @@ func Test_canvas_DraggingOutOfWidget(t *testing.T) {
 	c.tapDown(fyne.NewPos(23, 13), 0)
 	c.tapMove(fyne.NewPos(30, 13), 0, func(wid fyne.Draggable, ev *fyne.DragEvent) {
 		assert.Equal(t, slider, wid)
+		assert.Equal(t, fyne.NewPos(30, 13), ev.AbsolutePosition)
 		wid.Dragged(ev)
 		dragged = true
 	})
@@ -125,6 +126,7 @@ func Test_canvas_DraggingOutOfWidget(t *testing.T) {
 	dragged = false
 	c.tapMove(fyne.NewPos(40, 120), 0, func(wid fyne.Draggable, ev *fyne.DragEvent) {
 		assert.Equal(t, slider, wid)
+		assert.Equal(t, fyne.NewPos(40, 120), ev.AbsolutePosition)
 		wid.Dragged(ev)
 		dragged = true
 	})

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	fyne "github.com/alexballas/refyne/v2"
+	"github.com/alexballas/refyne/v2/layout"
 	"github.com/alexballas/refyne/v2/storage"
 	"github.com/alexballas/refyne/v2/test"
 	"github.com/alexballas/refyne/v2/theme"
@@ -473,6 +474,74 @@ func TestRichTextMarkdown_Lines(t *testing.T) {
 	}
 }
 
+func TestRichTextMarkdown_HardLineBreakSpaces(t *testing.T) {
+	r := NewRichTextFromMarkdown("line1  \nline2")
+
+	assert.Len(t, r.Segments, 3)
+	if text, ok := r.Segments[0].(*TextSegment); ok {
+		assert.Equal(t, "line1\n", text.Text)
+		assert.True(t, text.Inline())
+	} else {
+		t.Error("Segment should be Text")
+	}
+	if text, ok := r.Segments[1].(*TextSegment); ok {
+		assert.Equal(t, "line2", text.Text)
+	} else {
+		t.Error("Segment should be Text")
+	}
+	assert.Equal(t, "line1\nline2", r.String())
+}
+
+func TestRichTextMarkdown_HardLineBreakBackslash(t *testing.T) {
+	r := NewRichTextFromMarkdown("line1\\\nline2")
+
+	assert.Len(t, r.Segments, 3)
+	if text, ok := r.Segments[0].(*TextSegment); ok {
+		assert.Equal(t, "line1\n", text.Text)
+		assert.True(t, text.Inline())
+	} else {
+		t.Error("Segment should be Text")
+	}
+	if text, ok := r.Segments[1].(*TextSegment); ok {
+		assert.Equal(t, "line2", text.Text)
+	} else {
+		t.Error("Segment should be Text")
+	}
+	assert.Equal(t, "line1\nline2", r.String())
+}
+
+func TestRichTextMarkdown_HardLineBreakAfterEmphasis(t *testing.T) {
+	r := NewRichTextFromMarkdown("*a*  \nb")
+
+	texts := make([]string, len(r.Segments))
+	for i, seg := range r.Segments {
+		texts[i] = seg.Textual()
+	}
+	assert.Equal(t, []string{"a", "\n", "b", ""}, texts)
+	assert.Equal(t, "a\nb", r.String())
+
+	r.ParseMarkdown("*a*\nb") // a soft break must stay a space
+	assert.Equal(t, "a b", r.String())
+}
+
+func TestRichTextMarkdown_HardLineBreakInBlockquote(t *testing.T) {
+	r := NewRichTextFromMarkdown("> a  \n> b")
+	assert.Equal(t, "a\nb", r.String())
+}
+
+func TestRichTextMarkdown_HardLineBreakLayout(t *testing.T) {
+	test.NewTempApp(t)
+
+	soft := NewRichTextFromMarkdown("line1\nline2")
+	hard := NewRichTextFromMarkdown("line1  \nline2")
+	w := test.NewTempWindow(t, &fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{soft, hard}})
+	w.Resize(fyne.NewSize(300, 200))
+
+	assert.Equal(t, 1, soft.rows())
+	assert.Equal(t, 2, hard.rows())
+	assert.Greater(t, hard.MinSize().Height, soft.MinSize().Height)
+}
+
 func TestRichTextMarkdown_List(t *testing.T) {
 	r := NewRichTextFromMarkdown("* line1 in _three_ segments\n* line2")
 
@@ -636,6 +705,14 @@ func TestRichTextMarkdown_SpacesAroundHyperlink(t *testing.T) {
 func TestRichTextMarkdown_NewlineInHyperlink(t *testing.T) {
 	r := NewRichTextFromMarkdown("[foo\nbar](https://fyne.io/)")
 	assert.Equal(t, "foo bar", r.String())
+}
+
+func TestRichTextMarkdown_UnderscoreInHyperlink(t *testing.T) {
+	r := NewRichTextFromMarkdown("[under_score](https://fyne.io/)")
+	assert.Equal(t, "under_score", r.String())
+
+	r.ParseMarkdown("[foo _bar_ baz](https://fyne.io/)")
+	assert.Equal(t, "foo bar baz", r.String())
 }
 
 func BenchmarkMarkdownParsing(b *testing.B) {
