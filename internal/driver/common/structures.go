@@ -5,6 +5,8 @@ import (
 	"github.com/alexballas/refyne/v2/internal"
 	"github.com/alexballas/refyne/v2/internal/async"
 	"github.com/alexballas/refyne/v2/internal/build"
+	"github.com/alexballas/refyne/v2/internal/cache"
+	"github.com/alexballas/refyne/v2/internal/driver"
 )
 
 type deduplicatedObjectQueue struct {
@@ -56,13 +58,12 @@ type RenderCacheNode struct {
 	obj         fyne.CanvasObject
 	parent      *RenderCacheNode
 	// cache data
-	minSize fyne.Size
-	// clips caches driver.IsClip for the duration of a single walk; it is
-	// written by the before-children callback and read by the matching
-	// after-children callback, so the type assertions and renderer lookup run
-	// once per node per walk instead of twice. The renderer cannot change
-	// between the two callbacks of the same single-threaded walk.
-	clips bool
+	minSize  fyne.Size
+	canvas   cache.CanvasRef
+	renderer cache.RendererRef
+	// clip is driver.IsClip's answer for obj, known while clipKnown; the walk
+	// forgets it when the node is given another renderer.
+	clip, clipKnown bool
 }
 
 // Obj returns the node object.
@@ -70,15 +71,12 @@ func (r *RenderCacheNode) Obj() fyne.CanvasObject {
 	return r.obj
 }
 
-// SetClips caches whether the node's object clips its children for the
-// current walk (see the clips field).
-func (r *RenderCacheNode) SetClips(clips bool) {
-	r.clips = clips
-}
-
-// Clips reports the value last stored with SetClips during the current walk.
-func (r *RenderCacheNode) Clips() bool {
-	return r.clips
+// IsClip reports whether the node's object clips its children.
+func (r *RenderCacheNode) IsClip() bool {
+	if !r.clipKnown {
+		r.clip, r.clipKnown = driver.IsClip(r.obj), true
+	}
+	return r.clip
 }
 
 type overlayStack struct {

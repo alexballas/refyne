@@ -77,6 +77,7 @@ func CleanCanvas(canvas fyne.Canvas) {
 			return true
 		}
 
+		cinfo.replaced.Store(true)
 		canvases.Delete(obj)
 
 		wid, ok := obj.(fyne.Widget)
@@ -87,6 +88,7 @@ func CleanCanvas(canvas fyne.Canvas) {
 		if !ok {
 			return true
 		}
+		rinfo.destroyed.Store(true)
 		rinfo.renderer.Destroy()
 		overrides.Delete(wid)
 		return true
@@ -105,6 +107,7 @@ func ResetThemeCaches() {
 func destroyExpiredCanvases(now time.Time) {
 	canvases.Range(func(obj fyne.CanvasObject, cinfo *canvasInfo) bool {
 		if cinfo.isExpired(now) {
+			cinfo.replaced.Store(true)
 			canvases.Delete(obj)
 		}
 		return true
@@ -116,6 +119,7 @@ func destroyExpiredCanvases(now time.Time) {
 func destroyExpiredRenderers(now time.Time) {
 	renderers.Range(func(wid fyne.Widget, rinfo *rendererInfo) bool {
 		if rinfo.isExpired(now) {
+			rinfo.destroyed.Store(true)
 			rinfo.renderer.Destroy()
 			overrides.Delete(wid)
 			renderers.Delete(wid)

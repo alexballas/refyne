@@ -118,7 +118,7 @@ func (c *Canvas) EnsureMinSize() bool {
 	}
 	ensureMinSize := func(node *RenderCacheNode, pos fyne.Position) {
 		obj := node.obj
-		if cache.AttachCanvas(obj, c.impl) { // avoids closure allocation on the per-frame walk
+		if cache.AttachCanvasRef(&node.canvas, obj, c.impl) { // avoids closure allocation on the per-frame walk
 			if img, ok := obj.(*canvas.Image); ok {
 				img.Refresh() // this may now have a different texScale
 			}
@@ -482,7 +482,8 @@ func (c *Canvas) walkTree(
 	var node, parent, prev *RenderCacheNode
 	node = tree.root
 
-	bc := func(obj fyne.CanvasObject, pos fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+	// a widget's renderer is asked for just before bc, so both match the same node
+	match := func(obj fyne.CanvasObject) *RenderCacheNode {
 		if node != nil && node.obj != obj {
 			if parent.firstChild == node {
 				parent.firstChild = nil
@@ -497,6 +498,19 @@ func (c *Canvas) walkTree(
 				prev.nextSibling = node
 			}
 		}
+		return node
+	}
+	rendererOf := func(wid fyne.Widget) fyne.WidgetRenderer {
+		n := match(wid)
+		held := n.renderer
+		r := cache.RendererFor(&n.renderer, wid)
+		if n.renderer != held {
+			n.clipKnown = false // a new renderer may be of another type
+		}
+		return r
+	}
+	bc := func(obj fyne.CanvasObject, pos fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+		match(obj)
 		if prev != nil && prev.parent != parent {
 			prev = nil
 		}
@@ -523,7 +537,7 @@ func (c *Canvas) walkTree(
 		prev = node
 		node = node.nextSibling
 	}
-	driver.WalkVisibleObjectTree(tree.root.obj, bc, ac)
+	driver.WalkVisibleObjectTreeRenderers(tree.root.obj, bc, ac, rendererOf)
 }
 
 type activatableMenu interface {

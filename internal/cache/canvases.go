@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"sync/atomic"
+
 	fyne "github.com/alexballas/refyne/v2"
 	"github.com/alexballas/refyne/v2/internal/async"
 )
@@ -31,19 +33,48 @@ func SetCanvasForObject(obj fyne.CanvasObject, c fyne.Canvas, setup func()) {
 // no allocation, so callers on hot paths can gate setup work on the result
 // instead of passing a closure to SetCanvasForObject.
 func AttachCanvas(obj fyne.CanvasObject, c fyne.Canvas) bool {
-	if old, ok := canvases.Load(obj); ok && old.canvas == c {
-		old.setAlive()
+	_, attached := canvasEntry(obj, c)
+	return attached
+}
+
+// CanvasRef holds an object's canvas registration between repaints.
+type CanvasRef struct {
+	info *canvasInfo
+}
+
+// AttachCanvasRef is AttachCanvas skipping the cache lookup while ref still
+// holds the current registration of obj with c.
+func AttachCanvasRef(ref *CanvasRef, obj fyne.CanvasObject, c fyne.Canvas) bool {
+	if info := ref.info; info != nil && info.canvas == c && !info.replaced.Load() {
+		info.setAlive()
 		return false
 	}
+	info, attached := canvasEntry(obj, c)
+	ref.info = info
+	return attached
+}
 
+func canvasEntry(obj fyne.CanvasObject, c fyne.Canvas) (*canvasInfo, bool) {
+	old, found := canvases.Load(obj)
+	if found && old.canvas == c {
+		old.setAlive()
+		return old, false
+	}
+
+	// not cached, or moved to a different canvas - an object may only be on one
+	// canvas at a time, so replace the entry and tell any ref holding the old one.
+	if found {
+		old.replaced.Store(true)
+	}
 	cinfo := &canvasInfo{canvas: c}
 	cinfo.setAlive()
 
 	canvases.Store(obj, cinfo)
-	return true
+	return cinfo, true
 }
 
 type canvasInfo struct {
 	expiringCache
-	canvas fyne.Canvas
+	canvas   fyne.Canvas
+	replaced atomic.Bool
 }

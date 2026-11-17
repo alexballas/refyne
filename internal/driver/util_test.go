@@ -418,6 +418,32 @@ func TestWalkVisibleObjectTree_Clip(t *testing.T) {
 	assert.Equal(t, fyne.NewSize(48, 48), scrollableClipSize)
 }
 
+func TestWalkVisibleObjectTreeRenderers(t *testing.T) {
+	inner := canvas.NewRectangle(color.White)
+	given := canvas.NewCircle(color.Black)
+	hidden := &objectTree{children: []fyne.CanvasObject{canvas.NewRectangle(color.Black)}, hidden: true}
+	wid := &objectTree{children: []fyne.CanvasObject{inner}}
+	base := container.NewWithoutLayout(wid, hidden)
+
+	var calls []string
+	renderer := func(w fyne.Widget) fyne.WidgetRenderer {
+		calls = append(calls, "renderer")
+		assert.Same(t, wid, w)
+		r := &objectTreeRenderer{}
+		r.SetObjects([]fyne.CanvasObject{given})
+		return r
+	}
+	var walked []fyne.CanvasObject
+	driver.WalkVisibleObjectTreeRenderers(base, func(object fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+		calls = append(calls, "before")
+		walked = append(walked, object)
+		return false
+	}, nil, renderer)
+
+	assert.Equal(t, []fyne.CanvasObject{base, wid, given}, walked, "the children are the given renderer's")
+	assert.Equal(t, []string{"before", "renderer", "before", "before"}, calls, "a widget's renderer is asked for just before it is visited")
+}
+
 func TestWalkWholeObjectTree(t *testing.T) {
 	child1 := canvas.NewRectangle(color.White)
 	child1.SetMinSize(fyne.NewSize(100, 100))

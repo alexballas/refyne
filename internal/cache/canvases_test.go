@@ -2,6 +2,7 @@ package cache
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,4 +61,36 @@ func TestAttachCanvasRefreshesExpiry(t *testing.T) {
 	tm.advanceWallClock(2 * ValidDuration)
 	destroyExpiredCanvases(tm.now)
 	assert.Nil(t, GetCanvasForObject(obj))
+}
+
+func TestAttachCanvasRef(t *testing.T) {
+	testClearAll()
+	defer testClearAll()
+
+	c1, c2 := &dummyCanvas{}, &dummyCanvas{}
+	obj := &dummyWidget{}
+	var ref CanvasRef
+
+	assert.True(t, AttachCanvasRef(&ref, obj, c1))
+	assert.Same(t, c1, GetCanvasForObject(obj))
+	first := ref.info
+	assert.False(t, AttachCanvasRef(&ref, obj, c1), "the registration kept is used again")
+	assert.Same(t, first, ref.info)
+
+	SetCanvasForObject(obj, c2, nil)
+	assert.Same(t, c2, GetCanvasForObject(obj))
+	assert.True(t, AttachCanvasRef(&ref, obj, c1), "moved to another canvas, so registered anew")
+	assert.Same(t, c1, GetCanvasForObject(obj))
+	assert.NotSame(t, first, ref.info)
+
+	ref.info.expires.Store(0)
+	destroyExpiredCanvases(time.Now())
+	assert.Nil(t, GetCanvasForObject(obj))
+	assert.True(t, AttachCanvasRef(&ref, obj, c1), "expired and cleaned out, so registered anew")
+	assert.Same(t, c1, GetCanvasForObject(obj))
+
+	CleanCanvas(c1)
+	assert.Nil(t, GetCanvasForObject(obj))
+	assert.True(t, AttachCanvasRef(&ref, obj, c1), "cleaned with its canvas, so registered anew")
+	assert.Same(t, c1, GetCanvasForObject(obj))
 }

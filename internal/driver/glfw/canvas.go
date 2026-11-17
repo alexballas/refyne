@@ -326,9 +326,7 @@ func (c *glCanvas) paint(size fyne.Size) {
 
 	paint := func(node *common.RenderCacheNode, pos fyne.Position) {
 		obj := node.Obj()
-		isClip := driver.IsClip(obj)
-		node.SetClips(isClip)
-		if isClip {
+		if node.IsClip() {
 			inner := clips.Push(pos, obj.Size())
 			c.Painter().StartClipping(inner.Rect())
 		}
@@ -338,7 +336,7 @@ func (c *glCanvas) paint(size fyne.Size) {
 		c.Painter().Paint(obj, pos, size, clips.Top())
 	}
 	afterPaint := func(node *common.RenderCacheNode, pos fyne.Position) {
-		if node.Clips() {
+		if node.IsClip() {
 			clips.Pop()
 			if top := clips.Top(); top != nil {
 				c.Painter().StartClipping(top.Rect())
