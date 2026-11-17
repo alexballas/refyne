@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"strings"
 	"testing"
 
 	fyne "github.com/alexballas/refyne/v2"
@@ -197,6 +198,100 @@ func TestLabel_ChangeTruncate(t *testing.T) {
 	text.Truncation = fyne.TextTruncateClip
 	text.Refresh()
 	test.AssertRendersToMarkup(t, "label/truncate.xml", c)
+}
+
+func TestLabel_TruncateMiddle(t *testing.T) {
+	test.NewTempApp(t)
+
+	c := test.NewCanvasWithPainter(software.NewPainter())
+	c.SetPadded(false)
+	original := "/home/user/projects/fyne/widget/label.go"
+	label := NewLabel(original)
+	label.Truncation = fyne.TextTruncateMiddle
+	c.SetContent(label)
+	c.Resize(fyne.NewSize(100, label.MinSize().Height))
+
+	rendered := richTextRenderTexts(label.provider)
+	assert.Equal(t, 1, len(rendered))
+	display := rendered[0].Text
+	assert.Contains(t, display, "…", "expected ellipsis in truncated text")
+	assert.NotEqual(t, original, display)
+	assert.Equal(t, byte('/'), display[0], "should keep original prefix")
+	assert.Equal(t, byte('o'), display[len(display)-1], "should keep original suffix")
+}
+
+func TestLabel_TruncateMiddle_Fits(t *testing.T) {
+	test.NewTempApp(t)
+
+	original := "/home/user/projects/fyne/widget/label.go"
+	label := NewLabel(original)
+	natural := label.MinSize()
+	label.Truncation = fyne.TextTruncateMiddle
+	label.Refresh()
+	label.Resize(natural)
+	assert.NotNil(t, label.provider.rowBounds)
+	assert.Empty(t, label.provider.rowBounds[0].displayText)
+
+	rendered := richTextRenderTexts(label.provider)
+	assert.Equal(t, 1, len(rendered))
+	assert.Equal(t, original, rendered[0].Text)
+}
+
+func TestLabel_TruncateMiddle_MinSize(t *testing.T) {
+	test.NewTempApp(t)
+
+	label := NewLabel("/home/user/projects/fyne/widget/label.go")
+	label.Truncation = fyne.TextTruncateEllipsis
+	ellipsisMin := label.MinSize()
+	label.Truncation = fyne.TextTruncateMiddle
+	label.Refresh()
+
+	assert.Equal(t, ellipsisMin, label.MinSize())
+}
+
+func TestLabel_TruncateMiddle_Narrow(t *testing.T) {
+	test.NewTempApp(t)
+
+	label := NewLabel("/home/user/projects/fyne/widget/label.go")
+	label.Truncation = fyne.TextTruncateMiddle
+	height := label.MinSize().Height
+	innerPad := theme.InnerPadding()
+	textWidth := func(s string) float32 {
+		return fyne.MeasureText(s, theme.TextSize(), fyne.TextStyle{}).Width
+	}
+
+	for _, want := range []string{"/…", "/…o", "/h…o"} {
+		label.Resize(fyne.NewSize(innerPad*2+textWidth(want), height))
+		rendered := richTextRenderTexts(label.provider)
+		assert.Equal(t, 1, len(rendered))
+		assert.Equal(t, want, rendered[0].Text)
+	}
+
+	// with not even room for the ellipsis it is all that is left, as with TextTruncateEllipsis
+	label.Resize(fyne.NewSize(innerPad*2+1, height))
+	rendered := richTextRenderTexts(label.provider)
+	assert.Equal(t, 1, len(rendered))
+	assert.Equal(t, "…", rendered[0].Text)
+}
+
+func TestLabel_TruncateMiddle_MultiLine(t *testing.T) {
+	test.NewTempApp(t)
+
+	label := NewLabel("/home/user/projects/fyne/widget/label.go\nshort\n/usr/share/fonts/truetype/noto/NotoSans.ttf")
+	label.Truncation = fyne.TextTruncateMiddle
+	label.Resize(fyne.NewSize(120, 100))
+
+	rendered := richTextRenderTexts(label.provider)
+	assert.Equal(t, 3, len(rendered))
+	assert.Equal(t, "short", rendered[1].Text)
+	for _, i := range []int{0, 2} {
+		display := rendered[i].Text
+		assert.Contains(t, display, "…")
+		assert.Equal(t, byte('/'), display[0])
+		assert.LessOrEqual(t, rendered[i].MinSize().Width, 120-theme.InnerPadding()*2)
+	}
+	assert.True(t, strings.HasSuffix(rendered[0].Text, ".go"), rendered[0].Text)
+	assert.True(t, strings.HasSuffix(rendered[2].Text, ".ttf"), rendered[2].Text)
 }
 
 func TestLabel_Select(t *testing.T) {

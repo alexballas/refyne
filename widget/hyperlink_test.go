@@ -207,6 +207,11 @@ func TestHyperlink_Truncate(t *testing.T) {
 	hyperlink.Refresh()
 	texts = richTextRenderTexts(&hyperlink.provider)
 	assert.Equal(t, "TestingWit…", texts[0].Text)
+
+	hyperlink.Truncation = fyne.TextTruncateMiddle
+	hyperlink.Refresh()
+	texts = richTextRenderTexts(&hyperlink.provider)
+	assert.Equal(t, "Testi…gText", texts[0].Text)
 }
 
 func TestHyperlink_CreateRendererDoesNotAffectSize(t *testing.T) {

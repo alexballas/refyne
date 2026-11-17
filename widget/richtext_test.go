@@ -3,6 +3,7 @@ package widget
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1328,6 +1329,242 @@ func TestText_howManyRunesFit(t *testing.T) {
 		}
 		assert.Equal(t, 3, howManyRunesFit([]rune("foo"), 5, 10, measurer))
 	})
+}
+
+func TestText_lineBounds_truncateMiddle(t *testing.T) {
+	measurer := func(text []rune) fyne.Size {
+		return fyne.MeasureText(string(text), 14, fyne.TextStyle{})
+	}
+
+	t.Run("short_no_truncation", func(t *testing.T) {
+		richText := NewRichTextWithText("foobar")
+		richText.Truncation = fyne.TextTruncateMiddle
+		got, _ := lineBounds(richText, richText.Segments[0], 200, fyne.NewSize(200, 64), measurer)
+		assert.Equal(t, 1, len(got))
+		assert.Empty(t, got[0].displayText)
+		assert.False(t, got[0].ellipsis)
+	})
+
+	t.Run("long_truncates_in_middle", func(t *testing.T) {
+		richText := NewRichTextWithText("/home/user/projects/fyne/file.txt")
+		richText.Truncation = fyne.TextTruncateMiddle
+		got, _ := lineBounds(richText, richText.Segments[0], 76, fyne.NewSize(76, 64), measurer)
+		assert.Equal(t, 1, len(got))
+		assert.Contains(t, got[0].displayText, "…")
+		// displayText starts with original prefix and ends with original suffix
+		assert.Equal(t, byte('/'), got[0].displayText[0])
+		assert.Equal(t, byte('t'), got[0].displayText[len(got[0].displayText)-1])
+	})
+
+	t.Run("wrapped_out_of_height", func(t *testing.T) {
+		richText := NewRichTextWithText("foobar foobar foobar")
+		richText.Wrapping = fyne.TextWrapWord
+		richText.Truncation = fyne.TextTruncateMiddle
+		lineHeight := measurer([]rune("z")).Height
+		got, _ := lineBounds(richText, richText.Segments[0], 70, fyne.NewSize(70, lineHeight), measurer)
+		assert.Equal(t, 1, len(got))
+		assert.True(t, got[0].ellipsis, "wrapped text that runs out of height ends with an ellipsis")
+		assert.Empty(t, got[0].displayText)
+	})
+
+	t.Run("wrapped_no_character_fits", func(t *testing.T) {
+		richText := NewRichTextWithText("foobar")
+		richText.Wrapping = fyne.TextWrapWord
+		richText.Truncation = fyne.TextTruncateMiddle
+		got, _ := lineBounds(richText, richText.Segments[0], 1, fyne.NewSize(1, 64), measurer)
+		assert.NotEmpty(t, got)
+		for _, b := range got {
+			assert.True(t, b.ellipsis)
+			assert.Equal(t, b.begin, b.end, "no character is drawn before the ellipsis")
+		}
+	})
+}
+
+func TestText_truncateMiddle(t *testing.T) {
+	textSize := float32(10)
+	textStyle := fyne.TextStyle{}
+	measurer := func(text []rune) fyne.Size {
+		return fyne.MeasureText(string(text), textSize, textStyle)
+	}
+	ellipsisWidth := measurer([]rune("…")).Width
+
+	t.Run("empty", func(t *testing.T) {
+		prefix, suffix, full := truncateMiddle(nil, 100, measurer)
+		assert.Equal(t, 0, prefix)
+		assert.Equal(t, 0, suffix)
+		assert.True(t, full)
+	})
+
+	t.Run("fits_whole", func(t *testing.T) {
+		runes := []rune("hello")
+		full := measurer(runes).Width
+		prefix, suffix, fullOK := truncateMiddle(runes, full+10, measurer)
+		assert.True(t, fullOK)
+		assert.Equal(t, len(runes), prefix)
+		assert.Equal(t, 0, suffix)
+	})
+
+	t.Run("does_not_fit_ellipsis", func(t *testing.T) {
+		runes := []rune("hello world")
+		prefix, suffix, fullOK := truncateMiddle(runes, ellipsisWidth-1, measurer)
+		assert.False(t, fullOK)
+		assert.Equal(t, 0, prefix)
+		assert.Equal(t, 0, suffix)
+	})
+
+	t.Run("balanced_split", func(t *testing.T) {
+		runes := []rune("aaaaaaaaaa") // 10 a's
+		full := measurer(runes).Width
+		// allow enough room for roughly half the characters plus ellipsis
+		prefix, suffix, fullOK := truncateMiddle(runes, full/2+ellipsisWidth, measurer)
+		assert.False(t, fullOK)
+		// prefix should be the larger or equal half
+		assert.GreaterOrEqual(t, prefix, suffix)
+		// resulting candidate must actually fit
+		out := append([]rune{}, runes[:prefix]...)
+		out = append(out, '…')
+		out = append(out, runes[len(runes)-suffix:]...)
+		assert.LessOrEqual(t, measurer(out).Width, full/2+ellipsisWidth)
+	})
+}
+
+// richTextRowTexts returns the text drawn for each text and hyperlink segment of a rich text,
+// and the right edge of where each one is drawn.
+func richTextRowTexts(t *testing.T, rich *RichText) ([]string, []float32) {
+	var texts []string
+	var ends []float32
+	for _, obj := range test.TempWidgetRenderer(t, rich).Objects() {
+		switch o := obj.(type) {
+		case *canvas.Text:
+			texts = append(texts, o.Text)
+			ends = append(ends, o.Position().X+o.MinSize().Width)
+		case *fyne.Container:
+			link := o.Objects[0].(*Hyperlink)
+			texts = append(texts, link.Text)
+			ends = append(ends, o.Position().X+fyne.MeasureText(link.Text, theme.TextSize(), link.TextStyle).Width)
+		}
+	}
+	return texts, ends
+}
+
+func TestRichText_TruncateMiddle_MultipleSegments(t *testing.T) {
+	test.NewTempApp(t)
+
+	dir := "/home/user/projects/"
+	file := "fyne/widget/richtext.go"
+	text := NewRichText(
+		&TextSegment{Text: dir, Style: RichTextStyleInline},
+		&TextSegment{Text: file, Style: RichTextStyle{Inline: true, TextStyle: fyne.TextStyle{Bold: true}}},
+	)
+	text.Truncation = fyne.TextTruncateMiddle
+	innerPad := theme.InnerPadding()
+
+	text.Resize(fyne.NewSize(1000, 100))
+	texts, _ := richTextRowTexts(t, text)
+	assert.Equal(t, []string{dir, file}, texts, "a row that fits is not truncated")
+
+	for _, width := range []float32{60, 100, 150, 200} {
+		text.Resize(fyne.NewSize(width, 100))
+		texts, ends := richTextRowTexts(t, text)
+		assert.Equal(t, 2, len(texts))
+
+		drawn := strings.Join(texts, "")
+		if !assert.Equal(t, 1, strings.Count(drawn, "…"), drawn) {
+			continue
+		}
+		parts := strings.Split(drawn, "…")
+		assert.NotEmpty(t, parts[0], drawn)
+		assert.True(t, strings.HasPrefix(dir+file, parts[0]), drawn)
+		assert.True(t, strings.HasSuffix(dir+file, parts[1]), drawn)
+		assert.True(t, strings.HasSuffix(drawn, "o"), drawn)
+		assert.LessOrEqual(t, ends[1], width-innerPad, drawn)
+	}
+}
+
+func TestRichText_TruncateMiddle_Hyperlink(t *testing.T) {
+	test.NewTempApp(t)
+
+	link := "example.com/some/very/long/path/index.html"
+	text := NewRichText(&TextSegment{Text: "See ", Style: RichTextStyleInline}, &HyperlinkSegment{Text: link})
+	text.Truncation = fyne.TextTruncateMiddle
+	text.Resize(fyne.NewSize(150, 100))
+
+	texts, ends := richTextRowTexts(t, text)
+	assert.Equal(t, 2, len(texts))
+	assert.Equal(t, "See ", texts[0])
+	assert.Contains(t, texts[1], "…")
+	assert.True(t, strings.HasPrefix(texts[1], "ex"), texts[1])
+	assert.True(t, strings.HasSuffix(texts[1], ".html"), texts[1])
+	assert.LessOrEqual(t, ends[1], 150-theme.InnerPadding())
+
+	single := NewRichText(&HyperlinkSegment{Text: link})
+	single.Truncation = fyne.TextTruncateMiddle
+	single.Resize(fyne.NewSize(150, 100))
+	texts, ends = richTextRowTexts(t, single)
+	assert.Equal(t, 1, len(texts))
+	assert.Contains(t, texts[0], "…")
+	assert.True(t, strings.HasPrefix(texts[0], "ex"), texts[0])
+	assert.True(t, strings.HasSuffix(texts[0], ".html"), texts[0])
+	assert.LessOrEqual(t, ends[0], 150-theme.InnerPadding())
+}
+
+// TestRichText_TruncateWrappedHyperlink fills the height with a wrapped link, so
+// the last row it keeps is cut short with an ellipsis. That row's segment is a
+// HyperlinkSegment, not a TextSegment.
+func TestRichText_TruncateWrappedHyperlink(t *testing.T) {
+	test.NewTempApp(t)
+
+	for _, trunc := range []fyne.TextTruncation{fyne.TextTruncateEllipsis, fyne.TextTruncateMiddle} {
+		for _, wrap := range []fyne.TextWrap{fyne.TextWrapWord, fyne.TextWrapBreak} {
+			t.Run(fmt.Sprint(trunc, wrap), func(t *testing.T) {
+				text := NewRichText(&HyperlinkSegment{Text: "a long hyperlink text that wraps over many lines of the widget"})
+				text.Wrapping = wrap
+				text.Truncation = trunc
+				assert.NotPanics(t, func() { text.Resize(fyne.NewSize(100, 40)) })
+
+				texts, ends := richTextRowTexts(t, text)
+				assert.NotEmpty(t, texts)
+				assert.True(t, strings.HasSuffix(texts[len(texts)-1], "…"), texts[len(texts)-1])
+				for _, end := range ends {
+					assert.LessOrEqual(t, end, float32(100))
+				}
+			})
+		}
+	}
+}
+
+func TestRichText_TruncateMiddle_Quoted(t *testing.T) {
+	test.NewTempApp(t)
+
+	quote := RichTextStyle{Inline: true, QuotingDepth: 1}
+	text := NewRichText(
+		&TextSegment{Text: "/home/user/projects/", Style: quote},
+		&TextSegment{Text: "fyne/widget/richtext.go", Style: quote},
+	)
+	text.Truncation = fyne.TextTruncateMiddle
+	text.Resize(fyne.NewSize(150, 100))
+
+	texts, ends := richTextRowTexts(t, text)
+	assert.Equal(t, 2, len(texts))
+	assert.Contains(t, strings.Join(texts, ""), "…")
+	assert.LessOrEqual(t, ends[1], 150-theme.InnerPadding(), "the quote indent is left out of the space for the row")
+}
+
+func TestRichText_TruncateMiddle_CheckBox(t *testing.T) {
+	test.NewTempApp(t)
+
+	item := "a/very/long/task/list/item/text.txt"
+	text := NewRichText(&CheckBoxSegment{Text: "x"}, &TextSegment{Text: item, Style: RichTextStyleInline})
+	text.Truncation = fyne.TextTruncateMiddle
+	text.Resize(fyne.NewSize(150, 100))
+
+	objs := test.TempWidgetRenderer(t, text).Objects()
+	assert.Equal(t, 2, len(objs))
+	drawn := objs[1].(*canvas.Text)
+	assert.Contains(t, drawn.Text, "…")
+	assert.True(t, strings.HasPrefix(drawn.Text, "a/"), drawn.Text)
+	assert.True(t, strings.HasSuffix(drawn.Text, ".txt"), drawn.Text)
+	assert.LessOrEqual(t, drawn.Position().X+drawn.MinSize().Width, 150-theme.InnerPadding())
 }
 
 func TestText_findSpaceIndex(t *testing.T) {
