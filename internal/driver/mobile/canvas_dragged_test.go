@@ -18,6 +18,35 @@ import (
 // not pass the unused drag direction on to a companion scroller, so it checks
 // only that the drag goes to the scroller under the press: the first move
 // lands on another column's scroller, which must not be dragged.
+// Test_canvas_Dragged needs Scroll to be Draggable, which it is only with the
+// tags this file builds with.
+func Test_canvas_Dragged(t *testing.T) {
+	dragged := false
+	var draggedObj fyne.Draggable
+	scroll := container.NewScroll(widget.NewLabel("Hi\nHi\nHi"))
+	c := newCanvas(fyne.CurrentDevice()).(*canvas)
+	c.SetContent(scroll)
+	c.Resize(fyne.NewSize(40, 24))
+	assert.Equal(t, float32(0), scroll.Offset.Y)
+
+	c.tapDown(fyne.NewPos(32, 5), 0)
+	c.tapMove(fyne.NewPos(32, 10), 0, func(wid fyne.Draggable, ev *fyne.DragEvent) {
+		wid.Dragged(ev)
+		dragged = true
+		draggedObj = wid
+	})
+
+	assert.True(t, dragged)
+	assert.Equal(t, scroll, draggedObj)
+	dragged = false
+	c.tapMove(fyne.NewPos(32, 5), 0, func(wid fyne.Draggable, ev *fyne.DragEvent) {
+		wid.Dragged(ev)
+		dragged = true
+	})
+	assert.True(t, dragged)
+	assert.Equal(t, fyne.NewPos(0, 5), scroll.Offset)
+}
+
 func Test_canvas_DraggedTargetUsesPressPosition(t *testing.T) {
 	leftHeader := container.NewHScroll(widget.NewLabel("Left header"))
 	leftParent := container.NewVScroll(container.NewVBox(leftHeader,
