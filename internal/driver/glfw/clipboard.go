@@ -19,6 +19,13 @@ func NewClipboard() fyne.Clipboard {
 	return clipboard{}
 }
 
+// systemClipboard reads and writes the system clipboard. Tests replace it so
+// they neither depend on nor change the desktop's clipboard.
+var systemClipboard = struct {
+	get func() string
+	set func(string)
+}{glfw.GetClipboardString, glfw.SetClipboardString}
+
 // clipboard represents the system clipboard
 type clipboard struct{}
 
@@ -46,7 +53,7 @@ func (c clipboard) Content() string {
 }
 
 func (c clipboard) content() string {
-	content := glfw.GetClipboardString()
+	content := systemClipboard.get()
 	if content != "" {
 		return content
 	}
@@ -82,5 +89,5 @@ func (c clipboard) setContent(content string) {
 	clipboardCache.set = true
 	clipboardCache.Unlock()
 
-	glfw.SetClipboardString(content)
+	systemClipboard.set(content)
 }

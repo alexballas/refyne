@@ -10,6 +10,13 @@ import (
 // Declare conformity with Clipboard interface
 var _ fyne.Clipboard = clipboard{}
 
+// systemClipboard reads and writes the system clipboard. Tests replace it so
+// they neither depend on nor change the desktop's clipboard.
+var systemClipboard = struct {
+	get func() string
+	set func(string)
+}{glfw.GetClipboardString, glfw.SetClipboardString}
+
 func NewClipboard() fyne.Clipboard {
 	return clipboard{}
 }
@@ -19,10 +26,10 @@ type clipboard struct{}
 
 // Content returns the clipboard content
 func (c clipboard) Content() string {
-	return glfw.GetClipboardString()
+	return systemClipboard.get()
 }
 
 // SetContent sets the clipboard content
 func (c clipboard) SetContent(content string) {
-	glfw.SetClipboardString(content)
+	systemClipboard.set(content)
 }

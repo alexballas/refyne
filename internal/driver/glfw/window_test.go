@@ -1884,6 +1884,7 @@ func TestWindow_ManualFocus(t *testing.T) {
 }
 
 func TestWindow_ClipboardCopy_DisabledEntry(t *testing.T) {
+	useMemoryClipboard(t)
 	w := createWindow("Test")
 	e := widget.NewEntry()
 	runOnMain(func() {
@@ -1934,6 +1935,19 @@ func TestWindow_ClipboardCopy_DisabledEntry(t *testing.T) {
 
 	assert.Equal(t, "Testing2", e.Text)
 	assert.Equal(t, "Testing", clipboardContent)
+}
+
+// useMemoryClipboard keeps the clipboard in memory for the rest of the test. A
+// test window may not have keyboard focus, and a Wayland compositor ignores a
+// clipboard set from such a window, leaving the desktop's own content there.
+func useMemoryClipboard(t *testing.T) {
+	old := systemClipboard
+	var content string
+	runOnMain(func() {
+		systemClipboard.get = func() string { return content }
+		systemClipboard.set = func(s string) { content = s }
+	})
+	t.Cleanup(func() { runOnMain(func() { systemClipboard = old }) })
 }
 
 func TestWindow_CloseInterception(t *testing.T) {
