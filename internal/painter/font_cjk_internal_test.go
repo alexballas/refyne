@@ -309,7 +309,10 @@ func requireSystemCJK(t *testing.T, samples ...string) {
 // TestShapeString_CJKSystemFonts uses the system's CJK fonts. A map that has
 // looked up han_partial.ttf for some Han runes, as a Japanese font that lacks
 // simplified forms can be, finds a system font for the rest of a string: 页, or
-// the kana, Hangul and CJK punctuation han_partial.ttf has none of.
+// the kana, Hangul and CJK punctuation han_partial.ttf has none of. When one of
+// the fonts found has every CJK rune of the string, the string is drawn in it.
+// Otherwise each rune keeps its own font: Japanese system fonts, such as MS
+// Gothic or Hiragino Sans, have the fullwidth colon but not the simplified 项.
 func TestShapeString_CJKSystemFonts(t *testing.T) {
 	samples := []string{
 		"远程网页会话",      // zh_Hans, "Remote Web Session"
@@ -323,6 +326,7 @@ func TestShapeString_CJKSystemFonts(t *testing.T) {
 	partial := loadTestFace(t, "han_partial.ttf")
 	latin := loadMeasureFont(theme.DefaultTextFont()).Describe().Family
 
+	checked := 0
 	for _, s := range samples {
 		// han_partial.ttf as a face looked up before, not one set up with the map
 		faces := newHanMap()
@@ -331,16 +335,35 @@ func TestShapeString_CJKSystemFonts(t *testing.T) {
 		fontUseLock.Lock()
 		shaped := shapeString(faces, s, fixed.I(20))
 		fontUseLock.Unlock()
+		var used []*font.Face
 		var cjk []string
 		for _, step := range shaped.steps {
 			family := step.out.Face.Describe().Family
 			if family != latin && !containsString(cjk, family) {
 				cjk = append(cjk, family)
+				used = append(used, step.out.Face)
 			}
 		}
+
+		var runes []rune
+		for _, r := range s {
+			if isCJK(r) {
+				runes = append(runes, r)
+			}
+		}
+		pinnable := false
+		for _, face := range used {
+			pinnable = pinnable || coversSequence(face, runes)
+		}
+		if !pinnable {
+			t.Logf("%q: none of %v has all its CJK runes, so each keeps its own font", s, cjk)
+			continue
+		}
+		checked++
 		assert.Len(t, cjk, 1, "%q is drawn in one CJK font", s)
 		assert.NotContains(t, cjk, "Han Partial", "%q has runes that han_partial.ttf lacks", s)
 	}
+	require.NotZero(t, checked, "no sample could be drawn in one system font")
 }
 
 func containsString(list []string, s string) bool {

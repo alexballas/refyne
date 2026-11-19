@@ -136,7 +136,7 @@ func (arrayRes) Content() []byte { return nil }
 
 type funcRes struct {
 	fyne.Resource
-	f func()
+	_ func() // makes the type not comparable
 }
 
 // hashableCases are resources a theme might return, and whether each can be a
