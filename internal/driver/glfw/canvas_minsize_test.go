@@ -197,7 +197,10 @@ func TestGlCanvas_TableGrownIsScrollableToNewEndAfterFrame(t *testing.T) {
 		},
 	)
 	w.SetContent(tb)
+	// the scroll below is aimed at the table, so wait for the window to reach
+	// its size: an X11 resize is delivered asynchronously
 	w.Resize(fyne.NewSize(200, 300))
+	ensureCanvasSize(t, w, fyne.NewSize(200, 300))
 	repaintWindow(w)
 
 	runOnMain(func() {
